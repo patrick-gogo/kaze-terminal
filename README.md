@@ -58,6 +58,15 @@ go build -o kaze ./cmd/kaze
 ./kaze
 ```
 
+For the Kaze icon in the Dock, build and open the macOS app bundle instead:
+
+```
+./tools/package-macos.sh
+open dist/Kaze.app
+```
+
+The app bundle is written to `dist/Kaze.app`. A bare `./kaze` binary still works, but macOS gives it a generic executable icon.
+
 The shell is PowerShell 7 (`pwsh`) on Windows, falling back to Windows PowerShell, and your
 `$SHELL` (or `/bin/zsh`) as a login shell on macOS. Set `shell` in the config to use another;
 if it fails to start, kaze falls back to the default shell and says so in the first tab. If no

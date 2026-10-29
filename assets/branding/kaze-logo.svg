@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 240" role="img" aria-labelledby="title desc">
+  <title id="title">Kaze terminal logo</title>
+  <desc id="desc">Flowing violet K mark with the kaze wordmark.</desc>
+  <defs>
+    <linearGradient id="wind" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9a6ff"/>
+      <stop offset="1" stop-color="#8b7bff"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(0 -8) scale(.92)">
+    <path d="M65 61c0-6 5-11 11-11s11 5 11 11v134c0 6-5 11-11 11s-11-5-11-11z" fill="url(#wind)"/>
+    <path d="M94 130c30-12 46-59 103-73-25 21-38 48-60 70-15 16-28 24-43 27z" fill="url(#wind)"/>
+    <path d="M96 139c18-4 33 6 48 22 15 17 32 32 53 39-49 0-71-25-103-48z" fill="url(#wind)"/>
+  </g>
+  <g fill="#d7dae3" transform="translate(217 160) scale(.118 -.118)">
+    <path d="M82 0V730H207V334H295L426 550H565L402 284L571 0H429L295 228H207V0Z" transform="translate(0 0)"/>
+    <path d="M239 -10Q155 -10 106.5 37.5Q58 85 58 162Q58 242 113.0 289.5Q168 337 264 337H398V376Q398 459 301 459Q257 459 231.0 442.0Q205 425 202 394H82Q86 468 144.5 514.0Q203 560 302 560Q407 560 465.0 511.0Q523 462 523 373V0H401V103Q394 50 351.0 20.0Q308 -10 239 -10ZM279 92Q334 92 366.0 119.0Q398 146 398 191V256H270Q229 256 205.0 233.0Q181 210 181 174Q181 137 206.5 114.5Q232 92 279 92Z" transform="translate(568 0)"/>
+    <path d="M78 0V113L365 440H87V550H511V437L221 110H522V0Z" transform="translate(1136 0)"/>
+    <path d="M301 -10Q231 -10 179.0 17.0Q127 44 98.5 93.5Q70 143 70 210V340Q70 407 98.5 456.5Q127 506 179.0 533.0Q231 560 301 560Q370 560 421.5 533.0Q473 506 501.5 457.5Q530 409 530 344V244H190V206Q190 150 219.0 121.5Q248 93 301 93Q340 93 367.5 106.5Q395 120 400 146H524Q511 75 450.0 32.5Q389 -10 301 -10ZM190 344V325L410 326V345Q410 402 382.0 433.0Q354 464 301 464Q246 464 218.0 432.5Q190 401 190 344Z" transform="translate(1704 0)"/>
+  </g>
+</svg>
