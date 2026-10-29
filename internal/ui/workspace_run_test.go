@@ -593,13 +593,15 @@ func TestPreflightFailuresOpenNoTabs(t *testing.T) {
 	}
 }
 
-func TestWindowStaysOpenWhileTheFirstTabIsCreated(t *testing.T) {
+// The loop asks shouldClose only after a frame; by then a startup run has opened its tabs.
+func TestWindowStaysOpenAfterAStartupWorkspace(t *testing.T) {
 	f := newRunFixture(t)
-	var closeSeen []bool
-	f.st.probe = func() { closeSeen = append(closeSeen, f.win.shouldClose()) }
-	f.win.runWorkspace("ws_samurai")
-	if len(closeSeen) == 0 || closeSeen[0] {
-		t.Fatalf("shouldClose while creating the first tab: %v", closeSeen)
+	f.win.opt.Config.StartupWorkspace = "ws_samurai"
+	if err := f.win.openStartup(nil); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(f.win.mgr.Tabs()); n != len(samuraiTabs) || f.win.shouldClose() {
+		t.Fatalf("%d tabs, close %v after the startup workspace", n, f.win.shouldClose())
 	}
 }
 
@@ -715,3 +717,4 @@ func TestFailedBannerOffersDismiss(t *testing.T) {
 		t.Fatalf("waiting banner buttons %+v, want only Use shell", got)
 	}
 }
+

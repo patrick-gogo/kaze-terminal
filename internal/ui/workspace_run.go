@@ -48,14 +48,13 @@ type wsResult struct {
 // wsRunner is the window's workspace-run plumbing; UI goroutine only, except
 // results, which probe goroutines send on.
 type wsRunner struct {
-	next     uint64
-	results  chan wsResult
-	probes   workspaces.Probes // zero value probes the real system; tests use fakes
-	now      func() time.Time
-	creating bool // tabs of a run are being opened; the window must not close
-	tag      int
-	hits     []bannerHit
-	hitTab   tabs.TabID // the tab the banner hits belong to
+	next    uint64
+	results chan wsResult
+	probes  workspaces.Probes // zero value probes the real system; tests use fakes
+	now     func() time.Time
+	tag     int
+	hits    []bannerHit
+	hitTab  tabs.TabID // the tab the banner hits belong to
 }
 
 func (win *window) wsNow() time.Time {
@@ -65,9 +64,10 @@ func (win *window) wsNow() time.Time {
 	return time.Now()
 }
 
-// shouldClose is true once the last tab closed, unless a run is opening its tabs.
+// shouldClose is true once the last tab closed. The loop asks only after a
+// frame, and a run opens all its tabs within one, so it never sees a run half open.
 func (win *window) shouldClose() bool {
-	return win.mgr != nil && win.mgr.Empty() && !win.wsr.creating
+	return win.mgr != nil && win.mgr.Empty()
 }
 
 func (win *window) wsNotice(msg string) {
@@ -174,7 +174,6 @@ func (win *window) launch(ws workspaces.Workspace, plan []wsPlan, warns []string
 	win.runs[run.id] = run
 	now := win.wsNow()
 	var first tabs.TabID
-	win.wsr.creating = true
 	for i, p := range plan {
 		m := &wsMember{title: p.tab.Title, dir: p.dir, run: workspaces.TabRun{Line: p.line, Wait: p.tab.Wait, Port: p.tab.Port, Started: now}}
 		run.members = append(run.members, m)
@@ -199,7 +198,6 @@ func (win *window) launch(ws workspaces.Workspace, plan []wsPlan, warns []string
 			first = t.ID
 		}
 	}
-	win.wsr.creating = false
 	if first != 0 {
 		win.selectTab(first) // later results never steal focus
 	}
