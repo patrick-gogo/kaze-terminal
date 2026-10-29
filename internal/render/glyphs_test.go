@@ -157,3 +157,19 @@ func TestBoxLinesAreSolidPixelStrokes(t *testing.T) {
 		t.Fatalf("heavy line (%dpx) is not thicker than light (%dpx)", count(heavy), count(light))
 	}
 }
+
+// Stepping the font size keeps the current and previous caches, not one per size ever used.
+func TestOldGlyphCachesAreFreed(t *testing.T) {
+	for px := float32(8); px <= 14; px++ {
+		NewRenderer(px, DefaultPalette(), Options{})
+	}
+	NewRenderer(14, DefaultPalette(), Options{LineScale: 1.2})
+	shared.Lock()
+	n := len(shared.bySize)
+	_, cur := shared.bySize[sizeKey{14, 1.2}]
+	_, prev := shared.bySize[sizeKey{14, 1}]
+	shared.Unlock()
+	if n > 2 || !cur || !prev {
+		t.Fatalf("%d caches (current %v, previous %v), want the current and previous only", n, cur, prev)
+	}
+}
