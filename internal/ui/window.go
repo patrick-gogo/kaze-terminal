@@ -538,7 +538,7 @@ func (win *window) frame(gtx layout.Context) error {
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
 	win.ui.layoutStatus(sg, win.statusParts(), statusH)
-	if at := usage.NextReset(win.acct, gtx.Now); !at.IsZero() {
+	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
 	}
 	if at, ok := win.noticeWake(time.Now()); ok {
@@ -550,7 +550,11 @@ func (win *window) frame(gtx layout.Context) error {
 	if next, _ := win.alerts.expire(gtx.Now); !next.IsZero() {
 		gtx.Execute(op.InvalidateCmd{At: next}) // one wake for the next done toast, no ticker
 	}
-	win.drawToasts(gtx, size.Y, statusH, barH)
+	if win.dialogShown() {
+		win.ui.toastHits = win.ui.toastHits[:0] // the confirm dialog answers every click; toasts wait
+	} else {
+		win.drawToasts(gtx, size.Y, statusH, barH)
+	}
 	for _, h := range win.ui.toastHits {
 		area = clip.Rect(h.rect).Push(ops)
 		event.Op(ops, win.toastTag)
@@ -566,6 +570,15 @@ func (win *window) frame(gtx layout.Context) error {
 		win.wantFocus = false
 	}
 	return nil
+}
+
+// usageWake is when the status bar's usage next changes on its own.
+func (win *window) usageWake(now time.Time) (time.Time, bool) {
+	if !win.opt.Config.ShowUsage {
+		return time.Time{}, false // nothing shown, nothing to clear at a reset
+	}
+	at := usage.NextReset(win.acct, now)
+	return at, !at.IsZero()
 }
 
 // drawTerminal draws the active tab, the only one drawn, and takes the terminal's input.

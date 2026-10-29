@@ -9,6 +9,7 @@ import (
 	"gioui.org/io/key"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/config"
+	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 )
 
@@ -87,5 +88,45 @@ func TestSettingsPageSkipsTheRendererButResizesTabs(t *testing.T) {
 	want[0], want[1] = gridSize(984, 630, cw, ch) // the grid inside a 1000x700 window
 	if after == before || after != want {
 		t.Fatalf("tab sized %v under settings after a resize from %v, want %v", after, before, want)
+	}
+}
+
+// The confirm dialog takes every click: a toast must not float over it and answer first.
+func TestToastsStayOffTheConfirmDialog(t *testing.T) {
+	f := newClaudeFixture(t, "", true)
+	win := claudeWindow(t, f, 800, 600)
+	target := win.mgr.Tabs()[1].ID
+	win.alerts.apply(notify.Msg{Tab: int(target), Kind: notify.KindNeeds}, win.mgr.Active().ID, false, only(2), t0)
+	var r input.Router
+	sizedFrame(t, win, &r, 800, 600)
+	if len(win.ui.toastHits) == 0 {
+		t.Fatal("no toast over the settings page, so the dialog check proves nothing")
+	}
+	pressAny(t, win, "claude_fix", 0)
+	if win.claude.dialog == nil {
+		t.Fatal("Fix did not open the dialog")
+	}
+	sizedFrame(t, win, &r, 800, 600)
+	if n := len(win.ui.toastHits); n != 0 {
+		t.Fatalf("%d toast hit areas over the confirm dialog", n)
+	}
+	pressAny(t, win, "dialog_cancel", 0)
+	sizedFrame(t, win, &r, 800, 600)
+	if len(win.ui.toastHits) == 0 {
+		t.Fatal("the toast did not come back after the dialog closed")
+	}
+}
+
+// A hidden usage segment has nothing to clear at a reset, so it never wakes the window.
+func TestUsageResetWakesOnlyWhenShown(t *testing.T) {
+	win, _ := alertWindow(t, 1)
+	now := time.Unix(1000, 0)
+	win.acct = notify.Usage{FiveHour: &notify.Window{Pct: 10, Resets: now.Add(time.Hour).Unix()}}
+	if at, ok := win.usageWake(now); !ok || !at.Equal(now.Add(time.Hour)) {
+		t.Fatalf("wake %v %v with usage shown, want the reset", at, ok)
+	}
+	win.opt.Config.ShowUsage = false
+	if at, ok := win.usageWake(now); ok {
+		t.Fatalf("wake at %v with show_usage off", at)
 	}
 }

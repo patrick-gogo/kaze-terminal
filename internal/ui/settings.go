@@ -124,6 +124,19 @@ func (win *window) hideSettings() {
 	}
 }
 
+// dialogShown reports whether a confirm dialog is up on the shown page.
+func (win *window) dialogShown() bool {
+	s := &win.set
+	if !s.shown {
+		return false
+	}
+	secs := win.sections()
+	if s.section >= len(secs) || secs[s.section].dialog == nil {
+		return false
+	}
+	return secs[s.section].dialog(win) != nil
+}
+
 // closeSettings closes the Settings tab.
 func (win *window) closeSettings() {
 	win.hideSettings()
