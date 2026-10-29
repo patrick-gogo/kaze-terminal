@@ -172,6 +172,10 @@ line for kaze's. Both show exactly what will change in a confirm dialog first, a
 you confirm. Before writing, kaze copies the file to `settings.json.bak-<date>-<time>`, and it
 touches no other entry. If the file is empty or not valid JSON, kaze reports that and offers no fix.
 
+## About
+
+Open Settings with Ctrl+, (Cmd+, on macOS), then choose **About** for the Kaze logo, version, build, and platform. **Copy build info** copies those details for a bug report; **View on GitHub** opens the repository.
+
 ## Config
 
 kaze reads one TOML file at startup:
