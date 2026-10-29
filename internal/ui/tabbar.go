@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"image/color"
+	"math"
 	"os"
 	"strings"
 	"unicode"
@@ -181,10 +182,10 @@ func place(ops *op.Ops, call op.CallOp, at image.Point) {
 // tabTop is the gap above the tabs, in dp; on Windows it also moves the window.
 const tabTop = 7
 
-// layoutTabBar fills the bar's background, draws the tabs and the + button left of limit,
-// records where each one is for clicks, and returns where the strip ends.
-// marks gives each tab's alert mark; nil means none.
-func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, marks func(tabs.TabID) mark, def string, height, limit int) int {
+// layoutTabBar fills the bar's background, draws the tabs, the Settings chip when open
+// and the + button left of limit, records where each one is for clicks, and returns
+// where the strip ends. marks gives each tab's alert mark; nil means none.
+func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, marks func(tabs.TabID) mark, def string, height, limit int, chip settingsChip) int {
 	ops := gtx.Ops
 	width := gtx.Constraints.Max.X
 	paint.FillShape(ops, c.th.Chrome, clip.Rect{Max: image.Pt(width, height)}.Op())
@@ -196,6 +197,17 @@ func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.
 
 	closeCall, closeSize := c.label(gtx, "×", 12, c.th.Muted)
 	plusCall, plusSize := c.label(gtx, "+", 13, c.th.Muted)
+	var chipCall op.CallOp
+	var chipSize image.Point
+	chipW := 0 // room kept after the tabs so the chip never overflows away
+	if chip.open {
+		fg := c.th.Muted
+		if chip.shown {
+			fg = c.th.ActiveFG
+		}
+		chipCall, chipSize = c.label(gtx, "Settings", 12, fg)
+		chipW = padX + chipSize.X + gap + closeSize.X + padX + gtx.Dp(4)
+	}
 	for _, t := range list {
 		on := t.ID == active
 		fg := c.th.Muted
@@ -212,7 +224,7 @@ func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.
 		if hasDot {
 			w += dot + gap
 		}
-		if x+w > limit-plusSize.X-2*padX {
+		if x+w > limit-plusSize.X-2*padX-chipW {
 			break // overflow: the rest stay reachable with next/prev tab
 		}
 		r := image.Rect(x, top, x+w, height)
@@ -233,6 +245,21 @@ func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.
 		closeRect := image.Rect(cx-hitPad, mid-closeSize.Y/2-hitPad, cx+closeSize.X+hitPad, mid+closeSize.Y/2+hitPad)
 		c.hits.tabs = append(c.hits.tabs, tabHit{id: t.ID, rect: r, close: closeRect})
 		x += w + gtx.Dp(4)
+	}
+	if chip.open && x+chipW <= limit {
+		r := image.Rect(x, top, x+chipW-gtx.Dp(4), height)
+		if chip.shown {
+			c.activeTab(gtx, r, radius)
+		}
+		mid := top + (height-top)/2
+		cx := x + padX
+		place(ops, chipCall, image.Pt(cx, mid-chipSize.Y/2))
+		cx += chipSize.X + gap
+		place(ops, closeCall, image.Pt(cx, mid-closeSize.Y/2))
+		hitPad := gtx.Dp(4)
+		c.hits.settings = r
+		c.hits.settingsClose = image.Rect(cx-hitPad, mid-closeSize.Y/2-hitPad, cx+closeSize.X+hitPad, mid+closeSize.Y/2+hitPad)
+		x += chipW
 	}
 	pr := image.Rect(x, top, x+plusSize.X+2*padX, height)
 	if pr.Max.X > limit {
@@ -267,10 +294,11 @@ func pillTint(a color.NRGBA) color.NRGBA {
 	return a
 }
 
-// layoutCaptions draws the minimize, maximize/restore and close buttons.
+// layoutCaptions draws the settings gear and the minimize, maximize/restore and close buttons.
 func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState, maximized bool) {
 	ops := gtx.Ops
-	for i, r := range b.Buttons {
+	rects := [4]image.Rectangle{b.Buttons[0], b.Buttons[1], b.Buttons[2], b.Gear}
+	for i, r := range rects {
 		if r.Empty() {
 			continue
 		}
@@ -338,6 +366,17 @@ func captionGlyph(gtx layout.Context, btn captionButton, r image.Rectangle, maxi
 		p.LineTo(f32.Pt(x0+s, y0+s))
 		p.MoveTo(f32.Pt(x0+s, y0))
 		p.LineTo(f32.Pt(x0, y0+s))
+	case btn == capGear:
+		// A ring with eight teeth.
+		cx, cy, ring := x0+s/2, y0+s/2, s*0.27
+		p.MoveTo(f32.Pt(cx+ring, cy))
+		p.Arc(f32.Pt(-ring, 0), f32.Pt(-ring, 0), 2*math.Pi)
+		for i := range 8 {
+			a := float64(i) * math.Pi / 4
+			dx, dy := float32(math.Cos(a)), float32(math.Sin(a))
+			p.MoveTo(f32.Pt(cx+dx*s*0.38, cy+dy*s*0.38))
+			p.LineTo(f32.Pt(cx+dx*(s/2), cy+dy*(s/2)))
+		}
 	}
 	return clip.Stroke{Path: p.End(), Width: sw}.Op()
 }

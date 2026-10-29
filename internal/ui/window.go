@@ -138,6 +138,8 @@ type window struct {
 	usageIn usageBox                // notify goroutines -> UI goroutine
 	acct    notify.Usage            // plan limits (no Ctx); UI goroutine only
 	ctx     map[tabs.TabID]ctxEntry // per-tab context use; UI goroutine only
+
+	set settingsState // the Settings page; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -312,6 +314,7 @@ func (win *window) start(env []string) (ptyx.Session, error) {
 }
 
 func (win *window) newTab() {
+	win.hideSettings() // the new tab is shown
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
 		// A windowsgui build has no console, so the status bar is where this can be seen.
@@ -357,7 +360,7 @@ func rendOptions(c config.Config) render.Options {
 
 // blinks reports whether the cursor blinks: only while the terminal is in front of the user.
 func (win *window) blinks() bool {
-	return win.opt.Config.CursorBlink && win.focused
+	return win.opt.Config.CursorBlink && win.focused && !win.set.shown
 }
 
 // blink sets the cursor's phase for now and returns when the next phase starts;
@@ -430,7 +433,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.barEvents(gtx)
 	win.toastEvents(gtx)
 	active := win.mgr.Active()
-	if active != nil {
+	if win.set.shown {
+		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
+	} else if active != nil {
 		win.termEvents(gtx, active, cw, ch)
 	}
 	if win.mgr.Empty() {
@@ -444,10 +449,10 @@ func (win *window) frame(gtx layout.Context) error {
 	win.alerts.prune(func(id tabs.TabID) bool {
 		return slices.ContainsFunc(list, func(t *tabs.Tab) bool { return t.ID == id })
 	})
-	win.publish(active, win.focused)
+	win.publish(win.shownTab(), win.focused)
 	win.drainAlerts(gtx.Now)
 	win.drainUsage()
-	win.visit(active)
+	win.visit(win.shownTab())
 	win.autoScroll(gtx, active, cw, ch)
 	sel := win.checkSel(active)
 	// After input, so a key typed this frame shows the cursor in it.
@@ -460,7 +465,11 @@ func (win *window) frame(gtx layout.Context) error {
 	// Tab bar, plus the caption buttons and the empty space that moves the window.
 	bar := gtx
 	bar.Constraints = layout.Exact(image.Pt(size.X, barH))
-	win.drawBar(bar, list, active.ID, barH)
+	var shown tabs.TabID // none while settings is shown
+	if t := win.shownTab(); t != nil {
+		shown = t.ID
+	}
+	win.drawBar(bar, list, shown, barH)
 	area := clip.Rect(win.bar.Tabs).Push(ops)
 	event.Op(ops, win.barTag)
 	area.Pop()
@@ -474,29 +483,16 @@ func (win *window) frame(gtx layout.Context) error {
 		area.Pop()
 	}
 	if win.custom {
-		area = clip.Rect(win.bar.Buttons[0].Union(win.bar.Buttons[2])).Push(ops)
+		area = clip.Rect(win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])).Push(ops)
 		event.Op(ops, win.capTag)
 		area.Pop()
 	}
 
-	// Terminal: only the active tab is drawn.
-	paint.FillShape(ops, win.pal.BG, clip.Rect(termRect).Op())
-	area = clip.Rect(termRect).Push(ops)
-	event.Op(ops, win.termTag)
-	area.Pop()
-	g := clip.Rect(grid).Push(ops)
-	off := op.Offset(grid.Min).Push(ops)
-	tg := gtx
-	tg.Constraints = layout.Exact(grid.Size())
-	if win.bench != nil {
-		win.benchBeforeDraw(active)
+	if win.set.shown {
+		win.drawSettings(gtx, termRect) // the renderer is not laid out
+	} else {
+		win.drawTerminal(gtx, active, termRect, grid, &sel)
 	}
-	win.rend.Layout(tg, active.Session, &sel)
-	if win.bench != nil {
-		win.benchAfterDraw(active)
-	}
-	off.Pop()
-	g.Pop()
 
 	// Status bar.
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
@@ -523,10 +519,44 @@ func (win *window) frame(gtx layout.Context) error {
 	}
 
 	if win.wantFocus {
-		gtx.Execute(key.FocusCmd{Tag: win.termTag})
+		var tag event.Tag = win.termTag
+		if win.set.shown {
+			tag = &win.set.tag
+		}
+		gtx.Execute(key.FocusCmd{Tag: tag})
 		win.wantFocus = false
 	}
 	return nil
+}
+
+// drawTerminal draws the active tab, the only one drawn, and takes the terminal's input.
+func (win *window) drawTerminal(gtx layout.Context, active *tabs.Tab, termRect, grid image.Rectangle, sel *render.Selection) {
+	ops := gtx.Ops
+	paint.FillShape(ops, win.pal.BG, clip.Rect(termRect).Op())
+	area := clip.Rect(termRect).Push(ops)
+	event.Op(ops, win.termTag)
+	area.Pop()
+	g := clip.Rect(grid).Push(ops)
+	off := op.Offset(grid.Min).Push(ops)
+	tg := gtx
+	tg.Constraints = layout.Exact(grid.Size())
+	if win.bench != nil {
+		win.benchBeforeDraw(active)
+	}
+	win.rend.Layout(tg, active.Session, sel)
+	if win.bench != nil {
+		win.benchAfterDraw(active)
+	}
+	off.Pop()
+	g.Pop()
+}
+
+// shownTab is the terminal tab in front of the user, or nil while settings is shown.
+func (win *window) shownTab() *tabs.Tab {
+	if win.set.shown {
+		return nil
+	}
+	return win.mgr.Active()
 }
 
 // switchedTo redraws a newly shown tab in full and moves focus reports to it.
@@ -554,6 +584,9 @@ func (win *window) switchedTo(t *tabs.Tab) {
 
 func (win *window) updateTitle(t *tabs.Tab) {
 	title := "kaze · " + tabLabel(t, win.defTitle)
+	if win.set.shown {
+		title = "kaze · Settings"
+	}
 	if title != win.winTitle {
 		win.winTitle = title
 		win.w.Option(app.Title(title))
@@ -590,9 +623,10 @@ func (win *window) statusText(n int) string {
 // caption buttons less a minimum drag area, and whatever it doesn't use is added to it.
 func (win *window) drawBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, barH int) {
 	size := image.Pt(gtx.Constraints.Max.X, barH)
-	d := barDims{buttonW: gtx.Dp(46), minDrag: gtx.Dp(48), band: gtx.Dp(tabTop)}
+	d := barDims{buttonW: gtx.Dp(46), gearW: gtx.Dp(46), minDrag: gtx.Dp(48), band: gtx.Dp(tabTop)}
 	room := layoutBar(size, size.X, d, win.custom).Tabs.Max.X
-	used := win.ui.layoutTabBar(gtx, list, active, win.alerts.markOf, win.defTitle, barH, room)
+	chip := settingsChip{open: win.set.open, shown: win.set.shown}
+	used := win.ui.layoutTabBar(gtx, list, active, win.alerts.markOf, win.defTitle, barH, room, chip)
 	win.bar = layoutBar(size, used, d, win.custom)
 	if win.custom {
 		win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized)
@@ -610,7 +644,11 @@ func (win *window) captionEvent(e pointer.Event) {
 		return
 	}
 	before := win.caption
-	if c := win.caption.pointer(e.Kind, e.Position.Round(), win.bar); c != capNone {
+	switch c := win.caption.pointer(e.Kind, e.Position.Round(), win.bar); c {
+	case capNone:
+	case capGear:
+		win.openSettings()
+	default:
 		win.perform(actionFor(c, win.maximized))
 	}
 	if win.caption != before {
@@ -636,21 +674,38 @@ func (win *window) barEvents(gtx layout.Context) {
 		if !ok {
 			return
 		}
-		e, ok := ev.(pointer.Event)
-		if !ok || e.Kind != pointer.Press || win.bench.IgnoreInput() {
-			continue
+		if e, ok := ev.(pointer.Event); ok {
+			win.barPress(e)
 		}
-		win.wantFocus = true
-		id, onClose, onPlus := win.ui.hits.at(e.Position.Round())
+	}
+}
+
+// barPress handles a press on the tab strip.
+func (win *window) barPress(e pointer.Event) {
+	if e.Kind != pointer.Press || win.bench.IgnoreInput() {
+		return
+	}
+	win.wantFocus = true
+	p := e.Position.Round()
+	primary, middle := e.Buttons.Contain(pointer.ButtonPrimary), e.Buttons.Contain(pointer.ButtonTertiary)
+	if on, onClose := win.ui.hits.settingsAt(p); on {
 		switch {
-		case onPlus && e.Buttons.Contain(pointer.ButtonPrimary):
-			win.newTab()
-		case id == 0:
-		case onClose && e.Buttons.Contain(pointer.ButtonPrimary), e.Buttons.Contain(pointer.ButtonTertiary):
-			win.mgr.Close(id)
-		case e.Buttons.Contain(pointer.ButtonPrimary):
-			win.selectTab(id)
+		case onClose && primary, middle:
+			win.closeSettings()
+		case primary:
+			win.openSettings()
 		}
+		return
+	}
+	id, onClose, onPlus := win.ui.hits.at(p)
+	switch {
+	case onPlus && primary:
+		win.newTab()
+	case id == 0:
+	case onClose && primary, middle:
+		win.mgr.Close(id)
+	case primary:
+		win.selectTab(id)
 	}
 }
 
@@ -708,6 +763,9 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 				win.blinkFrom = time.Time{} // typing shows the cursor and restarts the blink
 			}
 			win.onKey(gtx, t, e, m)
+			if win.set.shown {
+				return // the key showed settings; the rest of the frame's input is not the terminal's
+			}
 			if a := win.mgr.Active(); a != t {
 				// The key opened, closed or switched tabs; the rest of the frame's input goes to the new one.
 				win.endGesture()
@@ -752,9 +810,11 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	case actCloseTab:
 		win.mgr.Close(t.ID)
 	case actNextTab:
-		win.mgr.Next()
+		win.cycleTab(1)
 	case actPrevTab:
-		win.mgr.Prev()
+		win.cycleTab(-1)
+	case actOpenSettings:
+		win.openSettings()
 	case actPaste:
 		gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
 	case actCopy:

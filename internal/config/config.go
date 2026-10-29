@@ -48,7 +48,7 @@ type Config struct {
 // KnownActions are the action names accepted under [keys]; the window binds each one.
 var KnownActions = map[string]bool{
 	"new_tab": true, "close_tab": true, "next_tab": true, "prev_tab": true,
-	"copy": true, "paste": true,
+	"copy": true, "paste": true, "open_settings": true,
 }
 
 var (

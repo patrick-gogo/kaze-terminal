@@ -77,7 +77,7 @@ func TestTabShapesKeepTheLayout(t *testing.T) {
 	for _, k := range []string{"midnight", "sumi", "tide"} {
 		win, _ := alertWindow(t, 3)
 		win.ui.setTheme(mustTheme(t, k))
-		win.ui.layoutTabBar(barContext(1000), win.mgr.Tabs(), win.mgr.Active().ID, nil, "pwsh", 38, 900)
+		win.ui.layoutTabBar(barContext(1000), win.mgr.Tabs(), win.mgr.Active().ID, nil, "pwsh", 38, 900, settingsChip{})
 		got := append([]tabHit(nil), win.ui.hits.tabs...)
 		if len(got) != 3 {
 			t.Fatalf("%s: %d tabs drawn, want 3", k, len(got))

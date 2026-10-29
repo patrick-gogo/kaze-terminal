@@ -29,12 +29,13 @@ const (
 	actPrevTab
 	actCopy
 	actPaste
+	actOpenSettings
 )
 
 // actionByName maps config [keys] names to actions; it must match config.KnownActions.
 var actionByName = map[string]action{
 	"new_tab": actNewTab, "close_tab": actCloseTab, "next_tab": actNextTab,
-	"prev_tab": actPrevTab, "copy": actCopy, "paste": actPaste,
+	"prev_tab": actPrevTab, "copy": actCopy, "paste": actPaste, "open_settings": actOpenSettings,
 }
 
 // maxGrid matches term's per-dimension clamp, so a huge window never asks for more.
@@ -73,12 +74,14 @@ func defaultBindings(goos string) map[string]input.Shortcut {
 			"new_tab": {Name: "T", Mods: key.ModCommand}, "close_tab": {Name: "W", Mods: key.ModCommand},
 			"next_tab": {Name: key.NameTab, Mods: key.ModCtrl}, "prev_tab": {Name: key.NameTab, Mods: cs},
 			"copy": {Name: "C", Mods: key.ModCommand}, "paste": {Name: "V", Mods: key.ModCommand},
+			"open_settings": {Name: ",", Mods: key.ModCommand},
 		}
 	}
 	return map[string]input.Shortcut{
 		"new_tab": {Name: "T", Mods: cs}, "close_tab": {Name: "W", Mods: cs},
 		"next_tab": {Name: key.NameTab, Mods: key.ModCtrl}, "prev_tab": {Name: key.NameTab, Mods: cs},
 		"copy": {Name: "C", Mods: cs}, "paste": {Name: "V", Mods: cs},
+		"open_settings": {Name: ",", Mods: key.ModCtrl},
 	}
 }
 
@@ -260,8 +263,9 @@ type tabHit struct {
 
 // barHits is where the last frame drew each tab, its close button and the + button.
 type barHits struct {
-	tabs []tabHit
-	plus image.Rectangle
+	tabs                    []tabHit
+	plus                    image.Rectangle
+	settings, settingsClose image.Rectangle // the Settings chip; empty while settings is closed
 }
 
 func (b barHits) at(p image.Point) (id tabs.TabID, onClose, onPlus bool) {
@@ -274,6 +278,11 @@ func (b barHits) at(p image.Point) (id tabs.TabID, onClose, onPlus bool) {
 		}
 	}
 	return 0, false, false
+}
+
+// settingsAt reports whether p is on the Settings chip, and on its ×.
+func (b barHits) settingsAt(p image.Point) (on, onClose bool) {
+	return p.In(b.settings), p.In(b.settingsClose)
 }
 
 func parseHex(s string) (color.NRGBA, bool) {

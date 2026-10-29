@@ -156,8 +156,8 @@ func (win *window) drainAlerts(now time.Time) {
 // deliver updates the marks and toasts for one alert; the chime already
 // happened in onNotify.
 func (win *window) deliver(m notify.Msg, now time.Time) {
-	var active tabs.TabID
-	if t := win.mgr.Active(); t != nil {
+	var active tabs.TabID // none while settings hides the terminal
+	if t := win.shownTab(); t != nil {
 		active = t.ID
 	}
 	win.alerts.apply(m, active, win.focused, win.mgr.Has, now)
@@ -165,6 +165,7 @@ func (win *window) deliver(m notify.Msg, now time.Time) {
 
 // selectTab is the one tab switch for a tab click and a toast's "Go ›".
 func (win *window) selectTab(id tabs.TabID) {
+	win.hideSettings()
 	win.mgr.SetActive(id)
 	win.wantFocus = true
 }
