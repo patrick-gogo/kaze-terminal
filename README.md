@@ -165,8 +165,9 @@ kaze reads one TOML file at startup:
 - Windows: `%AppData%\kaze\config.toml`
 - macOS: `~/Library/Application Support/kaze/config.toml`
 
-The file is optional. The settings page writes to it for you; restart kaze after editing it by hand. A bad value falls back to its default and
-shows up as a warning in the first tab; a TOML syntax error makes kaze use all defaults.
+The file is optional. The settings page writes to it for you; restart kaze after editing it by hand.
+A bad value falls back to its default and shows up as a warning in the first tab; a TOML syntax
+error makes kaze use all defaults.
 
 | Key | What it does | Default |
 |---|---|---|
