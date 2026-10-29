@@ -587,7 +587,15 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 	top := max(r.Max.Y-gtx.Dp(16)-blockH, y+gtx.Dp(14))
 	paint.FillShape(ops, col.line, clip.Rect(image.Rect(x0, top, x1, top+1)).Op())
 	y = top + gtx.Dp(12)
-	place(ops, vc, image.Pt(x0+inner, y))
+	tx := x0 + inner
+	if mop, img := markImage(vs.Y); img != nil {
+		t := op.Offset(image.Pt(tx, y)).Push(ops)
+		mop.Add(ops)
+		paint.PaintOp{}.Add(ops)
+		t.Pop()
+		tx += vs.Y + gtx.Dp(6)
+	}
+	place(ops, vc, image.Pt(tx, y))
 	y += vs.Y
 	for _, line := range lines {
 		call, _ := p.text(line, 11, col.dim)
