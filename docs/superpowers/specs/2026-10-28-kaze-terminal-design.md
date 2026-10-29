@@ -111,6 +111,8 @@ When Claude Code in any tab finishes its turn or needs Patrick (a question, a pe
 
 A single config file in a standard per-user location (font, font size, colors, default shell, scrollback cap, keybindings). Reloaded on change if cheap; otherwise on restart.
 
+> Note (2026-10-29): a settings page now edits this file, one key at a time with comments kept. See `2026-10-29-kaze-settings-page-design.md`.
+
 ### 6.7 Look: "Midnight" (Patrick's pick, 2026-10-28)
 
 Soft dark chrome, rounded tabs, violet accent; calm and modern, close to Warp and current editors. Flat colors and rounded corners only (no window blur: Gio can't do it and it costs GPU).

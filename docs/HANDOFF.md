@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-29, after Plan 4 was built (branch `feature/plan-4-usage`, PR to `main`). Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-29, after Plan 5a (the settings page) was built on `feature/settings-page`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -21,6 +21,15 @@ Last updated: 2026-10-29, after Plan 4 was built (branch `feature/plan-4-usage`,
 - The status bar shows them right-aligned before the memory text. Plan limits are account-wide (latest from any tab); context is per tab and hides once the tab's shell reports a new prompt (OSC 7), meaning Claude exited. Amber at 80%, red at 95%, with the reset time. A window past its reset disappears via one timed wake, no ticker.
 - **Owner's scope (2026-10-29):** 5-hour, weekly and context only. No per-model (Fable) number: Claude Code's status line data has none, and the only other source is an undocumented endpoint behind the login token, which he declined. Cost and the process tree are left out.
 - **Installed on the owner's laptop:** `statusLine` -> `kaze.exe statusline` in `~/.claude/settings.json`. The old orca status line and its 13 hooks were removed on 2026-10-29 (backups `settings.json.bak-20261029-*`).
+
+**Plan 5a (settings page) is built** on `feature/settings-page` (spec `docs/superpowers/specs/2026-10-29-kaze-settings-page-design.md`, plan `docs/superpowers/plans/2026-10-29-kaze-plan-5a-settings.md`):
+
+- **Settings page** opens from the gear in the title bar (Windows) or Ctrl+, / Cmd+, (`open_settings` under `[keys]`), as a chip beside the tabs. Sections: Appearance (theme, font size, line spacing, cursor, blink) and Claude (chimes, taskbar flash, done-toast time, usage readout, Claude Code setup check). Workspaces is greyed out until Plan 5b.
+- **Five themes** in `internal/theme`: Midnight (default), Sumi, Tide, Washi (light), Sakura. A theme sets the terminal palette and the chrome colors; `[colors]` still overrides the palette.
+- **Config writes** (`internal/config/write.go`): one key is edited in place, other lines and comments kept. New keys: `theme`, `line_spacing`, `cursor_style`, `cursor_blink`, `taskbar_flash`, `done_toast`, `show_usage`, plus `open_settings` under `[keys]`.
+- **Claude setup check** (`internal/claudesetup`): inspects the Stop hook, the Notification hook and the status line in `~/.claude/settings.json` (OK / missing / broken / taken). Fix and Replace only after a confirm dialog, with a timestamped `.bak` copy first; other entries are never touched.
+- **`kaze --version`** (`internal/version`) prints the version and build commit without opening a window.
+- Not done: the Windows app icon, Workspaces, the notification card redesign.
 
 What works (tested on Windows):
 
@@ -47,12 +56,14 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 
 ## Next
 
-1. **Merge Plan 4** (the owner merges the PR from `feature/plan-4-usage`), then rebuild `kaze-app\kaze.exe` from `main` and run `kaze.exe notify done` once. Stacked PRs merge into their base branch, not `main`: open each PR against `main` or retarget before merging.
-2. **Plan 2**: subagent child tabs (spec 6.3).
-3. **Settings page** (owner idea 2026-10-28, reverses the "config file only" non-goal): workspaces / one-click launch, appearance, Claude alerts first. Not designed yet.
-4. **Mac milestone** (checklist below): build and use kaze on macOS for the first time.
-5. Speed task: tighten kaze's own keypress p99 and first-frame time.
-6. Later (spec 7 and owner ideas): browser button, notes-vault graph, smart Ctrl+C (copy when text is selected, else interrupt), kaze-native autocomplete.
+1. **Merge Plan 5a** (the owner merges the PR from `feature/settings-page`). `main` now has `assets/branding` from PR 8 (the logo and the macOS icon), so the feature branch must merge `main` before its PR. Then rebuild `kaze-app\kaze.exe` from `main` and run `kaze.exe notify done` once.
+2. **Plan 5b: Workspaces** (one-click launch of a saved set of tabs; the greyed-out settings section).
+3. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
+4. **Notification card redesign** (GitHub issue #9).
+5. **Plan 2**: subagent child tabs (spec 6.3).
+6. **Mac milestone** (checklist below): build and use kaze on macOS for the first time.
+7. Speed task: tighten kaze's own keypress p99 and first-frame time.
+8. Later (spec 7 and owner ideas): browser button, notes-vault graph, smart Ctrl+C (copy when text is selected, else interrupt), kaze-native autocomplete.
 
 ## Mac milestone checklist
 
