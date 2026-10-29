@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-29, after Plan 5a (the settings page) was built on `feature/settings-page`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-29, after Plan 5b (Workspaces) was built on `feature/workspaces`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -29,7 +29,16 @@ Last updated: 2026-10-29, after Plan 5a (the settings page) was built on `featur
 - **Config writes** (`internal/config/write.go`): one key is edited in place, other lines and comments kept. New keys: `theme`, `line_spacing`, `cursor_style`, `cursor_blink`, `taskbar_flash`, `done_toast`, `show_usage`, plus `open_settings` under `[keys]`.
 - **Claude setup check** (`internal/claudesetup`): inspects the Stop hook, the Notification hook and the status line in `~/.claude/settings.json` (OK / missing / broken / taken). Fix and Replace only after a confirm dialog, with a timestamped `.bak` copy first; other entries are never touched.
 - **`kaze --version`** (`internal/version`) prints the version and build commit without opening a window.
-- Not done: the Windows app icon, Workspaces, the notification card redesign.
+- Not done: the Windows app icon, the notification card redesign.
+
+**Plan 5b (Workspaces) is built** on `feature/workspaces` (decisions `docs/superpowers/specs/2026-10-29-kaze-workspaces-decisions.md`, mockups in `docs/design/`). Version 0.6:
+
+- **Workspaces** are saved launch recipes (name plus ordered tabs: title, folder, commands, color, wait for nothing / Docker / a port) kept in `workspaces.toml` beside `config.toml` (`internal/workspaces`). kaze owns the layout; a hand-edited file is checked strictly and never overwritten when invalid. Edited in Settings > Workspaces with a Save / Cancel draft; Run, or Go to tabs when members are already open.
+- **A run is one tab group** in the strip (chip with member dots, name and count, dropdown, alerts on the chip, Ctrl+Tab steps through members), not one tab per member. Real panes are a later plan and would replace groups.
+- **Commands** are typed as one joined line (`; if ($?) { }` in PowerShell, `&&` in zsh/bash/sh) once the first prompt marker (OSC 7 or OSC 133 A) arrives; after 3s without one a banner offers Run commands / Use shell. Typing in a waiting tab cancels its commands. Docker (started once if needed) and port waits give up after 3 minutes.
+- **Startup:** `startup_workspace` (a workspace ID) and `kaze --workspace "<name>"`, which wins.
+- **To do by the owner:** the `.syso` files in `cmd/kaze` still carry version 0.5; regenerate with the go-winres command in the README. The macOS run of the shell-readiness and one-line tests is still owed. The `samurai` workspace is created only on his word.
+- Known limits: no folder Browse button, commands can not be reordered, closing the window drops an unsaved draft.
 
 What works (tested on Windows):
 
@@ -56,10 +65,10 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 
 ## Next
 
-1. **Merge Plan 5a** (the owner merges the PR from `feature/settings-page`). `main` now has `assets/branding` from PR 8 (the logo and the macOS icon), so the feature branch must merge `main` before its PR. Then rebuild `kaze-app\kaze.exe` from `main` and run `kaze.exe notify done` once.
-2. **Plan 5b: Workspaces** (one-click launch of a saved set of tabs; the greyed-out settings section).
-3. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
-4. **Notification card redesign** (GitHub issue #9).
+1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-appkaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.6.
+2. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
+3. **Notification card redesign** (GitHub issue #9).
+4. **Real panes** (Zellij-like tiles; would replace tab groups).
 5. **Plan 2**: subagent child tabs (spec 6.3).
 6. **Mac milestone** (checklist below): build and use kaze on macOS for the first time.
 7. Speed task: tighten kaze's own keypress p99 and first-frame time.
