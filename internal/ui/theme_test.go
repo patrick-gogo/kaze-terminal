@@ -28,7 +28,7 @@ func TestNewChromeIsMidnight(t *testing.T) {
 func TestApplyThemeRepaintsChrome(t *testing.T) {
 	win := testWindow(t, &recStarter{})
 	win.ui = newChrome()
-	win.rend = render.NewRenderer(14, win.pal)
+	win.rend = render.NewRenderer(14, win.pal, render.Options{})
 	win.applyTheme(mustTheme(t, "sumi"))
 	if win.ui.th.Accent != rgb(0xe2553d) || win.ui.shape != theme.Underline {
 		t.Fatalf("chrome accent %v shape %v, want Sumi", win.ui.th.Accent, win.ui.shape)

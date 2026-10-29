@@ -39,24 +39,28 @@ type glyphCache struct {
 	faces map[rune]faceID // faceFor answers (bold-agnostic), so a redraw skips the cmap walk
 }
 
+// sizeKey is a pixel size and line scale; both change the cell, so glyph masks differ.
+type sizeKey struct{ px, scale float32 }
+
 var shared struct {
 	sync.Mutex
-	bySize map[float32]*glyphCache
+	bySize map[sizeKey]*glyphCache
 }
 
-// sharedGlyphs returns the font set and glyph cache for px, so tabs don't each parse
-// fonts and rasterize the same glyphs.
-func sharedGlyphs(px float32) *glyphCache {
+// sharedGlyphs returns the font set and glyph cache for px at a line scale, so tabs
+// don't each parse fonts and rasterize the same glyphs.
+func sharedGlyphs(px, scale float32) *glyphCache {
 	shared.Lock()
 	defer shared.Unlock()
-	if c, ok := shared.bySize[px]; ok {
+	k := sizeKey{px, scale}
+	if c, ok := shared.bySize[k]; ok {
 		return c
 	}
 	if shared.bySize == nil {
-		shared.bySize = make(map[float32]*glyphCache)
+		shared.bySize = make(map[sizeKey]*glyphCache)
 	}
-	c := &glyphCache{fs: newFontSet(float64(px)), m: make(map[glyphKey]*glyph)}
-	shared.bySize[px] = c
+	c := &glyphCache{fs: newFontSet(float64(px), float64(scale)), m: make(map[glyphKey]*glyph)}
+	shared.bySize[k] = c
 	return c
 }
 

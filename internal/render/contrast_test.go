@@ -8,7 +8,7 @@ import (
 )
 
 func TestBlueBoldBackgroundTextIsReadable(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	// pwsh folder names: ESC[44;1m, default foreground on blue.
 	fg, bg := r.colorsOf(screen.Cell{Rune: 'd', FG: screen.DefaultColor, BG: screen.Indexed(4), Attrs: screen.AttrBold})
 	if bg != hex(0x8ab4ff) {
@@ -21,7 +21,7 @@ func TestBlueBoldBackgroundTextIsReadable(t *testing.T) {
 
 func TestReadableColorsAreUnchanged(t *testing.T) {
 	p := DefaultPalette()
-	r := NewRenderer(14, p)
+	r := NewRenderer(14, p, Options{})
 	if fg, bg := r.colorsOf(screen.Cell{Rune: 'a', FG: screen.DefaultColor, BG: screen.DefaultColor}); fg != p.FG || bg != p.BG {
 		t.Fatalf("default text = %v on %v", fg, bg)
 	}
@@ -36,7 +36,7 @@ func TestReadableColorsAreUnchanged(t *testing.T) {
 }
 
 func TestUnreadableDimTextIsFixed(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	cell := screen.Cell{Rune: 'a', FG: screen.RGB(80, 80, 90), BG: screen.DefaultColor, Attrs: screen.AttrDim}
 	raw, _ := cellColors(r.pal, cell)
 	fg, bg := r.colorsOf(cell)
@@ -49,7 +49,7 @@ func TestUnreadableDimTextIsFixed(t *testing.T) {
 }
 
 func TestSelectedTextIsReadable(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	fg := r.selectedFG(screen.Cell{Rune: 'a', FG: screen.RGB(60, 60, 100), BG: screen.DefaultColor})
 	if c := contrast(fg, r.pal.Selection); c < 4.5 {
 		t.Fatalf("selected fg %v on selection has contrast %.2f, want >= 4.5", fg, c)

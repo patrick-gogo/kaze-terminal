@@ -59,6 +59,8 @@ const (
 	noticeFor = 15 * time.Second
 	// shutdownWait bounds quitting, as tabs.CloseAll does for the shells.
 	shutdownWait = 2 * time.Second
+	// blinkEvery is one blink phase, shown or hidden.
+	blinkEvery = 530 * time.Millisecond
 )
 
 type window struct {
@@ -78,6 +80,9 @@ type window struct {
 	lastTab   *tabs.Tab
 	focused   bool
 	wantFocus bool
+
+	blinkFrom    time.Time // start of the shown phase; zero restarts it
+	cursorHidden bool
 
 	wheel     wheel
 	gate      textGate
@@ -332,12 +337,58 @@ func (win *window) applyTheme(t theme.Theme) {
 	win.w.Invalidate()
 }
 
+// rendOptions maps the look settings to the renderer; Load already validated them.
+func rendOptions(c config.Config) render.Options {
+	o := render.Options{LineScale: 1, Cursor: render.CursorBlock}
+	switch c.LineSpacing {
+	case "tight":
+		o.LineScale = 0.92
+	case "roomy":
+		o.LineScale = 1.2
+	}
+	switch c.CursorStyle {
+	case "bar":
+		o.Cursor = render.CursorBar
+	case "underline":
+		o.Cursor = render.CursorUnderline
+	}
+	return o
+}
+
+// blinks reports whether the cursor blinks: only while the terminal is in front of the user.
+func (win *window) blinks() bool {
+	return win.opt.Config.CursorBlink && win.focused
+}
+
+// blink sets the cursor's phase for now and returns when the next phase starts;
+// ok is false when the cursor is steady, so an idle window never wakes for it.
+func (win *window) blink(now time.Time) (next time.Time, ok bool) {
+	if !win.blinks() {
+		win.blinkFrom = time.Time{}
+		win.setCursorHidden(false)
+		return time.Time{}, false
+	}
+	if win.blinkFrom.IsZero() || now.Before(win.blinkFrom) {
+		win.blinkFrom = now
+	}
+	n := now.Sub(win.blinkFrom) / blinkEvery
+	win.setCursorHidden(n%2 == 1)
+	return win.blinkFrom.Add((n + 1) * blinkEvery), true
+}
+
+func (win *window) setCursorHidden(h bool) {
+	win.cursorHidden = h
+	if win.rend != nil {
+		win.rend.SetCursorShown(!h)
+	}
+}
+
 func (win *window) frame(gtx layout.Context) error {
 	barH, statusH, pad := gtx.Dp(38), gtx.Dp(24), gtx.Dp(8)
 	px := gtx.Metric.PxPerSp * win.opt.Config.FontSize
 	if win.rend == nil || px != win.rendPx {
 		// A DPI change (another monitor) needs glyphs at the new size.
-		win.rend = render.NewRenderer(px, win.pal)
+		win.rend = render.NewRenderer(px, win.pal, rendOptions(win.opt.Config))
 		win.rend.SetFocused(win.focused)
 		win.rendPx = px
 	}
@@ -399,6 +450,10 @@ func (win *window) frame(gtx layout.Context) error {
 	win.visit(active)
 	win.autoScroll(gtx, active, cw, ch)
 	sel := win.checkSel(active)
+	// After input, so a key typed this frame shows the cursor in it.
+	if next, ok := win.blink(gtx.Now); ok {
+		gtx.Execute(op.InvalidateCmd{At: next}) // one wake per phase, only while blinking
+	}
 
 	ops := gtx.Ops
 
@@ -649,6 +704,9 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 	for i, ev := range batch {
 		switch e := ev.(type) {
 		case key.Event:
+			if e.State == key.Press {
+				win.blinkFrom = time.Time{} // typing shows the cursor and restarts the blink
+			}
 			win.onKey(gtx, t, e, m)
 			if a := win.mgr.Active(); a != t {
 				// The key opened, closed or switched tabs; the rest of the frame's input goes to the new one.
@@ -662,6 +720,7 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 			win.composing = compositionActive(e)
 		case key.EditEvent:
 			edited = true
+			win.blinkFrom = time.Time{}
 			if win.gate.allow() && editCommits(batch, i, win.composing) && e.Text != "" {
 				win.benchKey(t)
 				t.Session.Write(input.EncodeText(e.Text))

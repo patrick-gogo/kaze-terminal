@@ -3,6 +3,7 @@ package render
 import (
 	"image"
 	"io"
+	"math"
 	"os"
 	"sync"
 
@@ -146,8 +147,9 @@ func mustFace(f *sfnt.Font, px float64) xfont.Face {
 	return face
 }
 
-// newFontSet sizes everything from the mono font; px is the font size in pixels.
-func newFontSet(px float64) *fontSet {
+// newFontSet sizes everything from the mono font; px is the font size in pixels and
+// scale the line spacing, which changes only the cell height.
+func newFontSet(px, scale float64) *fontSet {
 	fs := &fontSet{mono: mustParse(fonts.MonoRegular), cjk: mustParse(fonts.CJK), sys: systemFonts, px: px}
 	fs.faces[faceMono] = mustFace(fs.mono, px)
 	fs.faces[faceMonoBold] = mustFace(mustParse(fonts.MonoBold), px)
@@ -155,8 +157,9 @@ func newFontSet(px float64) *fontSet {
 	m := fs.faces[faceMono].Metrics()
 	adv, _ := fs.faces[faceMono].GlyphAdvance('M')
 	fs.cellW = max(adv.Ceil(), 1)
-	fs.cellH = max((m.Ascent + m.Descent).Ceil(), 1)
-	fs.ascent = m.Ascent.Ceil()
+	base := max((m.Ascent + m.Descent).Ceil(), 1)
+	fs.cellH = max(int(math.Round(float64(base)*scale)), 1)
+	fs.ascent = m.Ascent.Ceil() + (fs.cellH-base)/2 // the text sits centered in the extra space
 	fs.underlineY = min(fs.ascent+1, fs.cellH-1)
 	fs.strikeY = max(fs.ascent-m.XHeight.Round()/2, 0)
 

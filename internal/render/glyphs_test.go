@@ -6,7 +6,7 @@ import (
 )
 
 func TestMissingRunesShareOneNotdef(t *testing.T) {
-	c := NewRenderer(17, DefaultPalette()).glyphs
+	c := NewRenderer(17, DefaultPalette(), Options{}).glyphs
 	for i := 0; i < 20000; i++ {
 		c.get(0xF0000+rune(i), i%2 == 0, false) // supplementary private use: in neither font
 	}
@@ -28,7 +28,7 @@ func TestMissingRunesShareOneNotdef(t *testing.T) {
 }
 
 func TestGlyphCacheIsBounded(t *testing.T) {
-	c := NewRenderer(18, DefaultPalette()).glyphs
+	c := NewRenderer(18, DefaultPalette(), Options{}).glyphs
 	for r := rune(0x4E00); r < 0x4E00+6000; r++ { // mostly present in the CJK subset
 		c.get(r, false, true)
 		if c.len() > glyphCap {
@@ -38,18 +38,18 @@ func TestGlyphCacheIsBounded(t *testing.T) {
 }
 
 func TestCJKBoldSharesMask(t *testing.T) {
-	c := NewRenderer(14, DefaultPalette()).glyphs
+	c := NewRenderer(14, DefaultPalette(), Options{}).glyphs
 	if c.get('日', true, true) != c.get('日', false, true) {
 		t.Fatal("bold CJK made its own mask, but there is no CJK bold face")
 	}
 }
 
 func TestRenderersShareFontsAndGlyphs(t *testing.T) {
-	a, b := NewRenderer(19, DefaultPalette()), NewRenderer(19, DefaultPalette())
+	a, b := NewRenderer(19, DefaultPalette(), Options{}), NewRenderer(19, DefaultPalette(), Options{})
 	if a.glyphs != b.glyphs || a.fs != b.fs {
 		t.Fatal("two renderers of the same size have their own glyph cache or fonts")
 	}
-	if NewRenderer(20, DefaultPalette()).glyphs == a.glyphs {
+	if NewRenderer(20, DefaultPalette(), Options{}).glyphs == a.glyphs {
 		t.Fatal("different sizes must not share a cache")
 	}
 }
@@ -57,7 +57,7 @@ func TestRenderersShareFontsAndGlyphs(t *testing.T) {
 func inkAt(m *image.Alpha, x, y int) bool { return m.AlphaAt(x, y).A != 0 }
 
 func TestBoxLinesReachCellEdges(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	w, h := r.CellSize()
 	v := r.glyphs.get('│', false, false).mask
 	if !inkAt(v, w/2, 0) && !inkAt(v, w/2-1, 0) || !inkAt(v, w/2, h-1) && !inkAt(v, w/2-1, h-1) {
@@ -87,7 +87,7 @@ func TestBoxLinesReachCellEdges(t *testing.T) {
 }
 
 func TestRoundedCornerConnectsRightAndDown(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	w, h := r.CellSize()
 	m := r.glyphs.get('╭', false, false).mask
 	right, down, top, left := false, false, false, false
@@ -112,7 +112,7 @@ func TestRoundedCornerConnectsRightAndDown(t *testing.T) {
 }
 
 func TestBlockElements(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	w, h := r.CellSize()
 	full := r.glyphs.get('█', false, false).mask
 	for y := 0; y < h; y++ {
@@ -132,7 +132,7 @@ func TestBlockElements(t *testing.T) {
 }
 
 func TestBoxLinesAreSolidPixelStrokes(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	w, h := r.CellSize()
 	for _, ch := range []rune{'│', '─', '┼', '═', '║', '┏', '╋', '▌'} {
 		m := r.glyphs.get(ch, false, false).mask

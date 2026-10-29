@@ -14,12 +14,12 @@ func TestReadablePullsTowardThemeInk(t *testing.T) {
 }
 
 func TestRendererInkIsTheDarkerDefault(t *testing.T) {
-	if r := NewRenderer(14, DefaultPalette()); r.ink != hex(0x0f1117) {
+	if r := NewRenderer(14, DefaultPalette(), Options{}); r.ink != hex(0x0f1117) {
 		t.Fatalf("Midnight ink = %v, want the background #0f1117", r.ink)
 	}
 	light := DefaultPalette()
 	light.FG, light.BG = hex(0x2b2a33), hex(0xf6f2ea)
-	if r := NewRenderer(14, light); r.ink != light.FG {
+	if r := NewRenderer(14, light, Options{}); r.ink != light.FG {
 		t.Fatalf("light ink = %v, want the foreground %v", r.ink, light.FG)
 	}
 }
