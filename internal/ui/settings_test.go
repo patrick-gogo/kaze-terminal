@@ -327,16 +327,15 @@ func TestVersionBlockShowsBuild(t *testing.T) {
 	if !strings.Contains(all, "build abcdef1") {
 		t.Fatalf("texts %q lack the build line", texts)
 	}
-	for _, want := range []string{"Appearance", "Workspaces", "coming next", "Claude", "Later:"} {
+	for _, want := range []string{"Appearance", "Workspaces", "Claude", "Later:"} {
 		if !strings.Contains(all, want) {
 			t.Fatalf("nav lacks %q: %q", want, texts)
 		}
 	}
-	// Workspaces is greyed: it has no nav hit, so it cannot be selected.
-	if len(win.set.nav) != 2 {
-		t.Fatalf("%d selectable sections, want 2 (Appearance, Claude)", len(win.set.nav))
+	if len(win.set.nav) != 3 {
+		t.Fatalf("%d selectable sections, want 3", len(win.set.nav))
 	}
-	win.settingsPointer(pressAt(center(win.set.nav[1].rect)))
+	win.settingsPointer(pressAt(center(win.set.nav[2].rect)))
 	if win.set.section != 2 {
 		t.Fatalf("section %d after clicking Claude, want 2", win.set.section)
 	}
@@ -347,17 +346,19 @@ func TestKeyboardCanReachClaudeSection(t *testing.T) {
 	win.opt.Config = config.Default()
 	win.openSettings()
 	win.drawSettings(pageContext(800, 600), pageRect)
-	// Tab past the Appearance controls, then Appearance and Claude in the sidebar.
-	for i := 0; i < len(win.set.controls)+2; i++ {
+	// Tab past the Appearance controls, then Appearance, Workspaces and Claude in the sidebar.
+	for i := 0; i < len(win.set.controls)+3; i++ {
 		win.settingsKey(layout.Context{}, key.Event{Name: key.NameTab, State: key.Press})
 	}
 	win.settingsKey(layout.Context{}, key.Event{Name: key.NameReturn, State: key.Press})
 	if win.sections()[win.set.section].title != "Claude" {
 		t.Fatalf("keyboard left section at %q", win.sections()[win.set.section].title)
 	}
-	// The disabled Workspaces entry is skipped; Shift+Tab reaches Appearance.
+	// Shift+Tab twice, past Workspaces, reaches Appearance.
 	win.drawSettings(pageContext(800, 600), pageRect)
-	win.settingsKey(layout.Context{}, key.Event{Name: key.NameTab, Modifiers: key.ModShift, State: key.Press})
+	for range 2 {
+		win.settingsKey(layout.Context{}, key.Event{Name: key.NameTab, Modifiers: key.ModShift, State: key.Press})
+	}
 	win.settingsKey(layout.Context{}, key.Event{Name: key.NameSpace, State: key.Press})
 	if win.sections()[win.set.section].title != "Appearance" {
 		t.Fatal("could not return to Appearance with keyboard")

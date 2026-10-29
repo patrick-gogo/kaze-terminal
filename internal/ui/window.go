@@ -155,6 +155,7 @@ type window struct {
 	runs map[uint64]*wsRun // workspace runs with a tab still open; UI goroutine only
 	wsr  wsRunner
 	grp  groupMenu // the tab group dropdown; UI goroutine only
+	wsp  wsPage    // the Workspaces section: its list and the open draft; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.

@@ -63,7 +63,8 @@ type settingRow struct {
 // settingsSection is one entry of the page's menu. rows builds its content each
 // frame from the window's state; act runs one of its controls (see activate);
 // show runs each time the section comes into view; dialog, when it returns one,
-// covers the page and takes every click.
+// covers the page and takes every click. leave, when set, runs before the page
+// leaves the section: false keeps it (the section asks first, then runs then).
 type settingsSection struct {
 	title, hint string
 	later       bool // greyed with "coming next" and not selectable
@@ -71,6 +72,7 @@ type settingsSection struct {
 	act         func(win *window, id string, arg int)
 	show        func(win *window)
 	dialog      func(win *window) *dialogBox
+	leave       func(win *window, then func()) bool
 }
 
 // dialogBox is a confirm box over the page: a title, plain lines, code lines and buttons.
@@ -80,11 +82,11 @@ type dialogBox struct {
 	buttons     []ctrl
 }
 
-// defaultSections are the page's menu; the Appearance and Claude sections fill in rows and act.
+// defaultSections are the page's menu; each section fills in its own rows and act.
 func defaultSections() []settingsSection {
 	return []settingsSection{
 		appearanceSection(),
-		{title: "Workspaces", later: true},
+		workspacesSection(),
 		claudeSection(),
 	}
 }
@@ -146,8 +148,23 @@ func (win *window) dialogShown() bool {
 	return secs[s.section].dialog(win) != nil
 }
 
-// closeSettings closes the Settings tab.
+// mayLeave asks the shown section whether the page may leave it; when it may
+// not, the section has put up its question and runs then once answered.
+func (win *window) mayLeave(then func()) bool {
+	secs := win.sections()
+	if !win.set.open || win.set.section >= len(secs) || secs[win.set.section].leave == nil {
+		return true
+	}
+	return secs[win.set.section].leave(win, then)
+}
+
+// closeSettings closes the Settings tab, unless the shown section asks first;
+// then the page comes to the front so the question is seen.
 func (win *window) closeSettings() {
+	if !win.mayLeave(win.closeSettings) {
+		win.openSettings()
+		return
+	}
 	win.hideSettings()
 	s := &win.set
 	s.open = false
@@ -197,6 +214,10 @@ func (win *window) activate(id string, arg int) {
 func (win *window) selectSection(i int) {
 	secs := win.sections()
 	if i < 0 || i >= len(secs) || secs[i].later || i == win.set.section {
+		return
+	}
+	if !win.mayLeave(func() { win.selectSection(i) }) {
+		win.w.Invalidate()
 		return
 	}
 	win.set.section, win.set.focus = i, -1

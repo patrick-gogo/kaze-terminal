@@ -30,6 +30,7 @@ const (
 	ctlStepper
 	ctlSwatch
 	ctlText
+	ctlColor // one recipe color, a filled square
 )
 
 // ctrl is a control a section asks for. activate gets its id and an arg that
@@ -46,7 +47,8 @@ type ctrl struct {
 	min, max, value int // stepper
 	theme           theme.Theme
 	current         bool // swatch: the theme in use, ringed
-	arg             int  // button, swatch
+	arg             int  // button, swatch, color
+	dead            bool // button: drawn dim and does nothing (Save while the draft is invalid)
 
 	// Text field: val is its value, placed in the editor when the field first shows
 	// and again whenever the row passes a different one; set gets every edit.
@@ -62,7 +64,7 @@ type control struct {
 	rect image.Rectangle
 	id   string
 	arg  int
-	dead bool // a stepper end already at its limit: drawn dim, does nothing
+	dead bool // a stepper end at its limit or a disabled button: drawn dim, does nothing
 }
 
 // shift moves the hit areas [from, to) from a macro's origin to where it was placed.
@@ -91,6 +93,8 @@ func (p *page) ctrl(k ctrl, w int) (op.CallOp, image.Point, int) {
 		size = p.swatch(k, w)
 	case ctlText:
 		size = p.textField(k)
+	case ctlColor:
+		size = p.colorChip(k)
 	}
 	return m.Stop(), size, from
 }
@@ -112,20 +116,37 @@ func stroke(ops *op.Ops, r image.Rectangle, radius int, col color.NRGBA) {
 
 func (p *page) button(k ctrl) image.Point {
 	gtx, ops := p.gtx, p.gtx.Ops
-	fg := p.col.fg
-	if k.strong {
+	fg, fill := p.col.fg, p.col.accent
+	switch {
+	case k.dead:
+		fg, fill = p.col.dim, tint(p.col.accent, 0x40)
+	case k.strong:
 		fg = p.col.bg
 	}
 	call, size := p.text(k.text, 12, fg)
 	r := image.Rect(0, 0, size.X+2*gtx.Dp(12), gtx.Dp(24))
 	if k.strong {
-		paint.FillShape(ops, p.col.accent, clip.UniformRRect(r, gtx.Dp(7)).Op(ops))
+		paint.FillShape(ops, fill, clip.UniformRRect(r, gtx.Dp(7)).Op(ops))
 	} else {
 		stroke(ops, r, gtx.Dp(7), p.col.line)
 	}
 	place(ops, call, image.Pt((r.Dx()-size.X)/2, (r.Dy()-size.Y)/2))
-	p.hit(ctlButton, r, k.id, k.arg, false)
+	p.hit(ctlButton, r, k.id, k.arg, k.dead)
 	return r.Size()
+}
+
+// colorChip is one recipe color in the current theme; the chosen one is ringed.
+func (p *page) colorChip(k ctrl) image.Point {
+	gtx, ops := p.gtx, p.gtx.Ops
+	s, g := gtx.Dp(18), gtx.Dp(3)
+	r := image.Rect(g, g, g+s, g+s)
+	paint.FillShape(ops, p.c.memberColor(k.text), clip.UniformRRect(r, gtx.Dp(4)).Op(ops))
+	outer := r.Inset(-g)
+	if k.on {
+		paint.FillShape(ops, p.col.title, clip.Stroke{Path: clip.UniformRRect(outer, gtx.Dp(6)).Path(ops), Width: float32(gtx.Dp(2))}.Op())
+	}
+	p.hit(ctlColor, outer, k.id, k.arg, false)
+	return outer.Max
 }
 
 func (p *page) toggle(k ctrl) image.Point {
