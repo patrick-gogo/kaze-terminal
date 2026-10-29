@@ -158,7 +158,13 @@ func (win *window) runWorkspace(id string) {
 		win.wsNotice(ws.Name + ": " + err.Error())
 		return
 	}
+	win.launch(ws, plan, nil)
+}
 
+// launch opens the tabs of a preflighted workspace and starts its probes; the
+// first tab that starts gets warns written in, as the usual first tab does.
+// It returns the run.
+func (win *window) launch(ws workspaces.Workspace, plan []wsPlan, warns []string) *wsRun {
 	win.wsr.next++
 	run := &wsRun{id: win.wsr.next, workspace: ws.ID, name: ws.Name}
 	run.ctx, run.cancel = context.WithCancel(context.Background())
@@ -172,10 +178,14 @@ func (win *window) runWorkspace(id string) {
 	for i, p := range plan {
 		m := &wsMember{title: p.tab.Title, dir: p.dir, run: workspaces.TabRun{Line: p.line, Wait: p.tab.Wait, Port: p.tab.Port, Started: now}}
 		run.members = append(run.members, m)
-		t, err := win.mgr.NewOpts(tabs.StartOpts{
+		opts := tabs.StartOpts{
 			Dir: p.dir, Title: p.tab.Title, Color: p.tab.Color,
 			Group: &tabs.Group{Workspace: ws.ID, Name: ws.Name, Run: run.id, Member: i},
-		})
+		}
+		if first == 0 && len(warns) > 0 {
+			opts.Prefeed = func(s *term.Session) { injectWarnings(s, warns) }
+		}
+		t, err := win.mgr.NewOpts(opts)
 		if err != nil {
 			m.run.Event(workspaces.StartFailedEvent{Err: "The shell could not start: " + err.Error()})
 			continue
@@ -197,6 +207,7 @@ func (win *window) runWorkspace(id string) {
 	if win.w != nil {
 		win.w.Invalidate()
 	}
+	return run
 }
 
 func depKey(r *workspaces.TabRun) string {

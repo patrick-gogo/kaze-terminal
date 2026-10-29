@@ -471,7 +471,7 @@ func (win *window) frame(gtx layout.Context) error {
 		if len(win.opt.Config.Shell) > 0 {
 			def = ptyx.Resolve(ptyx.DefaultShell())
 		}
-		if _, _, err := openFirst(win.mgr, &win.opt.Shell, def, win.opt.Warnings); err != nil {
+		if err := win.openStartup(def); err != nil {
 			return fmt.Errorf("start %q: %w", win.opt.Shell, err)
 		}
 		if win.bench != nil {

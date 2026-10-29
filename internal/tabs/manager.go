@@ -43,6 +43,7 @@ type Group struct {
 type StartOpts struct {
 	Dir, Title, Color string // an empty Dir starts the shell in the window's default folder
 	Group             *Group
+	Prefeed           func(*term.Session) // writes into the tab before its shell's output, as NewWith does
 }
 
 // entry holds what the session's notifier goroutine needs without taking the manager lock.
@@ -128,7 +129,7 @@ func (m *Manager) NewWith(prefeed func(*term.Session)) (*Tab, error) {
 }
 
 // NewOpts is New with its own folder, fixed title, color and group.
-func (m *Manager) NewOpts(o StartOpts) (*Tab, error) { return m.newTab(o, nil) }
+func (m *Manager) NewOpts(o StartOpts) (*Tab, error) { return m.newTab(o, o.Prefeed) }
 
 func (m *Manager) newTab(o StartOpts, prefeed func(*term.Session)) (*Tab, error) {
 	m.mu.Lock()
