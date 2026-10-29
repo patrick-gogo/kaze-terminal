@@ -223,27 +223,27 @@ func TestTabMovesFocusAndEnterActivates(t *testing.T) {
 	n := len(win.set.controls)
 	tab := key.Event{Name: key.NameTab, State: key.Press}
 	back := key.Event{Name: key.NameTab, Modifiers: key.ModShift, State: key.Press}
-	win.settingsKey(tab)
-	win.settingsKey(tab)
-	win.settingsKey(tab)
+	win.settingsKey(layout.Context{}, tab)
+	win.settingsKey(layout.Context{}, tab)
+	win.settingsKey(layout.Context{}, tab)
 	if win.set.focus != 2 {
 		t.Fatalf("focus %d after three Tabs, want 2", win.set.focus)
 	}
-	win.settingsKey(key.Event{Name: key.NameSpace, State: key.Press})
+	win.settingsKey(layout.Context{}, key.Event{Name: key.NameSpace, State: key.Press})
 	if !*on || len(*got) != 1 || (*got)[0].id != "flag" {
 		t.Fatalf("Space on the toggle: %v", *got)
 	}
-	win.settingsKey(back)
-	win.settingsKey(back)
-	win.settingsKey(back)
+	win.settingsKey(layout.Context{}, back)
+	win.settingsKey(layout.Context{}, back)
+	win.settingsKey(layout.Context{}, back)
 	// The sidebar now participates in the focus order.
 	for range win.set.nav {
-		win.settingsKey(back)
+		win.settingsKey(layout.Context{}, back)
 	}
 	if win.set.focus != n-1 {
 		t.Fatalf("focus %d after Shift+Tab past the first, want the last (%d)", win.set.focus, n-1)
 	}
-	win.settingsKey(key.Event{Name: key.NameReturn, State: key.Press})
+	win.settingsKey(layout.Context{}, key.Event{Name: key.NameReturn, State: key.Press})
 	if last := (*got)[len(*got)-1]; last.id != "fix" {
 		t.Fatalf("Enter activated %v, want fix", last)
 	}
@@ -349,16 +349,16 @@ func TestKeyboardCanReachClaudeSection(t *testing.T) {
 	win.drawSettings(pageContext(800, 600), pageRect)
 	// Tab past the Appearance controls, then Appearance and Claude in the sidebar.
 	for i := 0; i < len(win.set.controls)+2; i++ {
-		win.settingsKey(key.Event{Name: key.NameTab, State: key.Press})
+		win.settingsKey(layout.Context{}, key.Event{Name: key.NameTab, State: key.Press})
 	}
-	win.settingsKey(key.Event{Name: key.NameReturn, State: key.Press})
+	win.settingsKey(layout.Context{}, key.Event{Name: key.NameReturn, State: key.Press})
 	if win.sections()[win.set.section].title != "Claude" {
 		t.Fatalf("keyboard left section at %q", win.sections()[win.set.section].title)
 	}
 	// The disabled Workspaces entry is skipped; Shift+Tab reaches Appearance.
 	win.drawSettings(pageContext(800, 600), pageRect)
-	win.settingsKey(key.Event{Name: key.NameTab, Modifiers: key.ModShift, State: key.Press})
-	win.settingsKey(key.Event{Name: key.NameSpace, State: key.Press})
+	win.settingsKey(layout.Context{}, key.Event{Name: key.NameTab, Modifiers: key.ModShift, State: key.Press})
+	win.settingsKey(layout.Context{}, key.Event{Name: key.NameSpace, State: key.Press})
 	if win.sections()[win.set.section].title != "Appearance" {
 		t.Fatal("could not return to Appearance with keyboard")
 	}

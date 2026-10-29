@@ -883,11 +883,29 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	}
 	out := routeKey(runtime.GOOS, win.km, e.Name, e.Modifiers, m)
 	win.gate.onKey(true, out)
-	switch out.act {
+	switch {
+	case out.act != actNone:
+		win.runShortcut(gtx, out.act)
+	case out.data != nil:
+		win.takeOver(t)
+		win.benchKey(t)
+		t.Session.Write(out.data)
+		win.snapToBottom(t.Session)
+	}
+}
+
+// runShortcut does one of kaze's own actions. The terminal, the settings page and
+// the group menu all use it, so a shortcut does the same wherever the keyboard is.
+func (win *window) runShortcut(gtx layout.Context, a action) {
+	switch a {
 	case actNewTab:
 		win.newTab()
 	case actCloseTab:
-		win.mgr.Close(t.ID)
+		if win.set.shown {
+			win.closeSettings()
+		} else if t := win.mgr.Active(); t != nil {
+			win.mgr.Close(t.ID)
+		}
 	case actNextTab:
 		win.cycleTab(1)
 	case actPrevTab:
@@ -895,15 +913,12 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	case actOpenSettings:
 		win.openSettings()
 	case actPaste:
-		gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
+		if win.shownTab() != nil {
+			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
+		}
 	case actCopy:
-		win.copySel(gtx, t)
-	default:
-		if out.data != nil {
-			win.takeOver(t)
-			win.benchKey(t)
-			t.Session.Write(out.data)
-			win.snapToBottom(t.Session)
+		if t := win.shownTab(); t != nil {
+			win.copySel(gtx, t)
 		}
 	}
 }

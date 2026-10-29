@@ -5,14 +5,19 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/io/event"
+	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 
+	"github.com/patrick-gogo/kaze-terminal/internal/config"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
+	"github.com/patrick-gogo/kaze-terminal/internal/term"
+	"github.com/patrick-gogo/kaze-terminal/internal/workspaces"
 )
 
 var groupTitles = []string{"api", "admin", "storefront", "api logs"}
@@ -144,7 +149,7 @@ func TestGroupMenuPickByNumberNeverReachesTheTerminal(t *testing.T) {
 	if win.focusTarget() != event.Tag(&win.grp.tag) {
 		t.Fatal("keyboard focus stays on the terminal while the menu is open")
 	}
-	win.groupKey(keyPress("3"))
+	win.groupKey(layout.Context{}, keyPress("3"))
 	if win.mgr.Active().ID != ids[2] || win.grp.run != 0 {
 		t.Fatalf("after 3: active %d menu %d, want storefront and closed", win.mgr.Active().ID, win.grp.run)
 	}
@@ -163,10 +168,10 @@ func TestGroupMenuPickByNumberNeverReachesTheTerminal(t *testing.T) {
 func TestGroupMenuArrowsEnterAndEsc(t *testing.T) {
 	win, _, ids := groupWindow(t)
 	win.openGroupMenu(1)
-	win.groupKey(keyPress(key.NameUpArrow)) // wraps to the last
-	win.groupKey(keyPress(key.NameUpArrow))
-	win.groupKey(keyPress(key.NameDownArrow))
-	win.groupKey(keyPress(key.NameReturn))
+	win.groupKey(layout.Context{}, keyPress(key.NameUpArrow)) // wraps to the last
+	win.groupKey(layout.Context{}, keyPress(key.NameUpArrow))
+	win.groupKey(layout.Context{}, keyPress(key.NameDownArrow))
+	win.groupKey(layout.Context{}, keyPress(key.NameReturn))
 	if win.mgr.Active().ID != ids[3] {
 		t.Fatalf("active %d after up, up, down, Enter; want api logs", win.mgr.Active().ID)
 	}
@@ -175,12 +180,12 @@ func TestGroupMenuArrowsEnterAndEsc(t *testing.T) {
 	if win.grp.kb != 3 {
 		t.Fatalf("menu opened on row %d, want the shown member's row 3", win.grp.kb)
 	}
-	win.groupKey(keyPress(key.NameEscape))
+	win.groupKey(layout.Context{}, keyPress(key.NameEscape))
 	if win.grp.run != 0 || win.mgr.Active().ID != before {
 		t.Fatal("Esc did not just close the menu")
 	}
 	win.openGroupMenu(1)
-	win.groupKey(keyPress("9")) // no ninth member
+	win.groupKey(layout.Context{}, keyPress("9")) // no ninth member
 	if win.grp.run != 1 {
 		t.Fatal("a number with no member closed the menu")
 	}
@@ -269,7 +274,7 @@ func TestGroupMenuWorksOverSettings(t *testing.T) {
 	if win.grp.run != 1 || win.focusTarget() != event.Tag(&win.grp.tag) {
 		t.Fatal("the chip did not open its menu over the settings page")
 	}
-	win.groupKey(keyPress("2"))
+	win.groupKey(layout.Context{}, keyPress("2"))
 	if win.set.shown || win.mgr.Active().ID != ids[1] {
 		t.Fatalf("picking over settings: shown %v active %d", win.set.shown, win.mgr.Active().ID)
 	}
@@ -279,7 +284,7 @@ func TestGroupMenuRepaintsOnThemeSwitch(t *testing.T) {
 	win, _, ids := groupWindow(t)
 	win.applyTheme(mustTheme(t, "midnight"))
 	win.openGroupMenu(1)
-	win.groupKey(keyPress(key.NameDownArrow))
+	win.groupKey(layout.Context{}, keyPress(key.NameDownArrow))
 	drawGroupBar(win)
 	sumi := mustTheme(t, "sumi")
 	win.applyTheme(sumi)
@@ -293,7 +298,7 @@ func TestGroupMenuRepaintsOnThemeSwitch(t *testing.T) {
 	if got := win.ui.memberColor("magenta"); got != win.pal.ANSI[5] {
 		t.Fatalf("magenta member %v, want the theme's ANSI 5 %v", got, win.pal.ANSI[5])
 	}
-	win.groupKey(keyPress(key.NameReturn))
+	win.groupKey(layout.Context{}, keyPress(key.NameReturn))
 	if win.mgr.Active().ID != ids[1] {
 		t.Fatal("the kept row was not the one picked")
 	}
@@ -305,5 +310,121 @@ func TestShortFolderKeepsTheLastTwoParts(t *testing.T) {
 	}
 	if got := shortFolder(""); got != "" {
 		t.Fatalf("empty folder became %q", got)
+	}
+}
+
+// frameGroupWindow is groupWindow ready for whole headless frames: real tags,
+// default settings and member 1 (api) shown and still waiting to launch.
+func frameGroupWindow(t *testing.T) (*window, *recStarter, []tabs.TabID, *input.Router) {
+	t.Helper()
+	win, st, ids := groupWindow(t)
+	win.termTag, win.barTag, win.capTag, win.toastTag = new(int), new(int), new(int), new(int)
+	win.opt.Config = config.Default()
+	t0 := time.Unix(1000, 0)
+	win.wsr.now = func() time.Time { return t0 }
+	for _, m := range win.runs[1].members {
+		m.run = workspaces.TabRun{State: workspaces.Waiting, Wait: workspaces.WaitDocker, Started: t0}
+	}
+	win.mgr.SetActive(ids[0])
+	r := new(input.Router)
+	sizedFrame(t, win, r, 1000, 600)
+	return win, st, ids, r
+}
+
+func routerClick(r *input.Router, p image.Point) {
+	at := f32.Pt(float32(p.X), float32(p.Y))
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: at},
+		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Position: at},
+	)
+}
+
+// mouseMode turns on button reporting in a tab's app, as vim or Claude Code would.
+func mouseMode(t *testing.T, p *recPTY, s *term.Session) {
+	t.Helper()
+	go p.w.Write([]byte("\x1b[?1000h"))
+	deadline := time.Now().Add(3 * time.Second)
+	for !modes(s).MouseButton {
+		if time.Now().After(deadline) {
+			t.Fatal("the app never turned mouse reporting on")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestGroupMenuClosingClickStaysOffTheTerminal(t *testing.T) {
+	win, st, ids, r := frameGroupWindow(t)
+	st.mu.Lock()
+	p := st.ptys[1] // member api
+	st.mu.Unlock()
+	mouseMode(t, p, win.mgr.Lookup(ids[0]).Session)
+	win.openGroupMenu(1)
+	sizedFrame(t, win, r, 1000, 600)
+	routerClick(r, image.Pt(900, 450)) // in the grid, away from the card and the banner
+	sizedFrame(t, win, r, 1000, 600)
+	if win.grp.run != 0 {
+		t.Fatal("a click in the terminal left the menu open")
+	}
+	if s := win.runs[1].members[0].run.State; s != workspaces.Waiting {
+		t.Fatalf("the closing click took the waiting tab over: state %v", s)
+	}
+	// Writes reach the shell on their own goroutine; give a stray one time to land.
+	for end := time.Now().Add(300 * time.Millisecond); time.Now().Before(end); time.Sleep(5 * time.Millisecond) {
+		if got := p.sent(); got != "" {
+			t.Fatalf("the closing click reached the app as %q", got)
+		}
+	}
+}
+
+func TestGroupMenuClickOnAnotherTabSwitchesInOneClick(t *testing.T) {
+	win, _, _, r := frameGroupWindow(t)
+	win.openGroupMenu(1)
+	sizedFrame(t, win, r, 1000, 600)
+	other := win.ui.hits.tabs[1]
+	routerClick(r, centre(other.rect).Sub(image.Pt(other.rect.Dx()/4, 0)))
+	sizedFrame(t, win, r, 1000, 600)
+	if win.grp.run != 0 || win.mgr.Active().ID != other.id {
+		t.Fatalf("one click on another tab: menu %d active %d, want closed and %d", win.grp.run, win.mgr.Active().ID, other.id)
+	}
+}
+
+func TestPasteWhileGroupMenuIsOpen(t *testing.T) {
+	win, _, _ := groupWindow(t)
+	win.termTag = new(int)
+	win.openGroupMenu(1)
+	var r input.Router
+	gtx := pageContext(1000, 600)
+	gtx.Source = r.Source()
+	win.groupKey(gtx, key.Event{Name: "V", Modifiers: key.ModCtrl | key.ModShift, State: key.Press})
+	if win.grp.run != 0 {
+		t.Fatal("paste left the menu open")
+	}
+	if !r.ClipboardRequested() {
+		t.Fatal("paste with the menu open never asked for the clipboard")
+	}
+}
+
+func TestShiftDigitDoesNotPickAMember(t *testing.T) {
+	win, _, ids := groupWindow(t)
+	before := win.mgr.Active().ID
+	win.openGroupMenu(1)
+	win.groupKey(layout.Context{}, key.Event{Name: "3", Modifiers: key.ModShift, State: key.Press})
+	if win.grp.run != 1 || win.mgr.Active().ID != before || win.mgr.Active().ID == ids[2] {
+		t.Fatalf("Shift+3: menu %d active %d", win.grp.run, win.mgr.Active().ID)
+	}
+}
+
+func TestGroupMenuClosesWhenItsChipOverflows(t *testing.T) {
+	win, _, _ := groupWindow(t)
+	win.openGroupMenu(1)
+	drawGroupBar(win)
+	list := win.mgr.Tabs()
+	win.drawBar(barContext(120), list, list[0].ID, 38) // room for the first tab only
+	win.drawGroupMenu(pageContext(120, 600), list, 38)
+	if len(win.ui.hits.groups) != 0 {
+		t.Fatal("the chip still fit; the test needs a narrower strip")
+	}
+	if win.grp.run != 0 {
+		t.Fatal("the menu stayed open with its chip gone")
 	}
 }

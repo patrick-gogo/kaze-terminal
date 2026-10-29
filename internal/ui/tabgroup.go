@@ -42,7 +42,7 @@ type groupMenu struct {
 	outTag int // everywhere else: a click there closes the menu
 	rows   []menuRow
 	card   image.Rectangle
-	bg     color.NRGBA // the card color the last frame painted
+	bg     color.NRGBA // the card color the last frame painted; the theme-switch test reads it
 }
 
 type menuRow struct {
@@ -340,7 +340,7 @@ func (win *window) groupEvents(gtx layout.Context) {
 		}
 		switch e := ev.(type) {
 		case key.Event:
-			win.groupKey(e)
+			win.groupKey(gtx, e)
 		case key.EditEvent:
 			edited = true
 		case pointer.Event:
@@ -365,28 +365,13 @@ func (win *window) groupEvents(gtx layout.Context) {
 
 // groupKey handles a key while the menu is open: 1-9, the arrows, Enter and Esc.
 // kaze's own shortcuts close the menu and then do what they always do.
-func (win *window) groupKey(e key.Event) {
+func (win *window) groupKey(gtx layout.Context, e key.Event) {
 	if e.State != key.Press || win.grp.run == 0 {
 		return
 	}
 	if a, ok := win.km[kinput.Shortcut{Name: e.Name, Mods: e.Modifiers}]; ok {
 		win.closeGroupMenu()
-		switch a {
-		case actNewTab:
-			win.newTab()
-		case actCloseTab:
-			if win.set.shown {
-				win.closeSettings()
-			} else if t := win.mgr.Active(); t != nil {
-				win.mgr.Close(t.ID)
-			}
-		case actNextTab:
-			win.cycleTab(1)
-		case actPrevTab:
-			win.cycleTab(-1)
-		case actOpenSettings:
-			win.openSettings()
-		}
+		win.runShortcut(gtx, a)
 		return
 	}
 	if e.Modifiers&^key.ModShift != 0 {
@@ -409,7 +394,8 @@ func (win *window) groupKey(e key.Event) {
 	case key.NameReturn, key.NameEnter:
 		win.pickMember(ids[min(g.kb, n-1)])
 	default:
-		if s := string(e.Name); len(s) == 1 && s[0] >= '1' && s[0] <= '9' && int(s[0]-'1') < n {
+		// Only a bare digit picks: Shift+3 is a symbol on most layouts.
+		if s := string(e.Name); e.Modifiers == 0 && len(s) == 1 && s[0] >= '1' && s[0] <= '9' && int(s[0]-'1') < n {
 			win.pickMember(ids[s[0]-'1'])
 		}
 	}
@@ -450,7 +436,7 @@ func (win *window) groupOutside(e pointer.Event) {
 }
 
 // drawGroupMenu draws the open dropdown under its chip and takes its input:
-// the card's clicks, and a pass-through area elsewhere that closes it.
+// the card's clicks, and the clicks elsewhere that close it.
 func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) {
 	g := &win.grp
 	g.rows = g.rows[:0]
@@ -463,11 +449,16 @@ func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) 
 	size := gtx.Constraints.Max
 	pad, rowH, hdH := gtx.Dp(6), gtx.Dp(30), gtx.Dp(28)
 	w := max(min(gtx.Dp(330), size.X-gtx.Dp(16)), 0)
-	x := gtx.Dp(8)
+	x, drawn := 0, false
 	for _, h := range c.hits.groups {
 		if h.run == g.run {
-			x = h.rect.Min.X + gtx.Dp(8)
+			x, drawn = h.rect.Min.X+gtx.Dp(8), true
 		}
+	}
+	if !drawn {
+		win.closeGroupMenu() // its chip overflowed the strip: nothing to hang the menu from
+		g.card = image.Rectangle{}
+		return
 	}
 	x = max(min(x, size.X-w-gtx.Dp(8)), 0)
 	n := memberCount(list, g.run)
@@ -563,11 +554,16 @@ func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) 
 	}
 	cl.Pop()
 
+	// Outside the card a click closes the menu. On the tab strip it also does what
+	// it would anyway (switch tab, +, Settings); below it never reaches the terminal.
 	pass := pointer.PassOp{}.Push(ops)
-	area := clip.Rect{Max: size}.Push(ops)
+	area := clip.Rect{Max: image.Pt(size.X, top)}.Push(ops)
 	event.Op(ops, &g.outTag)
 	area.Pop()
 	pass.Pop()
+	area = clip.Rect{Min: image.Pt(0, top), Max: size}.Push(ops)
+	event.Op(ops, &g.outTag)
+	area.Pop()
 	area = clip.Rect(card).Push(ops)
 	event.Op(ops, &g.tag)
 	area.Pop()

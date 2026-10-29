@@ -227,7 +227,7 @@ func (win *window) settingsEvents(gtx layout.Context) {
 		}
 		switch e := ev.(type) {
 		case key.Event:
-			win.settingsKey(e)
+			win.settingsKey(gtx, e)
 		case key.EditEvent:
 			edited = true
 		case pointer.Event:
@@ -279,22 +279,13 @@ func (win *window) settingsPointer(e pointer.Event) {
 
 // settingsKey handles a key on the page: kaze's own shortcuts, Tab / Shift+Tab
 // between controls, and Enter / Space to press the focused one.
-func (win *window) settingsKey(e key.Event) {
+func (win *window) settingsKey(gtx layout.Context, e key.Event) {
 	if e.State != key.Press {
 		return
 	}
 	s := &win.set
 	if a, ok := win.km[input.Shortcut{Name: e.Name, Mods: e.Modifiers}]; ok {
-		switch a {
-		case actNewTab:
-			win.newTab()
-		case actCloseTab:
-			win.closeSettings()
-		case actNextTab:
-			win.cycleTab(1)
-		case actPrevTab:
-			win.cycleTab(-1)
-		}
+		win.runShortcut(gtx, a)
 		return
 	}
 	n := len(s.controls)
