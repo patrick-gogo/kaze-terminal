@@ -152,6 +152,7 @@ type window struct {
 
 	runs map[uint64]*wsRun // workspace runs with a tab still open; UI goroutine only
 	wsr  wsRunner
+	grp  groupMenu // the tab group dropdown; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -383,6 +384,8 @@ func startTheme(c config.Config) theme.Theme {
 func (win *window) applyTheme(t theme.Theme) {
 	win.pal = applyColors(t.Term, win.opt.Config.Colors)
 	win.ui.setTheme(t)
+	// Group members match the terminal's colors, [colors] overrides included.
+	win.ui.ansi = win.pal.ANSI
 	win.rendStale = true // rebuilt next frame with the new palette
 	win.w.Invalidate()
 }
@@ -478,6 +481,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.mgr.ResizeAll(cols, rows)
 
 	win.barEvents(gtx)
+	win.groupEvents(gtx) // after the strip, so a chip click is not also a click outside
 	win.toastEvents(gtx)
 	win.bannerEvents(gtx)
 	active := win.mgr.Active()
@@ -492,6 +496,7 @@ func (win *window) frame(gtx layout.Context) error {
 	active = win.mgr.Active()
 	win.switchedTo(active)
 	list := win.mgr.Tabs()
+	win.pruneGroupMenu(list)
 	win.pruneSels(list)
 	win.pruneLocs(list)
 	win.alerts.prune(func(id tabs.TabID) bool {
@@ -574,13 +579,10 @@ func (win *window) frame(gtx layout.Context) error {
 		event.Op(ops, win.toastTag)
 		area.Pop()
 	}
+	win.drawGroupMenu(gtx, list, barH) // last, so it is on top and sees clicks first
 
 	if win.wantFocus {
-		var tag event.Tag = win.termTag
-		if win.set.shown {
-			tag = &win.set.tag
-		}
-		gtx.Execute(key.FocusCmd{Tag: tag})
+		gtx.Execute(key.FocusCmd{Tag: win.focusTarget()})
 		win.wantFocus = false
 	}
 	return nil
@@ -756,6 +758,14 @@ func (win *window) barPress(e pointer.Event) {
 	win.wantFocus = true
 	p := e.Position.Round()
 	primary, middle := e.Buttons.Contain(pointer.ButtonPrimary), e.Buttons.Contain(pointer.ButtonTertiary)
+	if run, on := win.ui.hits.groupAt(p); on {
+		if primary && win.grp.run == run {
+			win.closeGroupMenu()
+		} else if primary {
+			win.openGroupMenu(run)
+		}
+		return // the chip has no ×: a run's tabs close one at a time
+	}
 	if on, onClose := win.ui.hits.settingsAt(p); on {
 		switch {
 		case onClose && primary, middle:

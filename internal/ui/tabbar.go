@@ -40,6 +40,7 @@ type chrome struct {
 	toastHits []toastHit
 	th        theme.Chrome
 	shape     theme.TabShape
+	ansi      [16]color.NRGBA // the terminal's ANSI colors, for tab group members
 
 	faces   []font.FontFace
 	covered map[rune]bool   // rune -> some face has it
@@ -65,12 +66,13 @@ func newChrome() *chrome {
 		loaded:  map[string]bool{},
 		th:      theme.Default().UI,
 		shape:   theme.Default().Tabs,
+		ansi:    theme.Default().Term.ANSI,
 	}
 }
 
 // setTheme switches the colors and tab shape the next frame draws with.
 func (c *chrome) setTheme(t theme.Theme) {
-	c.th, c.shape = t.UI, t.Tabs
+	c.th, c.shape, c.ansi = t.UI, t.Tabs, t.Term.ANSI
 }
 
 // fit makes s drawable: for each rune the bundled fonts lack, it adds the system font
@@ -184,7 +186,8 @@ const tabTop = 7
 
 // layoutTabBar fills the bar's background, draws the tabs, the Settings chip when open
 // and the + button left of limit, records where each one is for clicks, and returns
-// where the strip ends. marks gives each tab's alert mark; nil means none.
+// where the strip ends. marks gives each tab's alert mark; nil means none. A workspace
+// run's tabs are drawn as one group chip where its first member is.
 func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, marks func(tabs.TabID) mark, def string, height, limit int, chip settingsChip) int {
 	ops := gtx.Ops
 	width := gtx.Constraints.Max.X
@@ -193,7 +196,7 @@ func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.
 	top := gtx.Dp(tabTop)
 	padX, gap, dot, radius := gtx.Dp(12), gtx.Dp(7), gtx.Dp(7), gtx.Dp(9)
 	x := gtx.Dp(8)
-	c.hits = barHits{tabs: c.hits.tabs[:0]}
+	c.hits = barHits{tabs: c.hits.tabs[:0], groups: c.hits.groups[:0]}
 
 	closeCall, closeSize := c.label(gtx, "×", 12, c.th.Muted)
 	plusCall, plusSize := c.label(gtx, "+", 13, c.th.Muted)
@@ -208,7 +211,18 @@ func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.
 		chipCall, chipSize = c.label(gtx, "Settings", 12, fg)
 		chipW = padX + chipSize.X + gap + closeSize.X + padX + gtx.Dp(4)
 	}
-	for _, t := range list {
+	for i, t := range list {
+		if t.Group != nil {
+			if !firstOfRun(list, i) {
+				continue // the run's chip already stands for this member
+			}
+			w, ok := c.groupChip(gtx, list, i, active, marks, def, x, limit-plusSize.X-2*padX-chipW)
+			if !ok {
+				break
+			}
+			x += w + gtx.Dp(4)
+			continue
+		}
 		on := t.ID == active
 		fg := c.th.Muted
 		if on {

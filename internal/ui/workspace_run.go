@@ -33,6 +33,7 @@ type wsRun struct {
 type wsMember struct {
 	tab        tabs.TabID // 0 when the shell could not start
 	title      string
+	dir        string // where its shell started, for the group menu
 	run        workspaces.TabRun
 	hideBanner bool // the owner dismissed a failure banner
 }
@@ -169,7 +170,7 @@ func (win *window) runWorkspace(id string) {
 	var first tabs.TabID
 	win.wsr.creating = true
 	for i, p := range plan {
-		m := &wsMember{title: p.tab.Title, run: workspaces.TabRun{Line: p.line, Wait: p.tab.Wait, Port: p.tab.Port, Started: now}}
+		m := &wsMember{title: p.tab.Title, dir: p.dir, run: workspaces.TabRun{Line: p.line, Wait: p.tab.Wait, Port: p.tab.Port, Started: now}}
 		run.members = append(run.members, m)
 		t, err := win.mgr.NewOpts(tabs.StartOpts{
 			Dir: p.dir, Title: p.tab.Title, Color: p.tab.Color,
