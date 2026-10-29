@@ -354,3 +354,26 @@ func TestTextFieldLetsGoUnderADialog(t *testing.T) {
 		t.Fatalf("a click under the dialog reached the field: editing %q, value %q", f.win.set.editing, d.name)
 	}
 }
+
+// A kaze shortcut in the same batch as typing must not cost the typed text.
+func TestTextFieldEditSurvivesAShortcutInTheSameBatch(t *testing.T) {
+	f, d := fieldWin(t)
+	f.clickField("name")
+	f.send(key.EditEvent{Text: "x"}, modPress(",", key.ModCtrl))
+	if !f.win.set.shown {
+		t.Fatal("Ctrl+, hid the settings page")
+	}
+	if d.name != "x" {
+		t.Fatalf("draft %q after typing x then Ctrl+, in one batch, want x", d.name)
+	}
+}
+
+func TestTextFieldCtrlCCopiesTheSelection(t *testing.T) {
+	f, _ := fieldWin(t)
+	f.clickField("dir")
+	f.send(modPress("A", key.ModCtrl))
+	f.send(modPress("C", key.ModCtrl))
+	if _, b, ok := f.r.WriteClipboard(); !ok || string(b) != "~/code" {
+		t.Fatalf("Ctrl+C copied %q %v, want the field's selection", b, ok)
+	}
+}

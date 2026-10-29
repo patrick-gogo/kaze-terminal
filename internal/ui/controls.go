@@ -286,20 +286,25 @@ func (p *page) textField(k ctrl) image.Point {
 	}
 	stroke(ops, box, radius, border)
 
-	_, line := p.c.label(gtx, "Ag", 12, col.fg)
-	at := image.Pt(pad, (h-line.Y)/2)
+	if p.fieldH == 0 {
+		_, line := p.c.label(gtx, "Ag", 12, col.fg)
+		p.fieldH = line.Y
+	}
+	at := image.Pt(pad, (h-p.fieldH)/2)
 	if f.ed.Len() == 0 && k.placeholder != "" {
 		call, _ := p.text(k.placeholder, 12, col.dim)
 		place(ops, call, at)
 	}
 	eg := gtx
-	eg.Constraints = layout.Exact(image.Pt(max(box.Dx()-2*pad, 1), line.Y))
+	eg.Constraints = layout.Exact(image.Pt(max(box.Dx()-2*pad, 1), p.fieldH))
 	fg := op.Record(ops)
 	paint.ColorOp{Color: col.fg}.Add(ops)
 	fgc := fg.Stop()
 	sel := op.Record(ops)
 	paint.ColorOp{Color: tint(col.accent, 0x55)}.Add(ops)
 	selc := sel.Stop()
+	// Layout drains Update itself and would drop a change still queued; take it first.
+	p.win.drainField(gtx, k.id, f)
 	t := op.Offset(at).Push(ops)
 	f.ed.Layout(eg, p.c.shaper, font.Font{Typeface: chromeFace}, 12, fgc, selc)
 	t.Pop()
@@ -351,25 +356,31 @@ func (win *window) fieldEvents(gtx layout.Context) {
 				break
 			}
 			if e, ok := ev.(key.Event); ok && e.State == key.Press && win.fieldKey(gtx, f, e) {
-				return // a shortcut may have closed the page or switched sections
+				return // a shortcut may have closed the page; the layout drains what is left
 			}
 		}
-		for {
-			ev, ok := f.ed.Update(gtx)
-			if !ok {
-				break
+		win.drainField(gtx, id, f)
+	}
+}
+
+// drainField runs field id's editor events: an edit goes to set, a submit
+// (Enter) gives the keyboard back to the page.
+func (win *window) drainField(gtx layout.Context, id string, f *textField) {
+	for {
+		ev, ok := f.ed.Update(gtx)
+		if !ok {
+			return
+		}
+		switch ev.(type) {
+		case widget.ChangeEvent:
+			text := f.ed.Text()
+			win.ui.fit(text) // loads a fallback font for any rune the bundled ones lack
+			if f.set != nil {
+				f.set(text)
 			}
-			switch ev.(type) {
-			case widget.ChangeEvent:
-				text := f.ed.Text()
-				win.ui.fit(text) // loads a fallback font for any rune the bundled ones lack
-				if f.set != nil {
-					f.set(text)
-				}
-			case widget.SubmitEvent:
-				if win.set.editing == id {
-					win.editField("")
-				}
+		case widget.SubmitEvent:
+			if win.set.editing == id {
+				win.editField("")
 			}
 		}
 	}

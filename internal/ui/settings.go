@@ -385,7 +385,7 @@ func tint(col color.NRGBA, a uint8) color.NRGBA {
 func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	s := &win.set
 	s.controls, s.nav, s.texts = s.controls[:0], s.nav[:0], s.texts[:0]
-	p := &page{gtx: gtx, c: win.ui, st: s, col: win.ui.pageColors()}
+	p := &page{gtx: gtx, c: win.ui, win: win, st: s, col: win.ui.pageColors()}
 	ops := gtx.Ops
 	cl := clip.Rect(r).Push(ops)
 	defer cl.Pop()
@@ -548,10 +548,12 @@ func (p *page) dialog(r image.Rectangle, d *dialogBox) {
 
 // page draws one frame of the settings page and records its hit areas and text.
 type page struct {
-	gtx layout.Context
-	c   *chrome
-	st  *settingsState
-	col pageColors
+	gtx    layout.Context
+	c      *chrome
+	win    *window
+	st     *settingsState
+	col    pageColors
+	fieldH int // a text field's line height, measured once a frame
 }
 
 func (p *page) text(s string, size unit.Sp, col color.NRGBA) (op.CallOp, image.Point) {
