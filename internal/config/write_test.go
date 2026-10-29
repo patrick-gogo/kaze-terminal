@@ -204,3 +204,61 @@ func TestSetFollowsASymlink(t *testing.T) {
 		t.Fatalf("target %q", b)
 	}
 }
+
+func TestSetSkipsMultilineShellContent(t *testing.T) {
+	for _, quote := range []string{"'''", `"""`} {
+		for _, eol := range []string{"\n", "\r\n"} {
+			t.Run(quote+eol, func(t *testing.T) {
+				shell := "shell = ['/bin/sh', '-c', " + quote + "\ntheme = 'inside shell'\n[not_a_table]\n" + quote + "]\n"
+				src := strings.ReplaceAll(shell+"\n[colors]\nbg = '#101010'\n", "\n", eol)
+				p := write(t, src)
+				before, _, err := Load(p)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := Set(p, "theme", "tide"); err != nil {
+					t.Fatal(err)
+				}
+				after, _, err := Load(p)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if after.Theme != "tide" || strings.Join(after.Shell, "|") != strings.Join(before.Shell, "|") {
+					t.Fatalf("theme %q shell changed: %q -> %q", after.Theme, before.Shell, after.Shell)
+				}
+				got, _ := os.ReadFile(p)
+				if !strings.Contains(string(got), strings.ReplaceAll(shell, "\n", eol)) {
+					t.Fatalf("shell source changed: %s", got)
+				}
+			})
+		}
+	}
+}
+
+func TestSetReplacesQuotedKeys(t *testing.T) {
+	for _, key := range []string{`"theme"`, `'theme'`, `"\u0074heme"`} {
+		t.Run(key, func(t *testing.T) {
+			p := write(t, key+" = 'midnight' # keep\n")
+			if err := Set(p, "theme", "tide"); err != nil {
+				t.Fatal(err)
+			}
+			cfg, _, err := Load(p)
+			if err != nil || cfg.Theme != "tide" {
+				t.Fatalf("theme %q err %v", cfg.Theme, err)
+			}
+		})
+	}
+}
+
+func TestSetSkipsTableHeaderInsideMultilineString(t *testing.T) {
+	src := "shell = ['/bin/sh', '-c', '''\n[inside shell]\n''']\ntheme = 'midnight' # keep\n\n[colors]\nbg = '#101010'\n"
+	p := write(t, src)
+	if err := Set(p, "theme", "tide"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(p)
+	want := strings.Replace(src, "theme = 'midnight'", `theme = "tide"`, 1)
+	if string(got) != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

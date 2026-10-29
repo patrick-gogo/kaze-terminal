@@ -22,10 +22,15 @@ import (
 // settingsState is the Settings page: a special tab with no shell behind it.
 // open means its chip is in the tab strip; shown means it is in front instead of the terminal.
 type settingsState struct {
-	open, shown bool
-	section     int // index into the sections; never a later one
-	focus       int // index into controls; -1 when no control has focus
-	tag         int // its address is the page's event tag
+	open, shown       bool
+	section           int             // index into the sections; never a later one
+	focus             int             // index into controls; -1 when no control has focus
+	navFocus          bool            // focus is on a sidebar entry instead of a control
+	navIndex          int             // index into selectable nav entries
+	scroll, scrollMax int             // vertical pane position, clamped after each layout
+	scrollFocus       int             // last control revealed by keyboard focus
+	pane              image.Rectangle // visible content area for pointer hits
+	tag               int             // its address is the page's event tag
 
 	// Laid out each frame.
 	controls []control
@@ -96,6 +101,7 @@ func (win *window) openSettings() {
 	s := &win.set
 	if !s.open {
 		s.open, s.focus = true, -1
+		s.navFocus = false
 		s.section = 0
 		for i, sec := range win.sections() {
 			if !sec.later {
@@ -190,6 +196,7 @@ func (win *window) selectSection(i int) {
 		return
 	}
 	win.set.section, win.set.focus = i, -1
+	win.set.scroll, win.set.scrollFocus = 0, -1
 	win.showSection()
 	win.w.Invalidate()
 }
@@ -210,7 +217,7 @@ func (win *window) settingsEvents(gtx layout.Context) {
 			key.FocusFilter{Target: tag},
 			key.Filter{Focus: tag, Optional: allMods},
 			key.Filter{Focus: tag, Name: key.NameTab, Optional: allMods},
-			pointer.Filter{Target: tag, Kinds: pointer.Press},
+			pointer.Filter{Target: tag, Kinds: pointer.Press | pointer.Scroll, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}},
 		)
 		if !ok {
 			break
@@ -236,20 +243,32 @@ func (win *window) settingsEvents(gtx layout.Context) {
 
 // settingsPointer handles a press on the page: a menu entry or a control.
 func (win *window) settingsPointer(e pointer.Event) {
+	if e.Kind == pointer.Scroll {
+		if !win.dialogShown() {
+			win.set.scroll = min(max(win.set.scroll+int(e.Scroll.Y), 0), win.set.scrollMax)
+			win.w.Invalidate()
+		}
+		return
+	}
 	if e.Kind != pointer.Press || !e.Buttons.Contain(pointer.ButtonPrimary) {
 		return
 	}
 	win.wantFocus = true
 	p := e.Position.Round()
-	for _, n := range win.set.nav {
+	for i, n := range win.set.nav {
 		if p.In(n.rect) {
+			win.set.navFocus, win.set.navIndex = true, i
+			win.set.focus = -1
 			win.selectSection(n.section)
 			return
 		}
 	}
+	if !win.dialogShown() && !p.In(win.set.pane) {
+		return
+	}
 	for i, c := range win.set.controls {
 		if p.In(c.rect) {
-			win.set.focus = i
+			win.set.focus, win.set.navFocus = i, false
 			if !c.dead {
 				win.activate(c.id, c.arg)
 			}
@@ -284,19 +303,35 @@ func (win *window) settingsKey(e key.Event) {
 	}
 	switch e.Name {
 	case key.NameTab:
-		if n == 0 {
+		total := n + len(s.nav)
+		if total == 0 {
 			return
 		}
-		switch {
-		case e.Modifiers == key.ModShift && s.focus < 0:
-			s.focus = n - 1
-		case e.Modifiers == key.ModShift:
-			s.focus = (s.focus - 1 + n) % n
-		case e.Modifiers == 0:
-			s.focus = (s.focus + 1) % n
+		at := s.focus
+		if s.navFocus {
+			at = n + s.navIndex
+		}
+		switch e.Modifiers {
+		case key.ModShift:
+			if at < 0 {
+				at = total
+			}
+			at = (at - 1 + total) % total
+		case 0:
+			at = (at + 1) % total
+		default:
+			return
+		}
+		s.navFocus = at >= n
+		if s.navFocus {
+			s.navIndex, s.focus = at-n, -1
+		} else {
+			s.focus = at
 		}
 	case key.NameReturn, key.NameEnter, key.NameSpace:
-		if s.focus >= 0 && !s.controls[s.focus].dead {
+		if s.navFocus && s.navIndex < len(s.nav) {
+			win.selectSection(s.nav[s.navIndex].section)
+		} else if s.focus >= 0 && !s.controls[s.focus].dead {
 			c := s.controls[s.focus]
 			win.activate(c.id, c.arg)
 		}
@@ -342,8 +377,30 @@ func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	navW := min(gtx.Dp(190), r.Dx())
 	p.nav(image.Rect(r.Min.X, r.Min.Y, r.Min.X+navW, r.Max.Y), secs)
 	pane := image.Rect(r.Min.X+navW+gtx.Dp(28), r.Min.Y+gtx.Dp(22), r.Max.X-gtx.Dp(28), r.Max.Y)
+	s.pane = pane
 	if pane.Dx() > 0 && s.section < len(secs) {
-		p.pane(pane, secs[s.section], win)
+		from := len(s.controls)
+		rec := op.Record(ops)
+		bottom := p.pane(pane, secs[s.section], win)
+		call := rec.Stop()
+		s.scrollMax = max(0, bottom+gtx.Dp(16)-pane.Max.Y)
+		s.scroll = min(max(s.scroll, 0), s.scrollMax)
+		if s.focus != s.scrollFocus && s.focus >= from && s.focus < len(s.controls) {
+			focus := s.controls[s.focus].rect
+			if focus.Max.Y-s.scroll > pane.Max.Y {
+				s.scroll = min(s.scrollMax, focus.Max.Y-pane.Max.Y)
+			}
+			if focus.Min.Y-s.scroll < pane.Min.Y {
+				s.scroll = max(0, focus.Min.Y-pane.Min.Y)
+			}
+		}
+		s.scrollFocus = s.focus
+		s.shift(from, len(s.controls), image.Pt(0, -s.scroll))
+		paneClip := clip.Rect(pane).Push(ops)
+		off := op.Offset(image.Pt(0, -s.scroll)).Push(ops)
+		call.Add(ops)
+		off.Pop()
+		paneClip.Pop()
 		if dlg := secs[s.section].dialog; dlg != nil {
 			if d := dlg(win); d != nil {
 				// Only the dialog's buttons answer while it is open.
@@ -508,6 +565,9 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 				place(ops, nc, image.Pt(x1-inner-ns.X, mid-ns.Y/2))
 			}
 		} else {
+			if p.st.navFocus && p.st.navIndex == len(p.st.nav) {
+				stroke(ops, item, gtx.Dp(7), col.accent)
+			}
 			p.st.nav = append(p.st.nav, navHit{rect: item, section: i})
 		}
 		y = item.Max.Y + gtx.Dp(2)
@@ -537,7 +597,7 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 }
 
 // pane draws the shown section: title, hint and its rows.
-func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) {
+func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) int {
 	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
 	y := r.Min.Y
 	call, size := p.text(sec.title, 16, col.title)
@@ -550,7 +610,7 @@ func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) {
 	}
 	y += gtx.Dp(16)
 	if sec.rows == nil {
-		return
+		return y
 	}
 	for _, row := range sec.rows(win) {
 		if row.block {
@@ -559,6 +619,7 @@ func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) {
 			y = p.row(r, y, row)
 		}
 	}
+	return y
 }
 
 // row draws one row from y and returns where the next starts.
@@ -600,8 +661,19 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 		h = max(h, size.Y)
 	}
 	labelH := ls.Y + extraH + hs.Y
+	labelW := max(ls.X, hs.X)
+	for _, e := range extra {
+		labelW = max(labelW, e.size.X)
+	}
+	stacked := labelW+gap+w > r.Dx()
 	rowH := max(labelH, h) + gtx.Dp(22)
+	if stacked {
+		rowH = labelH + gap + h + gtx.Dp(22)
+	}
 	ty := y + (rowH-labelH)/2
+	if stacked {
+		ty = y + gtx.Dp(11)
+	}
 	place(ops, lc, image.Pt(r.Min.X, ty))
 	ty += ls.Y
 	for _, e := range extra {
@@ -612,8 +684,12 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 		place(ops, hc, image.Pt(r.Min.X, ty))
 	}
 	x := r.Max.X - w
+	cy := y + (rowH-h)/2
+	if stacked {
+		x, cy = r.Min.X, y+gtx.Dp(11)+labelH+gap
+	}
 	for _, c := range cs {
-		at := image.Pt(x, y+(rowH-c.size.Y)/2)
+		at := image.Pt(x, cy+(h-c.size.Y)/2)
 		p.st.shift(c.from, c.to, at)
 		place(ops, c.call, at)
 		x += c.size.X + gap

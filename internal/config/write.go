@@ -39,18 +39,23 @@ func Set(path, key string, value any) error {
 	if lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
-	keyLine := regexp.MustCompile(`^\s*` + regexp.QuoteMeta(key) + `\s*=`)
 	firstTable, found := len(lines), false
+	var scan tomlScan
 	for i, l := range lines {
+		if !scan.topLevel() {
+			scan.line(l)
+			continue
+		}
 		if tableHeader.MatchString(l) {
 			firstTable = i
 			break
 		}
-		if keyLine.MatchString(l) {
+		if assignsKey(l, key) {
 			lines[i] = key + " = " + lit + commentOf(l) + eol
 			found = true
 			break
 		}
+		scan.line(l)
 	}
 	if !found {
 		line := key + " = " + lit + eol
@@ -178,4 +183,90 @@ func tomlLiteral(v any) (string, error) {
 		return s, nil
 	}
 	return "", fmt.Errorf("config: cannot write a %T value", v)
+}
+
+// tomlScan tracks value boundaries while locating top-level assignments. TOML
+// has already been validated, so this only needs to skip strings and containers.
+// In particular, shell scripts in multiline strings may look like config keys.
+type tomlScan struct {
+	quote byte
+	multi bool
+	depth int
+}
+
+func (s *tomlScan) topLevel() bool { return s.quote == 0 && s.depth == 0 }
+
+func (s *tomlScan) line(line string) {
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if s.quote != 0 {
+			if s.quote == '"' && c == '\\' {
+				i++
+				continue
+			}
+			if c != s.quote {
+				continue
+			}
+			if s.multi {
+				n := 1
+				for i+n < len(line) && line[i+n] == s.quote {
+					n++
+				}
+				if n < 3 {
+					i += n - 1
+					continue
+				}
+				i += n - 1
+			}
+			s.quote, s.multi = 0, false
+			continue
+		}
+		switch c {
+		case '#':
+			return
+		case '"', '\'':
+			s.quote = c
+			if i+2 < len(line) && line[i+1] == c && line[i+2] == c {
+				s.multi = true
+				i += 2
+			}
+		case '[', '{':
+			s.depth++
+		case ']', '}':
+			s.depth--
+		}
+	}
+}
+
+// assignsKey decodes just the assignment's key, including TOML quoted and
+// escaped key syntax, without interpreting any of its possibly multiline value.
+func assignsKey(line, key string) bool {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if quote != 0 {
+			if quote == '"' && c == '\\' {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '#':
+			return false
+		case '"', '\'':
+			quote = c
+		case '=':
+			var probe map[string]any
+			if _, err := toml.Decode(line[:i]+" = true", &probe); err != nil {
+				return false
+			}
+			v, ok := probe[key].(bool)
+			return len(probe) == 1 && ok && v
+		}
+	}
+	return false
 }

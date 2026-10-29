@@ -17,6 +17,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 
+	"github.com/patrick-gogo/kaze-terminal/internal/config"
 	kinput "github.com/patrick-gogo/kaze-terminal/internal/input"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 )
@@ -235,6 +236,10 @@ func TestTabMovesFocusAndEnterActivates(t *testing.T) {
 	win.settingsKey(back)
 	win.settingsKey(back)
 	win.settingsKey(back)
+	// The sidebar now participates in the focus order.
+	for range win.set.nav {
+		win.settingsKey(back)
+	}
 	if win.set.focus != n-1 {
 		t.Fatalf("focus %d after Shift+Tab past the first, want the last (%d)", win.set.focus, n-1)
 	}
@@ -334,5 +339,27 @@ func TestVersionBlockShowsBuild(t *testing.T) {
 	win.settingsPointer(pressAt(center(win.set.nav[1].rect)))
 	if win.set.section != 2 {
 		t.Fatalf("section %d after clicking Claude, want 2", win.set.section)
+	}
+}
+
+func TestKeyboardCanReachClaudeSection(t *testing.T) {
+	win, _ := alertWindow(t, 1)
+	win.opt.Config = config.Default()
+	win.openSettings()
+	win.drawSettings(pageContext(800, 600), pageRect)
+	// Tab past the Appearance controls, then Appearance and Claude in the sidebar.
+	for i := 0; i < len(win.set.controls)+2; i++ {
+		win.settingsKey(key.Event{Name: key.NameTab, State: key.Press})
+	}
+	win.settingsKey(key.Event{Name: key.NameReturn, State: key.Press})
+	if win.sections()[win.set.section].title != "Claude" {
+		t.Fatalf("keyboard left section at %q", win.sections()[win.set.section].title)
+	}
+	// The disabled Workspaces entry is skipped; Shift+Tab reaches Appearance.
+	win.drawSettings(pageContext(800, 600), pageRect)
+	win.settingsKey(key.Event{Name: key.NameTab, Modifiers: key.ModShift, State: key.Press})
+	win.settingsKey(key.Event{Name: key.NameSpace, State: key.Press})
+	if win.sections()[win.set.section].title != "Appearance" {
+		t.Fatal("could not return to Appearance with keyboard")
 	}
 }
