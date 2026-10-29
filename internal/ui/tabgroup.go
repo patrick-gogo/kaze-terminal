@@ -310,12 +310,16 @@ func (win *window) pickMember(id tabs.TabID) {
 	win.selectTab(id)
 }
 
-// focusTarget is who gets the keyboard: the open menu, the settings page or the terminal.
+// focusTarget is who gets the keyboard: the open menu, a settings text field,
+// the settings page or the terminal.
 func (win *window) focusTarget() event.Tag {
 	switch {
 	case win.grp.run != 0:
 		return &win.grp.tag
 	case win.set.shown:
+		if f := win.set.fields[win.set.editing]; f != nil && win.set.editing != "" {
+			return &f.ed
+		}
 		return &win.set.tag
 	}
 	return win.termTag

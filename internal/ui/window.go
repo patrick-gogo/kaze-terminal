@@ -1142,6 +1142,11 @@ func (win *window) copySel(gtx layout.Context, t *tabs.Tab) {
 	t.Session.Lock()
 	text := render.SelectedText(t.Session.Screen(), ts.sel)
 	t.Session.Unlock()
+	win.writeClipboard(gtx, text)
+}
+
+// writeClipboard copies text, unless it is empty.
+func (win *window) writeClipboard(gtx layout.Context, text string) {
 	if text == "" {
 		return
 	}
