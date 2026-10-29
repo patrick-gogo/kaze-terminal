@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kaze workspaces mockup</title>
+<style>
+  :root { --bg:#0f1117; --chrome:#0b0d12; --fg:#d7dae3; --dim:#7d8394; --muted:#8a90a2; --border:#1d2230; --accent:#8b7bff; --card:#1a1f2c;
+          --cyan:#6fd3e0; --magenta:#b9a6ff; --yellow:#f2b84b; --green:#62d39a; --blue:#8ab4ff; --red:#f07178; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#07080b; color:var(--fg); font:14px/1.5 "Segoe UI", system-ui, sans-serif; padding:24px 16px 48px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .lead { color:var(--dim); margin:0 0 18px; max-width:860px; }
+  .steps { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
+  .steps button { background:var(--card); color:var(--fg); border:1px solid var(--border); border-radius:7px; padding:5px 11px; cursor:pointer; font-size:12.5px; }
+  .win { max-width:1100px; border-radius:10px; overflow:hidden; border:1px solid var(--border); box-shadow:0 14px 40px rgba(0,0,0,.45); background:var(--bg); }
+  .bar { display:flex; align-items:flex-end; gap:4px; padding:7px 8px 0; height:40px; background:var(--chrome); border-bottom:1px solid var(--border); position:relative; }
+  .tab { padding:6px 12px; font:11.5px "JetBrains Mono", Consolas, monospace; display:flex; gap:7px; align-items:center; white-space:nowrap; color:var(--muted); border-radius:9px 9px 0 0; cursor:pointer; }
+  .tab.on { background:var(--bg); color:#fff; }
+  .dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex:none; }
+  .plus { color:var(--muted); padding:6px 6px; font-size:14px; cursor:pointer; }
+  .chev { color:var(--muted); padding:6px 4px; font-size:10px; cursor:pointer; border-left:1px solid var(--border); }
+  .caps { margin-left:auto; display:flex; gap:16px; padding:0 8px 10px; color:var(--muted); font-size:12px; }
+  .menu { position:absolute; top:40px; width:240px; background:var(--card); border:1px solid var(--border); border-radius:9px; padding:6px; z-index:5; box-shadow:0 10px 30px rgba(0,0,0,.5); }
+  .menu div { padding:7px 10px; border-radius:6px; cursor:pointer; font-size:12.5px; display:flex; justify-content:space-between; }
+  .menu div:hover { background:#232a3b; }
+  .menu .sep { border-top:1px solid var(--border); margin:4px 0; padding:0; }
+  .body { height:470px; display:flex; }
+  .term { flex:1; padding:12px 16px; font:12.5px/1.6 "JetBrains Mono", Consolas, monospace; white-space:pre-wrap; overflow:auto; }
+  .status { display:flex; gap:14px; padding:4px 14px; font-size:11px; height:24px; align-items:center; background:var(--chrome); border-top:1px solid var(--border); color:var(--dim); font-family:"JetBrains Mono", Consolas, monospace; }
+  .status .r { margin-left:auto; }
+  .nav { width:190px; background:var(--chrome); border-right:1px solid var(--border); padding:16px 10px; }
+  .nav div { padding:7px 12px; border-radius:7px; margin-bottom:2px; color:var(--muted); cursor:pointer; }
+  .nav div.on { background:rgba(139,123,255,.15); color:var(--fg); }
+  .pane { flex:1; padding:20px 26px; overflow:auto; }
+  .pane h4 { margin:0 0 2px; font-size:16px; }
+  .hint { color:var(--dim); font-size:12px; margin:0 0 14px; }
+  .ws { border:1px solid var(--border); background:var(--card); border-radius:9px; padding:12px 14px; margin-bottom:10px; }
+  .row { display:flex; align-items:center; gap:10px; }
+  .badge { font-size:11px; padding:1px 8px; border-radius:20px; border:1px solid var(--border); color:var(--dim); }
+  .badge.open { color:var(--green); border-color:#2c5a45; } .badge.start { color:var(--yellow); border-color:#5a4a26; } .badge.att { color:var(--red); border-color:#5a2c32; }
+  .btn { display:inline-block; border-radius:7px; padding:4px 12px; font-size:12px; margin-left:6px; border:1px solid var(--border); background:transparent; color:var(--fg); cursor:pointer; }
+  .btn.pri { background:var(--accent); border-color:var(--accent); color:#0f1117; font-weight:600; }
+  .btn.danger { color:var(--red); }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .tabline { display:grid; grid-template-columns:14px 100px 1fr 170px; gap:8px; font:12px "JetBrains Mono", Consolas, monospace; padding:3px 0; color:var(--dim); }
+  .tabline b { color:var(--fg); font-weight:normal; }
+  .card { border:1px solid var(--border); border-radius:9px; padding:10px 12px; margin-bottom:10px; background:#141824; }
+  .grid { display:grid; grid-template-columns:90px 1fr; gap:6px 10px; align-items:center; font-size:12.5px; }
+  .grid label { color:var(--dim); }
+  input, select { background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font:12px "JetBrains Mono", Consolas, monospace; width:100%; }
+  .cmds input { margin-bottom:4px; }
+  .swatches span { display:inline-block; width:16px; height:16px; border-radius:4px; margin-right:6px; cursor:pointer; border:2px solid transparent; }
+  .swatches span.sel { border-color:#fff; }
+  .wait { margin:8px 0; padding:10px 12px; border:1px dashed var(--border); border-radius:8px; color:var(--dim); font-family:"Segoe UI", system-ui, sans-serif; }
+  .note { max-width:1100px; color:var(--dim); font-size:12.5px; margin-top:14px; }
+  .note b { color:var(--fg); }
+  .toast { position:absolute; right:14px; bottom:36px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px 12px; width:260px; font-size:12px; }
+  .wrap { position:relative; }
+</style>
+</head>
+<body>
+<h1>Workspaces mockup (Codex's proposal)</h1>
+<p class="lead">Clickable. Try: edit the samurai workspace, press Run, watch the tabs start, type in a waiting tab to take over, and run it again. The buttons below jump to each moment.</p>
+<div class="steps" id="steps"></div>
+<div class="wrap">
+<div class="win">
+  <div class="bar" id="bar"></div>
+  <div class="body" id="body"></div>
+  <div class="status" id="status"></div>
+</div>
+<div id="toast"></div>
+</div>
+<div class="note" id="note"></div>
+
+<script>
+const COLORS = {cyan:"var(--cyan)", magenta:"var(--magenta)", yellow:"var(--yellow)", green:"var(--green)", blue:"var(--blue)", red:"var(--red)"};
+const base = () => ({ id:"ws_7f3a", name:"samurai", tabs:[
+  {title:"api", folder:"C:\\Users\\john\\Desktop\\samurai_cart_v3\\backend", cmds:["docker compose up -d", ".\\venv\\Scripts\\Activate.ps1"], color:"cyan", wait:"docker", port:""},
+  {title:"admin", folder:"C:\\Users\\john\\Desktop\\samurai_cart_v3\\frontend", cmds:["npm run dev"], color:"magenta", wait:"docker", port:""},
+  {title:"storefront", folder:"C:\\Users\\john\\Desktop\\samurai_cart_v3_frontend", cmds:["npm run dev -- --port 3001"], color:"yellow", wait:"docker", port:""},
+  {title:"api logs", folder:"C:\\Users\\john\\Desktop\\samurai_cart_v3", cmds:["docker compose logs -f --tail=100 api"], color:"green", wait:"port", port:"8000"},
+]});
+let S;
+function reset(){ S = { saved:[base()], draft:null, view:"settings", section:"Workspaces", tabs:[{name:"pwsh", kind:"home"}], active:"settings", menu:false, run:null, toast:null, note:"" }; }
+reset();
+
+function joined(cmds){ return cmds.length<2 ? cmds[0]||"" : cmds.map((c,i)=> i==0? c : `if ($?) { ${c} }`).join("; "); }
+function waitLabel(t){ return t.wait==="none"?"none":t.wait==="docker"?"after Docker is up":`after port ${t.port} answers`; }
+function wsState(){ if(!S.run) return ["Closed",""]; const open=S.run.tabs.filter(t=>!t.closed); if(!open.length) return ["Closed",""];
+  if(open.some(t=>t.st==="waiting"||t.st==="docker")) return ["Starting","start"];
+  if(open.some(t=>t.st==="failed")) return [`Needs attention (${open.filter(t=>t.st!=="failed").length} of ${S.run.tabs.length} started)`,"att"];
+  if(open.length<S.run.tabs.length) return [`${open.length} of ${S.run.tabs.length} tabs open`,"open"];
+  return ["Open","open"]; }
+
+function render(){
+  // tab bar
+  const bar=document.getElementById("bar");
+  let h="";
+  S.tabs.forEach((t,i)=>{ const on = S.active===i; const dot = t.kind==="ws" ? `<span class="dot" style="background:${COLORS[t.color]}"></span>` : "";
+    h+=`<div class="tab ${on?"on":""}" data-tab="${i}">${dot}${t.name} <span style="opacity:.5">×</span></div>`; });
+  if(S.tabs.some(t=>t.kind==="settings")||S.view==="settings") h+=`<div class="tab ${S.active==="settings"?"on":""}" data-tab="settings">⚙ Settings <span style="opacity:.5">×</span></div>`;
+  h+=`<span class="plus" title="new tab">+</span><span class="chev" id="chev" title="workspaces">▾</span><div class="caps">⚙ &nbsp;─ &nbsp;□ &nbsp;✕</div>`;
+  if(S.menu){ const [st]=wsState(); h+=`<div class="menu" id="menu" style="left:${chevLeft()}px">
+     ${S.saved.map(w=>`<div data-run="1"><span>▶ ${w.name}</span><span style="color:var(--dim)">${st==="Closed"?"Run":"Go to tabs"}</span></div>`).join("")}
+     <div class="sep"></div><div data-open="1">Open workspace settings</div></div>`; }
+  bar.innerHTML=h;
+  // body
+  const body=document.getElementById("body");
+  body.innerHTML = S.active==="settings" ? settings() : terminal(S.tabs[S.active]);
+  // status
+  const t = S.active==="settings"? null : S.tabs[S.active];
+  document.getElementById("status").innerHTML = `<span style="color:var(--fg)">${t&&t.folder? t.folder.replace("C:\\Users\\john","~") : "~"}</span>${t&&t.kind==="ws"?'<span style="color:var(--green)">⎇ main</span>':""}<span class="r">5h 23% · wk 41% · ctx 34% &nbsp; kaze 64MB · ${S.tabs.length} tabs</span>`;
+  document.getElementById("toast").innerHTML = S.toast? `<div class="toast">${S.toast}</div>`:"";
+  document.getElementById("note").innerHTML = S.note;
+  wire();
+}
+function chevLeft(){ const c=document.getElementById("chev"); return c? c.offsetLeft-100 : 200; }
+
+function settings(){
+  let p="";
+  if(S.draft){ p = editor(); }
+  else {
+    const [st,cls]=wsState(); const w=S.saved[0];
+    p=`<h4>Workspaces</h4><p class="hint">A workspace opens a set of tabs in one click. Also from the ▾ next to +, or <code>kaze --workspace "samurai"</code>.</p>`;
+    if(!S.saved.length){ p+=`<div class="ws" style="text-align:center;color:var(--dim)">No workspaces yet<br><br><button class="btn pri" data-act="new">+ New workspace</button></div>`; }
+    else {
+      p+=`<div class="ws"><div class="row"><b>${w.name}</b><span class="badge ${cls}">${st}</span><span style="color:var(--dim);font-size:12px">${w.tabs.length} tabs</span>
+        <span style="margin-left:auto"><button class="btn" data-act="edit">Edit</button><button class="btn danger" data-act="delete">Delete</button><button class="btn pri" data-act="run">${st==="Closed"?"Run":"Go to tabs"}</button></span></div>
+        <div style="margin-top:8px">${w.tabs.map(t=>`<div class="tabline"><span class="dot" style="background:${COLORS[t.color]};margin-top:5px"></span><b>${t.title}</b><span>${t.folder.replace("C:\\Users\\john","~")} &nbsp;<b>${t.cmds.join(" → ")}</b></span><span>${waitLabel(t)}</span></div>`).join("")}</div></div>
+        <button class="btn" data-act="new">+ New workspace</button>`;
+    }
+    p+=`<div style="border-top:1px solid var(--border);margin-top:16px;padding-top:12px" class="row"><span>Run a workspace when kaze starts</span><span style="margin-left:auto"><select style="width:auto"><option>None</option><option>samurai</option></select></span></div>`;
+  }
+  return `<div class="nav">${["Appearance","Workspaces","Claude"].map(s=>`<div class="${s===S.section?"on":""}">${s}</div>`).join("")}<div style="color:var(--dim);font-size:11.5px;padding:10px 12px">Later: Terminal, Shell setup, Shortcuts</div></div><div class="pane">${p}</div>`;
+}
+function editor(){
+  const d=S.draft;
+  let h=`<h4>Edit workspace</h4><p class="hint">Changes are a draft until you press Save. Saving never runs anything.</p>
+  <div class="grid" style="margin-bottom:12px"><label>Name</label><input value="${d.name}" data-f="name"></div>`;
+  d.tabs.forEach((t,i)=>{ h+=`<div class="card"><div class="row" style="margin-bottom:8px"><b>Tab ${i+1}</b><span style="margin-left:auto"><button class="btn" data-mv="${i},-1">↑</button><button class="btn" data-mv="${i},1">↓</button><button class="btn danger" data-rm="${i}">Remove</button></span></div>
+    <div class="grid"><label>Title</label><input value="${t.title}">
+    <label>Folder</label><div class="row"><input value="${t.folder}"><button class="btn">Browse…</button></div>
+    <label>Commands</label><div class="cmds">${t.cmds.map(c=>`<input value="${c.replace(/"/g,"&quot;")}">`).join("")}<button class="btn" style="margin-left:0">+ Add command</button>
+      <div style="color:var(--dim);font-size:11px;margin-top:4px">Typed as one line once the prompt is ready: <code style="color:var(--fg)">${joined(t.cmds)}</code></div></div>
+    <label>Color</label><div class="swatches">${Object.keys(COLORS).map(c=>`<span title="${c}" class="${c===t.color?"sel":""}" style="background:${COLORS[c]}"></span>`).join("")}</div>
+    <label>Wait for</label><div class="row"><select style="width:auto"><option ${t.wait==="none"?"selected":""}>Nothing</option><option ${t.wait==="docker"?"selected":""}>Docker engine</option><option ${t.wait==="port"?"selected":""}>Local port</option></select>${t.wait==="port"?`<input style="width:90px" value="${t.port}">`:""}</div></div></div>`; });
+  h+=`<button class="btn" data-act="addtab" style="margin-left:0">+ Add tab</button><div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" data-act="cancel">Cancel</button><button class="btn pri" data-act="save">Save</button></div>`;
+  return h;
+}
+function terminal(t){
+  if(!t) return "";
+  if(t.kind==="home") return `<div class="term"><span style="color:var(--dim)">PS ~&gt;</span> <span style="background:var(--magenta)"> </span></div>`;
+  const r=S.run.tabs[t.idx]; const pr=`<span style="color:var(--dim)">PS ${t.folder.replace("C:\\Users\\john","~")}&gt;</span>`;
+  let body=`<span style="color:var(--dim)">PowerShell 7.5.4\nLoading personal and system profiles took 412ms.</span>\n`;
+  if(r.st==="docker"||r.st==="waiting"){
+    const why = r.st==="docker"? "Waiting for Docker… (started Docker Desktop, checking every 2s, gives up after 3 min)" : `Waiting for port ${t.port}… (checking every 1s, gives up after 3 min)`;
+    body+=`${pr} <span style="background:var(--magenta)"> </span>\n\n<div class="wait">⏳ ${why}<br>Commands to run: <code style="color:var(--fg)">${joined(t.cmds)}</code><br><br><button class="btn" data-use="${t.idx}" style="margin-left:0">Use shell</button> <span style="font-size:11.5px">Typing in this tab also cancels the commands.</span></div>`;
+  } else if(r.st==="ran"){
+    body+=`${pr} ${joined(t.cmds)}\n${r.out}\n`;
+  } else if(r.st==="took"){
+    body+=`${pr} <span style="background:var(--magenta)"> </span>\n\n<div class="wait" style="border-color:#5a4a26">You took over this tab. Its startup commands were cancelled and will never be typed here.</div>`;
+  } else if(r.st==="failed"){
+    body+=`${pr} <span style="background:var(--magenta)"> </span>\n\n<div class="wait" style="border-color:#5a2c32;color:var(--red)">Port 8000 never answered within 3 minutes. Commands were not run. The other tabs keep running.</div>`;
+  }
+  return `<div class="term" tabindex="0" data-term="${t.idx}">${body}</div>`;
+}
+
+const OUT = {
+  api:`<span style="color:var(--dim)">[+] Running 7/7  ✔ Container samurai-db  Started  ✔ Container samurai-api  Started …</span>\n<span style="color:var(--green)">(venv)</span> <span style="color:var(--dim)">PS ~\\Desktop\\samurai_cart_v3\\backend&gt;</span> <span style="background:var(--magenta)"> </span>`,
+  admin:`\n  <span style="color:var(--green)">▲ Next.js 15</span>\n  - Local: http://localhost:3000\n <span style="color:var(--green)">✓ Ready in 2.1s</span>`,
+  storefront:`\n  <span style="color:var(--green)">▲ Next.js 15</span>\n  - Local: http://localhost:3001\n <span style="color:var(--green)">✓ Ready in 2.4s</span>`,
+  "api logs":`<span style="color:var(--cyan)">api-1  |</span> INFO:     Uvicorn running on http://0.0.0.0:8000\n<span style="color:var(--cyan)">api-1  |</span> INFO:     Application startup complete.`,
+};
+let timers=[];
+function clearTimers(){ timers.forEach(clearTimeout); timers=[]; }
+function run(opts={}){
+  const [st]=wsState();
+  if(st!=="Closed"){ const first=S.tabs.findIndex(t=>t.kind==="ws"); S.active=first; S.menu=false; S.note="<b>Run again</b> just jumps to the open tabs. Nothing is started twice."; render(); return; }
+  clearTimers(); const w=S.saved[0];
+  S.run={tabs:w.tabs.map((t,i)=>({st: t.wait==="docker"?"docker": t.wait==="port"?"waiting":"ran", out:OUT[t.title]||""}))};
+  S.tabs=S.tabs.filter(t=>t.kind!=="ws");
+  const start=S.tabs.length;
+  w.tabs.forEach((t,i)=>S.tabs.push({name:t.title, kind:"ws", color:t.color, folder:t.folder, cmds:t.cmds, port:t.port, idx:i}));
+  S.active=start; S.menu=false; S.view="term";
+  S.note="All four tabs opened at once, in order, and the first one has focus. Each one waits for what it needs, then types its commands once the prompt is ready.";
+  render();
+  timers.push(setTimeout(()=>{ S.run.tabs.forEach((r,i)=>{ if(r.st==="docker") r.st="ran"; }); S.toast=`<span class="dot" style="background:var(--green)"></span> Docker is up: api, admin and storefront started.`; render(); }, 2500));
+  timers.push(setTimeout(()=>{ const r=S.run.tabs[3]; if(opts.fail){ if(r.st==="waiting") r.st="failed"; S.toast=`<span class="dot" style="background:var(--red)"></span> <b>samurai</b>: started 3 of 4 tabs. <span style="color:var(--dim)">api logs: port 8000 never answered.</span>`; }
+    else { if(r.st==="waiting") r.st="ran"; S.toast=`<span class="dot" style="background:var(--green)"></span> <b>samurai</b> is ready: 4 of 4 tabs started.`; } render(); }, opts.fail?4200:5000));
+  timers.push(setTimeout(()=>{ S.toast=null; render(); }, opts.fail?12000:9000));
+}
+
+function wire(){
+  document.querySelectorAll("[data-tab]").forEach(e=>e.onclick=()=>{ const v=e.dataset.tab; S.active = v==="settings"?"settings":+v; S.menu=false; render(); });
+  const chev=document.getElementById("chev"); if(chev) chev.onclick=(ev)=>{ ev.stopPropagation(); S.menu=!S.menu; render(); };
+  document.querySelectorAll("[data-run]").forEach(e=>e.onclick=()=>run());
+  document.querySelectorAll("[data-open]").forEach(e=>e.onclick=()=>{ S.active="settings"; S.menu=false; render(); });
+  document.querySelectorAll("[data-act]").forEach(e=>e.onclick=()=>{
+    const a=e.dataset.act;
+    if(a==="run") run();
+    if(a==="edit"){ S.draft=JSON.parse(JSON.stringify(S.saved[0])); S.note="The editor works on a <b>draft</b>. Cancel throws it away; Save stores it but does not start anything."; }
+    if(a==="cancel"){ S.draft=null; S.note=""; }
+    if(a==="save"){ S.saved[0]=S.draft; S.draft=null; S.note="Saved. Tabs that are already running keep the old recipe; the next Run uses the new one."; }
+    if(a==="addtab"){ S.draft.tabs.push({title:"new tab", folder:"", cmds:[""], color:"blue", wait:"none", port:""}); }
+    if(a==="delete"){ if(confirm("Delete the samurai workspace? Tabs that are running keep running.")){ S.saved=[]; S.note="Deleted. It also stops being the startup workspace."; } }
+    if(a==="new"){ S.draft={id:"ws_new", name:"", tabs:[{title:"", folder:"", cmds:[""], color:"cyan", wait:"none", port:""}]}; }
+    render(); });
+  document.querySelectorAll("[data-mv]").forEach(e=>e.onclick=()=>{ const [i,d]=e.dataset.mv.split(",").map(Number); const j=i+d; const a=S.draft.tabs; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; render(); });
+  document.querySelectorAll("[data-rm]").forEach(e=>e.onclick=()=>{ S.draft.tabs.splice(+e.dataset.rm,1); render(); });
+  document.querySelectorAll("[data-use]").forEach(e=>e.onclick=()=>{ takeOver(+e.dataset.use); });
+  document.querySelectorAll("[data-term]").forEach(e=>{ e.onkeydown=()=>{ const r=S.run.tabs[+e.dataset.term]; if(r.st==="docker"||r.st==="waiting") takeOver(+e.dataset.term); }; });
+}
+function takeOver(i){ S.run.tabs[i].st="took"; S.note="You typed in a waiting tab, so kaze <b>cancelled</b> its startup commands. Even if the port comes up a second later, nothing gets typed into your shell."; render(); }
+document.body.onclick=(e)=>{ if(S.menu && !e.target.closest("#menu") && e.target.id!=="chev"){ S.menu=false; render(); } };
+
+const STEPS = [
+  ["1. Workspaces page", ()=>{ clearTimers(); reset(); S.note="Settings → Workspaces: one card per workspace with its tabs, status, Edit / Delete / Run."; }],
+  ["2. Edit (draft)", ()=>{ clearTimers(); reset(); S.draft=JSON.parse(JSON.stringify(S.saved[0])); S.note="The editor works on a <b>draft</b>. Several commands are typed as <b>one line</b> (my suggestion), shown under each command list."; }],
+  ["3. Run", ()=>{ clearTimers(); reset(); run(); }],
+  ["4. Take over a waiting tab", ()=>{ clearTimers(); reset(); run(); S.active=4; S.note="Open the api logs tab while it waits, then click <b>Use shell</b> or type anything in it."; }],
+  ["5. A tab fails", ()=>{ clearTimers(); reset(); run({fail:true}); S.active=4; }],
+  ["6. Run again / ▾ menu", ()=>{ clearTimers(); reset(); run(); setTimeout(()=>{ S.menu=true; S.active=0; S.note="The <b>▾</b> next to + lists workspaces. Since samurai is open, it says <b>Go to tabs</b> instead of Run."; render(); }, 300); }],
+];
+document.getElementById("steps").innerHTML = STEPS.map((s,i)=>`<button data-step="${i}">${s[0]}</button>`).join("");
+document.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{ STEPS[+b.dataset.step][1](); render(); });
+render();
+</script>
+</body>
+</html>

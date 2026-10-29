@@ -1,6 +1,6 @@
 # Workspaces proposal review
 
-Status: proposed, documentation only. Based on main after Settings PR #11.
+Status: reviewed 2026-10-29. Decisions: [workspaces decisions](superpowers/specs/2026-10-29-kaze-workspaces-decisions.md) (they win over the proposal where the two differ). Based on main after Settings PR #11.
 
 1. Read the [behavior proposal](superpowers/specs/2026-10-29-kaze-workspaces-proposal.md) for user flows, storage, startup, failures, and the explicit decision table.
 2. Read the [implementation plan](superpowers/plans/2026-10-29-kaze-plan-5b-workspaces-proposal.md) for integration points, shell spike, tasks, tests, and release gates.
