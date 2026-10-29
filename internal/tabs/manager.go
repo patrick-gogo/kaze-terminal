@@ -25,6 +25,25 @@ type Tab struct {
 	Session *term.Session
 	Title   string
 	Exited  bool
+
+	// FixedTitle, when set, is shown instead of whatever title the shell sets.
+	FixedTitle string
+	Color      string
+	Group      *Group // nil for a tab that no workspace run opened
+}
+
+// Group says which workspace run opened a tab and which of its tabs it is.
+type Group struct {
+	Workspace, Name string
+	Run             uint64
+	Member          int
+}
+
+// StartOpts are a new tab's optional settings; the zero value is a plain New.
+type StartOpts struct {
+	Dir, Title, Color string // an empty Dir starts the shell in the window's default folder
+	Group             *Group
+	Prefeed           func(*term.Session) // writes into the tab before its shell's output, as NewWith does
 }
 
 // entry holds what the session's notifier goroutine needs without taking the manager lock.
@@ -32,6 +51,7 @@ type entry struct {
 	tab     *Tab
 	sess    atomic.Pointer[term.Session]
 	removed atomic.Bool
+	watched atomic.Bool // a background tab that asks for frames on output too
 	// Touched only by this session's single notifier goroutine.
 	seenTitle  string
 	seenExited bool
@@ -39,7 +59,7 @@ type entry struct {
 
 // Manager is driven from the UI goroutine; onChange may be called from any goroutine.
 type Manager struct {
-	start    func(env []string) (ptyx.Session, error)
+	start    func(env []string, dir string) (ptyx.Session, error)
 	onChange func()
 	baseEnv  []string
 
@@ -56,9 +76,9 @@ type Manager struct {
 	active atomic.Int64 // TabID of the active tab, 0 when there is none
 }
 
-// NewManager starts no shell yet. start launches one shell with the given env;
-// onChange asks the window for a frame.
-func NewManager(start func(env []string) (ptyx.Session, error), cols, rows int, onChange func()) *Manager {
+// NewManager starts no shell yet. start launches one shell with the given env
+// in dir, where "" means the default folder; onChange asks the window for a frame.
+func NewManager(start func(env []string, dir string) (ptyx.Session, error), cols, rows int, onChange func()) *Manager {
 	if onChange == nil {
 		onChange = func() {}
 	}
@@ -105,6 +125,13 @@ func (m *Manager) New() (*Tab, error) { return m.NewWith(nil) }
 
 // NewWith is New with a hook that writes into the tab before its shell's output is read.
 func (m *Manager) NewWith(prefeed func(*term.Session)) (*Tab, error) {
+	return m.newTab(StartOpts{}, prefeed)
+}
+
+// NewOpts is New with its own folder, fixed title, color and group.
+func (m *Manager) NewOpts(o StartOpts) (*Tab, error) { return m.newTab(o, o.Prefeed) }
+
+func (m *Manager) newTab(o StartOpts, prefeed func(*term.Session)) (*Tab, error) {
 	m.mu.Lock()
 	m.nextID++
 	id := m.nextID
@@ -113,11 +140,11 @@ func (m *Manager) NewWith(prefeed func(*term.Session)) (*Tab, error) {
 
 	env := append(slices.Clip(m.baseEnv), nenv...)
 	env = append(env, "KAZE_TAB_ID="+strconv.Itoa(int(id)))
-	p, err := m.start(env)
+	p, err := m.start(env, o.Dir)
 	if err != nil {
 		return nil, err
 	}
-	e := &entry{tab: &Tab{ID: id}}
+	e := &entry{tab: &Tab{ID: id, Title: o.Title, FixedTitle: o.Title, Color: o.Color, Group: o.Group}}
 	s := term.NewSessionOpts(p, cols, rows, term.Opts{Scrollback: sb, Prefeed: prefeed}, func() { m.notify(e) })
 	e.sess.Store(s)
 	e.tab.Session = s
@@ -135,7 +162,7 @@ func (m *Manager) notify(e *entry) {
 	if e.removed.Load() {
 		return
 	}
-	if TabID(m.active.Load()) == e.tab.ID {
+	if TabID(m.active.Load()) == e.tab.ID || e.watched.Load() {
 		m.onChange()
 		return
 	}
@@ -144,9 +171,12 @@ func (m *Manager) notify(e *entry) {
 		return
 	}
 	exited, _ := s.Exited()
-	s.Lock()
-	title := s.Applier().Title()
-	s.Unlock()
+	title := e.tab.FixedTitle // set once at creation, so safe to read here
+	if title == "" {
+		s.Lock()
+		title = s.Applier().Title()
+		s.Unlock()
+	}
 	if title != e.seenTitle || exited != e.seenExited {
 		e.seenTitle, e.seenExited = title, exited
 		m.onChange()
@@ -155,6 +185,10 @@ func (m *Manager) notify(e *entry) {
 
 func refresh(t *Tab) {
 	t.Exited, _ = t.Session.Exited()
+	if t.FixedTitle != "" {
+		t.Title = t.FixedTitle
+		return
+	}
 	t.Session.Lock()
 	t.Title = t.Session.Applier().Title()
 	t.Session.Unlock()
@@ -210,6 +244,16 @@ func (m *Manager) Lookup(id TabID) *Tab {
 		return m.entries[i].tab
 	}
 	return nil
+}
+
+// Watch makes a background tab ask for a frame on every output while on, for
+// a caller waiting on something the shell prints; an unknown id is ignored.
+func (m *Manager) Watch(id TabID, on bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if i := m.indexLocked(id); i >= 0 {
+		m.entries[i].watched.Store(on)
+	}
 }
 
 // SetActive switches to id; an unknown id is ignored.

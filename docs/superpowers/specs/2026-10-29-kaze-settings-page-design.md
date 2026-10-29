@@ -51,6 +51,8 @@ Patrick wants to change how kaze looks and behaves without editing TOML, and to 
 
 ### 6.2 Workspaces
 
+> Update 2026-10-29: a running workspace is now shown as one tab group, shell readiness and the joined command line changed, and the folder is a text field only. See [the workspaces decisions](2026-10-29-kaze-workspaces-decisions.md); where it disagrees with this section, it wins.
+
 - A **workspace** has a name and an ordered list of tabs. Each tab has: **title**, **folder**, **commands** (zero or more lines, edited one line per row with "+ add line"), **color** (one of six: the theme's cyan, magenta, yellow, green, blue, red), and **wait**: none / **Docker is up** / **port N answers**.
 - **Run** opens the workspace's tabs after the current ones, in order. Each tab starts the default shell in its folder; once its wait is met **and** the shell has shown its first prompt (first OSC 7 report, or 3s after start for shells without the snippet), kaze types the command lines into the shell one by one, as if the owner typed them, each followed by Enter. So the shell's profile has loaded, the shell stays open afterwards, and Ctrl+C on `npm run dev` leaves a usable prompt. While waiting, the tab shows one kaze-drawn line ("waiting for Docker…" / "waiting for port 8000…") and polls: Docker every 2s, a port every 1s, both giving up after 3 minutes with a message in that tab and the command not run.
 - **Docker is up** means `docker info` succeeds. If it fails at Run, kaze starts Docker Desktop once (Windows: the per-user or machine-wide install path, whichever exists; macOS: `open -a Docker`).

@@ -135,7 +135,7 @@ tab-like chip next to your tabs and closes with its ×. It has three sections in
 - **Appearance:** theme, font size, line spacing, cursor shape and blinking.
 - **Claude:** the alert and usage choices (chimes, taskbar flash, how long the "done" toast stays,
   the usage readout in the status bar) and a check of your Claude Code setup (below).
-- **Workspaces:** coming next. It is shown greyed out for now.
+- **Workspaces:** saved launch recipes (see Workspaces below).
 
 A change applies right away and is saved when you make it. kaze edits only that one key in
 `config.toml` and leaves every other line and your comments as they are, so a hand-edited file
@@ -172,6 +172,81 @@ line for kaze's. Both show exactly what will change in a confirm dialog first, a
 you confirm. Before writing, kaze copies the file to `settings.json.bak-<date>-<time>`, and it
 touches no other entry. If the file is empty or not valid JSON, kaze reports that and offers no fix.
 
+## Workspaces
+
+A workspace is a saved launch recipe: a name and a list of tabs. Each tab has a title, a folder,
+zero or more command lines, a color and something to wait for first. Running a workspace opens
+its tabs in one go, each in its folder with its commands typed for you, so a project with an
+API, a front end and a log tail starts with one click.
+
+Make one under Settings > Workspaces: **+ New workspace**, then add tabs. For each tab:
+
+- **Title** and **folder** (a text field; there is no Browse button yet).
+- **Commands:** one line per row.
+- **Color:** cyan, magenta, yellow, green, blue or red. It colors the tab's dot.
+- **Wait for:** Nothing, Docker, or a port. The tab's commands are held until Docker is up, or
+  until something answers on that port on this machine.
+
+Nothing is saved until you press Save, and Cancel drops the draft. **Run** opens the tabs after
+the ones you already have. If any of the workspace's tabs is still open, the button reads
+**Go to tabs** and switches to the first one instead of opening copies.
+
+### The tab group
+
+A running workspace shows as one group in the tab strip, not one tab per member. The chip has a
+stack of dots in the members' colors, the workspace's name and a count, like `●●●● samurai 4 ▾`.
+While one member is shown it reads `samurai › admin`.
+
+- Click the chip to open a list of the members. Pick one with a click, with the number keys 1 to
+  9, or with the arrows and Enter. Esc or a click outside closes the list.
+- A member that needs you rings its dot in amber and turns the chip's count amber, so you see it
+  while the list is closed. "Done" works the same in green. Visiting the member clears it.
+- Ctrl+Tab and Ctrl+Shift+Tab step through the members one by one, like any other tabs.
+- The chip has no × of its own, so you can't close four servers by accident. Close members one at a
+  time with your close-tab shortcut (Ctrl+Shift+W, Cmd+W on macOS) or the × in the list. The group
+  goes away with its last member.
+- Only a workspace run makes a group. You can't drag ordinary tabs into one.
+
+### How commands are sent
+
+A tab's commands are typed as one line, then Enter. In PowerShell the lines are joined as
+`a; if ($?) { b }; if ($?) { c }`, and in zsh, bash and sh as `{ a; } && { b; } && { c; }`, so a line runs only
+if the one before it worked. It runs in the tab's own shell, so a venv activation or `cd` stays in
+effect, the shell stays open afterwards, and the exact line shows in the shell's history. If your
+shell isn't pwsh, powershell, zsh, bash or sh and any tab of the workspace has commands, kaze
+refuses the whole run and shows a status-bar message naming that tab; nothing opens. (At startup
+the message goes into the usual first tab instead.)
+
+kaze types only after the shell has shown its first prompt. It knows that from the folder report
+described under "Folder and branch in the status bar" below, so add that snippet to your profile
+for hands-off launching. Without it, after 3 seconds the tab shows a banner with **Run commands**
+and **Use shell**: the first types the commands anyway, the second leaves the tab to you. Typing in
+a tab that is still waiting cancels its commands. A workspace waiting in a minimized window starts
+its commands when the window is shown again.
+
+When a tab waits for Docker, kaze starts Docker Desktop once if it isn't running. Docker and port
+waits give up after 3 minutes with a message in that tab, and the commands are not run.
+
+### The workspaces file
+
+Workspaces are stored in `workspaces.toml` next to `config.toml`. kaze owns its layout and
+rewrites it when you save, so comments are not kept. If you edit it by hand, kaze checks it
+strictly when it loads; a file with a problem is reported, and kaze never overwrites it, so fix or
+delete it before saving from the settings page.
+
+### Starting kaze with a workspace
+
+Pick one under Settings > Workspaces (`startup_workspace` in `config.toml`), or run
+`kaze --workspace "My project"`. Either way kaze opens only that workspace's tabs, without the
+usual home-folder tab. `--workspace` wins when both are given. An unknown name opens a normal tab
+and shows a warning.
+
+### Known limits
+
+- No folder Browse button yet; type the path.
+- Commands can't be reordered, only added and removed.
+- Closing the window drops a workspace draft you haven't saved.
+
 ## Config
 
 kaze reads one TOML file at startup:
@@ -199,6 +274,7 @@ error makes kaze use all defaults.
 | `taskbar_flash` | Flash the taskbar button on alerts (Windows) | `true` |
 | `done_toast` | How long the "done" toast stays: `3s`, `6s`, `10s` or `until_seen` | `6s` |
 | `show_usage` | Show the Claude usage readout in the status bar | `true` |
+| `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
 | `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `open_settings` | the shortcuts above |
 | `font_family` | **Not supported yet.** Setting it only adds a warning; kaze always uses its bundled font. | |
@@ -352,6 +428,8 @@ replaces any you have.
 `kaze --version` prints the version and the commit and time it was built from, then exits without
 opening a window. The settings page shows the version at the bottom.
 
+`kaze --workspace "<name>"` starts kaze with that workspace's tabs (see Workspaces).
+
 ## Benchmarks
 
 Numbers for the first milestone on Windows (key latency, Claude Code streaming, launch,
@@ -368,11 +446,12 @@ Done:
   the current folder and git branch in the status bar.
 - Plan 4: Claude's 5-hour and weekly usage and the tab's context in the status bar.
 - Plan 5a: the settings page (Appearance and Claude), five themes and the Claude Code setup check.
+- Plan 5b: Workspaces (launch a saved set of tabs in one click), shown as a tab group.
 
 Next:
 
-- Plan 5b: Workspaces (launch a saved set of tabs in one click).
 - A redesign of the alert notification card (GitHub issue #9).
+- Real panes, which would replace tab groups as the way a workspace is shown.
 - Plan 2: child tabs for Claude Code subagents.
 - The Mac milestone: run, fix and benchmark kaze on macOS.
 

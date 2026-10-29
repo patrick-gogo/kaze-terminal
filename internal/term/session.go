@@ -2,6 +2,7 @@ package term
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -121,11 +122,46 @@ func (s *Session) Write(p []byte) {
 	s.enqueue(p)
 }
 
-func (s *Session) enqueue(p []byte) {
+// SubmitResult says what became of a Submit.
+type SubmitResult int
+
+const (
+	Accepted  SubmitResult = iota // queued for the shell
+	QueueFull                     // dropped: the shell is not reading its input
+	Closed                        // dropped: the process exited or the session is closed
+)
+
+func (r SubmitResult) String() string {
+	switch r {
+	case Accepted:
+		return "accepted"
+	case QueueFull:
+		return "queue full"
+	case Closed:
+		return "closed"
+	}
+	return "SubmitResult(" + strconv.Itoa(int(r)) + ")"
+}
+
+// Submit is Write that reports whether the input was queued, so a caller
+// sending a command once can tell a dropped line from a sent one.
+func (s *Session) Submit(p []byte) SubmitResult {
+	if s.exited.Load() || s.closed.Load() {
+		return Closed
+	}
+	if len(p) == 0 || s.enqueue(p) {
+		return Accepted
+	}
+	return QueueFull
+}
+
+func (s *Session) enqueue(p []byte) bool {
 	b := append([]byte(nil), p...) // callers reuse their buffers
 	select {
 	case s.writes <- b:
+		return true
 	default:
+		return false
 	}
 }
 

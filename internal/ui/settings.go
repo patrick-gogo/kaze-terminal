@@ -39,6 +39,9 @@ type settingsState struct {
 
 	build    string            // the build line, read when the page opens
 	sections []settingsSection // nil means defaultSections; tests swap in their own
+
+	fields  map[string]*textField // text field editors by control id, kept across frames
+	editing string                // the field that has the keyboard; "" when the page has it
 }
 
 // settingsChip is what the tab strip needs to draw the Settings chip.
@@ -60,7 +63,8 @@ type settingRow struct {
 // settingsSection is one entry of the page's menu. rows builds its content each
 // frame from the window's state; act runs one of its controls (see activate);
 // show runs each time the section comes into view; dialog, when it returns one,
-// covers the page and takes every click.
+// covers the page and takes every click. leave, when set, runs before the page
+// leaves the section: false keeps it (the section asks first, then runs then).
 type settingsSection struct {
 	title, hint string
 	later       bool // greyed with "coming next" and not selectable
@@ -68,6 +72,7 @@ type settingsSection struct {
 	act         func(win *window, id string, arg int)
 	show        func(win *window)
 	dialog      func(win *window) *dialogBox
+	leave       func(win *window, then func()) bool
 }
 
 // dialogBox is a confirm box over the page: a title, plain lines, code lines and buttons.
@@ -77,11 +82,11 @@ type dialogBox struct {
 	buttons     []ctrl
 }
 
-// defaultSections are the page's menu; the Appearance and Claude sections fill in rows and act.
+// defaultSections are the page's menu; each section fills in its own rows and act.
 func defaultSections() []settingsSection {
 	return []settingsSection{
 		appearanceSection(),
-		{title: "Workspaces", later: true},
+		workspacesSection(),
 		claudeSection(),
 	}
 }
@@ -143,12 +148,28 @@ func (win *window) dialogShown() bool {
 	return secs[s.section].dialog(win) != nil
 }
 
-// closeSettings closes the Settings tab.
+// mayLeave asks the shown section whether the page may leave it; when it may
+// not, the section has put up its question and runs then once answered.
+func (win *window) mayLeave(then func()) bool {
+	secs := win.sections()
+	if !win.set.open || win.set.section >= len(secs) || secs[win.set.section].leave == nil {
+		return true
+	}
+	return secs[win.set.section].leave(win, then)
+}
+
+// closeSettings closes the Settings tab, unless the shown section asks first;
+// then the page comes to the front so the question is seen.
 func (win *window) closeSettings() {
+	if !win.mayLeave(win.closeSettings) {
+		win.openSettings()
+		return
+	}
 	win.hideSettings()
 	s := &win.set
 	s.open = false
 	s.controls, s.nav = s.controls[:0], s.nav[:0]
+	s.fields, s.editing = nil, ""
 	win.w.Invalidate()
 }
 
@@ -195,7 +216,14 @@ func (win *window) selectSection(i int) {
 	if i < 0 || i >= len(secs) || secs[i].later || i == win.set.section {
 		return
 	}
+	if !win.mayLeave(func() { win.selectSection(i) }) {
+		win.w.Invalidate()
+		return
+	}
 	win.set.section, win.set.focus = i, -1
+	if win.set.editing != "" {
+		win.editField("")
+	}
 	win.set.scroll, win.set.scrollFocus = 0, -1
 	win.showSection()
 	win.w.Invalidate()
@@ -227,13 +255,14 @@ func (win *window) settingsEvents(gtx layout.Context) {
 		}
 		switch e := ev.(type) {
 		case key.Event:
-			win.settingsKey(e)
+			win.settingsKey(gtx, e)
 		case key.EditEvent:
 			edited = true
 		case pointer.Event:
 			win.settingsPointer(e)
 		}
 	}
+	win.fieldEvents(gtx)
 	if edited {
 		// Typed text has nowhere to go here; drop Gio's copy so it cannot pile up.
 		gtx.Execute(key.SnippetCmd{Tag: tag})
@@ -254,6 +283,7 @@ func (win *window) settingsPointer(e pointer.Event) {
 		return
 	}
 	win.wantFocus = true
+	win.set.editing = "" // a press the page gets is off every field's editor
 	p := e.Position.Round()
 	for i, n := range win.set.nav {
 		if p.In(n.rect) {
@@ -269,7 +299,9 @@ func (win *window) settingsPointer(e pointer.Event) {
 	for i, c := range win.set.controls {
 		if p.In(c.rect) {
 			win.set.focus, win.set.navFocus = i, false
-			if !c.dead {
+			if c.kind == ctlText {
+				win.editField(c.id) // its padding, around the editor
+			} else if !c.dead {
 				win.activate(c.id, c.arg)
 			}
 			return
@@ -279,22 +311,13 @@ func (win *window) settingsPointer(e pointer.Event) {
 
 // settingsKey handles a key on the page: kaze's own shortcuts, Tab / Shift+Tab
 // between controls, and Enter / Space to press the focused one.
-func (win *window) settingsKey(e key.Event) {
+func (win *window) settingsKey(gtx layout.Context, e key.Event) {
 	if e.State != key.Press {
 		return
 	}
 	s := &win.set
 	if a, ok := win.km[input.Shortcut{Name: e.Name, Mods: e.Modifiers}]; ok {
-		switch a {
-		case actNewTab:
-			win.newTab()
-		case actCloseTab:
-			win.closeSettings()
-		case actNextTab:
-			win.cycleTab(1)
-		case actPrevTab:
-			win.cycleTab(-1)
-		}
+		win.runShortcut(gtx, a)
 		return
 	}
 	n := len(s.controls)
@@ -303,34 +326,18 @@ func (win *window) settingsKey(e key.Event) {
 	}
 	switch e.Name {
 	case key.NameTab:
-		total := n + len(s.nav)
-		if total == 0 {
-			return
-		}
-		at := s.focus
-		if s.navFocus {
-			at = n + s.navIndex
-		}
 		switch e.Modifiers {
 		case key.ModShift:
-			if at < 0 {
-				at = total
-			}
-			at = (at - 1 + total) % total
+			win.moveFocus(-1)
 		case 0:
-			at = (at + 1) % total
-		default:
-			return
+			win.moveFocus(1)
 		}
-		s.navFocus = at >= n
-		if s.navFocus {
-			s.navIndex, s.focus = at-n, -1
-		} else {
-			s.focus = at
-		}
+		return
 	case key.NameReturn, key.NameEnter, key.NameSpace:
 		if s.navFocus && s.navIndex < len(s.nav) {
 			win.selectSection(s.nav[s.navIndex].section)
+		} else if s.focus >= 0 && s.controls[s.focus].kind == ctlText {
+			win.editField(s.controls[s.focus].id)
 		} else if s.focus >= 0 && !s.controls[s.focus].dead {
 			c := s.controls[s.focus]
 			win.activate(c.id, c.arg)
@@ -341,16 +348,51 @@ func (win *window) settingsKey(e key.Event) {
 	win.w.Invalidate()
 }
 
+// moveFocus steps the page focus d places through the controls, then the menu,
+// wrapping. A text field it lands on gets the keyboard; leaving one gives it back.
+func (win *window) moveFocus(d int) {
+	s := &win.set
+	n := len(s.controls)
+	total := n + len(s.nav)
+	if s.focus >= n {
+		s.focus = -1 // the section changed under it
+	}
+	if total == 0 {
+		return
+	}
+	at := s.focus
+	if s.navFocus {
+		at = n + s.navIndex
+	}
+	if d < 0 && at < 0 {
+		at = total
+	}
+	at = ((at+d)%total + total) % total
+	s.navFocus = at >= n
+	if s.navFocus {
+		s.navIndex, s.focus = at-n, -1
+	} else {
+		s.focus = at
+	}
+	switch {
+	case !s.navFocus && s.controls[at].kind == ctlText:
+		win.editField(s.controls[at].id)
+	case s.editing != "":
+		win.editField("")
+	}
+	win.w.Invalidate()
+}
+
 // pageColors are the theme tokens the page draws with.
 type pageColors struct {
-	bg, nav, fg, title, dim, muted, line, accent color.NRGBA
+	bg, nav, fg, title, dim, muted, line, accent, err color.NRGBA
 }
 
 func (c *chrome) pageColors() pageColors {
 	th := c.th
 	return pageColors{
 		bg: th.Active, nav: th.Chrome, fg: th.ToastFG, title: th.ActiveFG,
-		dim: th.StatusFG, muted: th.Muted, line: th.Border, accent: th.Accent,
+		dim: th.StatusFG, muted: th.Muted, line: th.Border, accent: th.Accent, err: th.UsageHigh,
 	}
 }
 
@@ -364,7 +406,7 @@ func tint(col color.NRGBA, a uint8) color.NRGBA {
 func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	s := &win.set
 	s.controls, s.nav, s.texts = s.controls[:0], s.nav[:0], s.texts[:0]
-	p := &page{gtx: gtx, c: win.ui, st: s, col: win.ui.pageColors()}
+	p := &page{gtx: gtx, c: win.ui, win: win, st: s, col: win.ui.pageColors()}
 	ops := gtx.Ops
 	cl := clip.Rect(r).Push(ops)
 	defer cl.Pop()
@@ -396,6 +438,7 @@ func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 		}
 		s.scrollFocus = s.focus
 		s.shift(from, len(s.controls), image.Pt(0, -s.scroll))
+		win.pruneFields()
 		paneClip := clip.Rect(pane).Push(ops)
 		off := op.Offset(image.Pt(0, -s.scroll)).Push(ops)
 		call.Add(ops)
@@ -405,9 +448,30 @@ func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 			if d := dlg(win); d != nil {
 				// Only the dialog's buttons answer while it is open.
 				s.controls, s.nav = s.controls[:0], s.nav[:0]
+				if s.editing != "" {
+					win.editField("")
+				}
 				p.dialog(r, d)
+				// Over the fields' editors, so the page takes every click.
+				area := clip.Rect(r).Push(ops)
+				event.Op(ops, &s.tag)
+				area.Pop()
 			}
 		}
+	}
+}
+
+// pruneFields drops the editors of fields this frame's rows no longer have.
+func (win *window) pruneFields() {
+	s := &win.set
+	for id, f := range s.fields {
+		if !f.seen {
+			delete(s.fields, id)
+			if s.editing == id {
+				win.editField("")
+			}
+		}
+		f.seen = false
 	}
 }
 
@@ -505,10 +569,12 @@ func (p *page) dialog(r image.Rectangle, d *dialogBox) {
 
 // page draws one frame of the settings page and records its hit areas and text.
 type page struct {
-	gtx layout.Context
-	c   *chrome
-	st  *settingsState
-	col pageColors
+	gtx    layout.Context
+	c      *chrome
+	win    *window
+	st     *settingsState
+	col    pageColors
+	fieldH int // a text field's line height, measured once a frame
 }
 
 func (p *page) text(s string, size unit.Sp, col color.NRGBA) (op.CallOp, image.Point) {

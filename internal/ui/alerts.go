@@ -33,6 +33,11 @@ type toast struct {
 	Kind  notify.Kind
 	Text  string
 	Until time.Time // zero = stays until visited or dismissed
+
+	// Run is set on a workspace run's summary, which Title names; it is not
+	// cleared by visiting its tab, only by its close button or its timer.
+	Run   uint64
+	Title string
 }
 
 // alerts holds the tab marks and toasts. Used only on the UI goroutine.
@@ -89,7 +94,7 @@ func (a *alerts) apply(m notify.Msg, active tabs.TabID, focused bool, exists fun
 
 func (a *alerts) dropToast(id tabs.TabID) bool {
 	n := len(a.toasts)
-	a.toasts = slices.DeleteFunc(a.toasts, func(t toast) bool { return t.Tab == id })
+	a.toasts = slices.DeleteFunc(a.toasts, func(t toast) bool { return t.Tab == id && t.Run == 0 })
 	return len(a.toasts) != n
 }
 
@@ -100,8 +105,19 @@ func (a *alerts) visited(id tabs.TabID) bool {
 	return a.dropToast(id) || had
 }
 
-// dismiss closes the tab's toast but keeps its mark: it was not seen yet.
-func (a *alerts) dismiss(id tabs.TabID) { a.dropToast(id) }
+// dismiss closes one toast but keeps the tab's mark: it was not seen yet.
+func (a *alerts) dismiss(id tabs.TabID, run uint64) {
+	a.toasts = slices.DeleteFunc(a.toasts, func(t toast) bool { return t.Tab == id && t.Run == run })
+}
+
+// addRun shows a run's summary, one per run, with the alert toasts.
+func (a *alerts) addRun(t toast) {
+	a.toasts = slices.DeleteFunc(a.toasts, func(o toast) bool { return o.Run == t.Run })
+	a.toasts = append(a.toasts, t)
+	if n := len(a.toasts); n > maxToasts {
+		a.toasts = slices.Delete(a.toasts, 0, n-maxToasts)
+	}
+}
 
 // expire drops timed-out toasts and returns when the next one is due.
 func (a *alerts) expire(now time.Time) (next time.Time, changed bool) {

@@ -28,21 +28,22 @@ type Config struct {
 	FontFamily string  `toml:"font_family"` // not supported yet; a set value warns
 	// Shell empty means "use the platform default shell"; the caller
 	// resolves it at startup.
-	Shell           []string          `toml:"shell"`
-	ScrollbackLines int               `toml:"scrollback_lines"` // default 10000, max 100000
-	Colors          map[string]string `toml:"colors"`           // "fg", "bg", "cursor", "selection", "color0".."color15": "#rrggbb"
-	Keys            map[string]string `toml:"keys"`             // action -> shortcut text; parsed by the caller
-	CopyOnSelect    bool              `toml:"copy_on_select"`   // copy a selection when the mouse is released
-	ChimeNeeds      bool              `toml:"chime_needs"`      // chime when Claude needs you; default true
-	ChimeDone       bool              `toml:"chime_done"`       // chime when Claude is done; default false
-	ChimeFile       string            `toml:"chime_file"`       // custom WAV; ~ expands to home, other relative paths use the working dir; empty = bundled chime
-	Theme           string            `toml:"theme"`            // midnight|sumi|tide|washi|sakura
-	LineSpacing     string            `toml:"line_spacing"`     // tight|normal|roomy
-	CursorStyle     string            `toml:"cursor_style"`     // block|bar|underline
-	CursorBlink     bool              `toml:"cursor_blink"`     // default false
-	TaskbarFlash    bool              `toml:"taskbar_flash"`    // flash the taskbar button on alerts; default true
-	DoneToast       string            `toml:"done_toast"`       // 3s|6s|10s|until_seen
-	ShowUsage       bool              `toml:"show_usage"`       // usage readout in the status bar; default true
+	Shell            []string          `toml:"shell"`
+	ScrollbackLines  int               `toml:"scrollback_lines"`  // default 10000, max 100000
+	Colors           map[string]string `toml:"colors"`            // "fg", "bg", "cursor", "selection", "color0".."color15": "#rrggbb"
+	Keys             map[string]string `toml:"keys"`              // action -> shortcut text; parsed by the caller
+	CopyOnSelect     bool              `toml:"copy_on_select"`    // copy a selection when the mouse is released
+	ChimeNeeds       bool              `toml:"chime_needs"`       // chime when Claude needs you; default true
+	ChimeDone        bool              `toml:"chime_done"`        // chime when Claude is done; default false
+	ChimeFile        string            `toml:"chime_file"`        // custom WAV; ~ expands to home, other relative paths use the working dir; empty = bundled chime
+	Theme            string            `toml:"theme"`             // midnight|sumi|tide|washi|sakura
+	LineSpacing      string            `toml:"line_spacing"`      // tight|normal|roomy
+	CursorStyle      string            `toml:"cursor_style"`      // block|bar|underline
+	CursorBlink      bool              `toml:"cursor_blink"`      // default false
+	TaskbarFlash     bool              `toml:"taskbar_flash"`     // flash the taskbar button on alerts; default true
+	DoneToast        string            `toml:"done_toast"`        // 3s|6s|10s|until_seen
+	ShowUsage        bool              `toml:"show_usage"`        // usage readout in the status bar; default true
+	StartupWorkspace string            `toml:"startup_workspace"` // workspace ID to run at startup; "" opens a home tab
 }
 
 // KnownActions are the action names accepted under [keys]; the window binds each one.
@@ -200,6 +201,13 @@ func Load(path string) (Config, []string, error) {
 			loadBool(v, k, &cfg.TaskbarFlash, warn)
 		case "show_usage":
 			loadBool(v, k, &cfg.ShowUsage, warn)
+		case "startup_workspace":
+			s, ok := v.(string)
+			if !ok {
+				warn("startup_workspace must be a workspace ID string, got %v; starting with a normal tab", v)
+				continue
+			}
+			cfg.StartupWorkspace = s
 		case "colors":
 			loadColors(v, &cfg, warn)
 		case "keys":

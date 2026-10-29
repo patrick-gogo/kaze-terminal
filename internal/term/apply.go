@@ -20,6 +20,7 @@ type Applier struct {
 	title     string
 	cwd       string
 	cwdSeq    uint64
+	promptSeq uint64
 	goos      string           // replaceable so tests can check both path styles
 	now       func() time.Time // replaceable so tests can drive the sync timeout
 }
@@ -161,7 +162,8 @@ func (a *Applier) ESC(intermediates []byte, final byte) {
 	}
 }
 
-// OSC handles window titles (0 and 2) and the folder report (7); the rest are ignored.
+// OSC handles window titles (0 and 2), the folder report (7) and the
+// prompt-start mark (133;A); the rest are ignored.
 func (a *Applier) OSC(data []byte) {
 	cmd, text, ok := bytes.Cut(data, []byte{';'})
 	if ok && (string(cmd) == "0" || string(cmd) == "2") {
@@ -173,6 +175,10 @@ func (a *Applier) OSC(data []byte) {
 			a.cwd = p
 			a.cwdSeq++
 		}
+		return
+	}
+	if ok && string(cmd) == "133" && isPromptStart(text) {
+		a.promptSeq++
 	}
 }
 
