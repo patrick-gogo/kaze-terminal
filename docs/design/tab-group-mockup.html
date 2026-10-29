@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kaze tab groups mockup</title>
+<style>
+  :root { --bg:#0f1117; --chrome:#0b0d12; --fg:#d7dae3; --dim:#7d8394; --muted:#8a90a2; --border:#1d2230; --accent:#8b7bff; --card:#1a1f2c;
+          --cyan:#6fd3e0; --magenta:#b9a6ff; --yellow:#f2b84b; --green:#62d39a; --blue:#8ab4ff; --red:#f07178; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#07080b; color:var(--fg); font:14px/1.5 "Segoe UI", system-ui, sans-serif; padding:24px 16px 48px; }
+  h1 { font-size:20px; margin:0 0 4px; } h2 { font-size:16px; margin:34px 0 4px; }
+  .lead { color:var(--dim); margin:0 0 14px; max-width:880px; }
+  .win { max-width:1000px; border-radius:10px; overflow:visible; border:1px solid var(--border); box-shadow:0 14px 40px rgba(0,0,0,.45); background:var(--bg); position:relative; }
+  .bar { display:flex; align-items:flex-end; gap:4px; padding:7px 8px 0; height:40px; background:var(--chrome); border-bottom:1px solid var(--border); border-radius:10px 10px 0 0; position:relative; }
+  .tab { padding:6px 12px; font:11.5px "JetBrains Mono", Consolas, monospace; display:flex; gap:7px; align-items:center; white-space:nowrap; color:var(--muted); border-radius:9px 9px 0 0; cursor:pointer; user-select:none; }
+  .tab.on { background:var(--bg); color:#fff; }
+  .tab .x { opacity:.45; }
+  .dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex:none; }
+  .ring { box-shadow:0 0 0 2px var(--chrome), 0 0 0 3px var(--yellow); }
+  .group { border:1px solid var(--border); border-bottom:none; }
+  .group.on { border-color:#2a3142; }
+  .stack { display:inline-flex; }
+  .stack .dot { margin-left:-2px; box-shadow:0 0 0 1.5px var(--chrome); }
+  .count { font-size:10px; color:var(--dim); background:#1d2230; border-radius:8px; padding:0 6px; }
+  .chev { font-size:9px; opacity:.7; }
+  .sub { color:var(--dim); }
+  .plus { color:var(--muted); padding:6px 6px; font-size:14px; }
+  .caps { margin-left:auto; display:flex; gap:16px; padding:0 8px 10px; color:var(--muted); font-size:12px; }
+  .menu { position:absolute; top:40px; width:330px; background:var(--card); border:1px solid #2a3142; border-radius:10px; padding:6px; z-index:5; box-shadow:0 14px 34px rgba(0,0,0,.55); }
+  .menu .hd { display:flex; justify-content:space-between; padding:4px 10px 8px; color:var(--dim); font-size:11.5px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+  .item { display:grid; grid-template-columns:18px 16px 1fr auto; gap:6px; align-items:center; padding:7px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; }
+  .item:hover, .item.kb { background:#232a3b; }
+  .item.cur { background:rgba(139,123,255,.16); }
+  .item .k { color:var(--dim); font:11px "JetBrains Mono", Consolas, monospace; }
+  .item .st { color:var(--dim); font-size:11px; }
+  .item .st.needs { color:var(--yellow); } .item .st.done { color:var(--green); }
+  .menu .ft { border-top:1px solid var(--border); margin-top:4px; padding:6px 10px 2px; color:var(--dim); font-size:11px; display:flex; justify-content:space-between; }
+  .term { height:260px; padding:12px 16px; font:12.5px/1.6 "JetBrains Mono", Consolas, monospace; white-space:pre-wrap; }
+  .status { display:flex; gap:14px; padding:4px 14px; font:11px "JetBrains Mono", Consolas, monospace; height:24px; align-items:center; background:var(--chrome); border-top:1px solid var(--border); color:var(--dim); border-radius:0 0 10px 10px; }
+  .status .r { margin-left:auto; }
+  .note { max-width:1000px; color:var(--dim); font-size:12.5px; margin-top:10px; }
+  .note b { color:var(--fg); }
+  .mini { padding:4px 9px; font:11px "JetBrains Mono", Consolas, monospace; color:var(--muted); border-radius:7px 7px 0 0; display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .mini.on { background:var(--bg); color:#fff; }
+  .gl { display:flex; align-items:flex-end; gap:2px; padding:0 4px 0 10px; border:1px solid #2a3142; border-bottom:none; border-radius:9px 9px 0 0; background:#11141c; height:33px; }
+  .gl .name { font:11.5px "JetBrains Mono", Consolas, monospace; color:var(--fg); padding:0 8px 7px 0; display:flex; gap:6px; align-items:center; cursor:pointer; }
+  kbd { font:11px "JetBrains Mono", Consolas, monospace; border:1px solid #2a3142; border-bottom-width:2px; border-radius:4px; padding:0 5px; color:var(--fg); background:#141824; }
+</style>
+</head>
+<body>
+<h1>Tab groups (temporary, before real panes)</h1>
+<p class="lead">A workspace's tabs live inside one group in the tab strip, so samurai takes the space of one tab. Two ways it could look. Click the group, pick a tab; press <kbd>A</kbd> in variant A to simulate "storefront needs you".</p>
+
+<h2>A. Collapsed chip with a dropdown (recommended)</h2>
+<div class="win" id="A"></div>
+<div class="note" id="noteA"></div>
+
+<h2>B. Expands in place when you're in it</h2>
+<div class="win" id="B"></div>
+<div class="note">When you are on a samurai tab, its members show as small tabs inside the group. Switch to another tab and the group shrinks back to one chip. Faster to switch inside the group, but it uses more room while you're in it.</div>
+
+<script>
+const C = {cyan:"var(--cyan)", magenta:"var(--magenta)", yellow:"var(--yellow)", green:"var(--green)", red:"var(--red)"};
+const members = [
+  {t:"api", c:"cyan", f:"~\\Desktop\\samurai_cart_v3\\backend", st:"", out:'<span style="color:var(--green)">(venv)</span> <span style="color:var(--dim)">PS ~\\Desktop\\samurai_cart_v3\\backend&gt;</span> <span style="background:var(--magenta)"> </span>'},
+  {t:"admin", c:"magenta", f:"~\\Desktop\\samurai_cart_v3\\frontend", st:"", out:'  <span style="color:var(--green)">▲ Next.js 15</span>\n  - Local: http://localhost:3000\n <span style="color:var(--green)">✓ Ready in 2.1s</span>'},
+  {t:"storefront", c:"yellow", f:"~\\Desktop\\samurai_cart_v3_frontend", st:"", out:'  <span style="color:var(--green)">▲ Next.js 15</span>\n  - Local: http://localhost:3001\n <span style="color:var(--green)">✓ Ready in 2.4s</span>'},
+  {t:"api logs", c:"green", f:"~\\Desktop\\samurai_cart_v3", st:"", out:'<span style="color:var(--cyan)">api-1  |</span> INFO:     Uvicorn running on http://0.0.0.0:8000\n<span style="color:var(--cyan)">api-1  |</span> INFO:     Application startup complete.'},
+];
+const others = [{t:"claude · kaze", c:null, f:"~\\Desktop\\kaze", out:'<span style="color:var(--magenta)">⏺</span> I\'ll wire the tab group into the strip…'}, {t:"pwsh", c:null, f:"~", out:'<span style="color:var(--dim)">PS ~&gt;</span> <span style="background:var(--magenta)"> </span>'}];
+
+function view(sel){ const m = sel.g ? members[sel.i] : others[sel.i]; return m; }
+function status(m){ return `<div class="status"><span style="color:var(--fg)">${m.f}</span><span style="color:var(--green)">⎇ main</span><span class="r">5h 23% · wk 41% · ctx 34% &nbsp; kaze 71MB · 6 tabs</span></div>`; }
+function stack(){ return `<span class="stack">${members.map(m=>`<span class="dot ${m.st==="needs"?"ring":""}" style="background:${C[m.c]}"></span>`).join("")}</span>`; }
+
+// Variant A
+let A = { sel:{g:false,i:0}, open:false, kb:0 };
+function drawA(){
+  const inG = A.sel.g, cur = view(A.sel), needs = members.some(m=>m.st==="needs");
+  let bar = `<div class="tab ${!inG&&A.sel.i===0?"on":""}" data-o="0">${others[0].t} <span class="x">×</span></div>`;
+  bar += `<div class="tab group ${inG?"on":""}" id="gA">${stack()} samurai${inG?` <span class="sub">› ${members[A.sel.i].t}</span>`:""} <span class="count">${needs?'<span style="color:var(--yellow)">●</span> ':""}4</span> <span class="chev">▾</span></div>`;
+  bar += `<div class="tab ${!inG&&A.sel.i===1?"on":""}" data-o="1">${others[1].t} <span class="x">×</span></div><span class="plus">+</span><div class="caps">⚙ &nbsp;─ &nbsp;□ &nbsp;✕</div>`;
+  let menu = "";
+  if (A.open) {
+    menu = `<div class="menu" style="left:${document.getElementById("gA")? document.getElementById("gA").offsetLeft+8 : 150}px"><div class="hd"><span>samurai · 4 tabs</span><span>Running</span></div>
+      ${members.map((m,i)=>`<div class="item ${inG&&A.sel.i===i?"cur":""} ${A.kb===i?"kb":""}" data-m="${i}"><span class="k">${i+1}</span><span class="dot ${m.st==="needs"?"ring":""}" style="background:${C[m.c]}"></span><span>${m.t} <span style="color:var(--dim);font-size:11px">${m.f.replace("~\\Desktop\\","")}</span></span><span class="st ${m.st}">${m.st==="needs"?"needs you":""}</span></div>`).join("")}
+      <div class="ft"><span><kbd>1</kbd>–<kbd>4</kbd> or <kbd>↑</kbd><kbd>↓</kbd> <kbd>Enter</kbd> to pick</span><span>Close group</span></div></div>`;
+  }
+  document.getElementById("A").innerHTML = `<div class="bar">${bar}${menu}</div><div class="term">${cur.out}</div>${status(cur)}`;
+  document.getElementById("noteA").innerHTML = A.open
+    ? "The dropdown lists the group's tabs with their color, folder and any alert. Click one or press its number. The chip then reads <b>samurai › admin</b> so you always know which one you're in."
+    : (needs ? "<b>storefront needs you</b>: the group's dot stack and count turn amber, so you see it even with the group collapsed. Open the dropdown to jump to it." : "samurai takes the space of one tab. The colored dots show its 4 tabs. Click the chip to pick one.");
+  document.querySelectorAll("#A [data-o]").forEach(e=>e.onclick=()=>{ A.sel={g:false,i:+e.dataset.o}; A.open=false; drawA(); });
+  document.getElementById("gA").onclick=(ev)=>{ ev.stopPropagation(); A.open=!A.open; A.kb = inG?A.sel.i:0; drawA(); };
+  document.querySelectorAll("#A [data-m]").forEach(e=>e.onclick=(ev)=>{ ev.stopPropagation(); pick(+e.dataset.m); });
+}
+function pick(i){ A.sel={g:true,i}; members[i].st=""; A.open=false; drawA(); drawB(); }
+document.addEventListener("keydown", e=>{
+  if (e.key==="a"||e.key==="A") { members[2].st="needs"; drawA(); drawB(); return; }
+  if (!A.open) return;
+  if (e.key>="1"&&e.key<="4") pick(+e.key-1);
+  if (e.key==="ArrowDown") { A.kb=(A.kb+1)%4; drawA(); }
+  if (e.key==="ArrowUp") { A.kb=(A.kb+3)%4; drawA(); }
+  if (e.key==="Enter") pick(A.kb);
+  if (e.key==="Escape") { A.open=false; drawA(); }
+});
+document.addEventListener("click", ()=>{ if (A.open) { A.open=false; drawA(); } });
+
+// Variant B
+let B = { sel:{g:true,i:1} };
+function drawB(){
+  const inG = B.sel.g, cur = view(B.sel);
+  let bar = `<div class="tab ${!inG&&B.sel.i===0?"on":""}" data-ob="0">${others[0].t} <span class="x">×</span></div>`;
+  if (inG) {
+    bar += `<div class="gl"><span class="name" data-collapse="1">${stack()} samurai</span>${members.map((m,i)=>`<div class="mini ${B.sel.i===i?"on":""}" data-mb="${i}"><span class="dot ${m.st==="needs"?"ring":""}" style="background:${C[m.c]}"></span>${m.t}</div>`).join("")}</div>`;
+  } else {
+    bar += `<div class="tab group" data-mb="0">${stack()} samurai <span class="count">4</span></div>`;
+  }
+  bar += `<div class="tab ${!inG&&B.sel.i===1?"on":""}" data-ob="1">${others[1].t} <span class="x">×</span></div><span class="plus">+</span><div class="caps">⚙ &nbsp;─ &nbsp;□ &nbsp;✕</div>`;
+  document.getElementById("B").innerHTML = `<div class="bar">${bar}</div><div class="term">${cur.out}</div>${status(cur)}`;
+  document.querySelectorAll("#B [data-ob]").forEach(e=>e.onclick=()=>{ B.sel={g:false,i:+e.dataset.ob}; drawB(); });
+  document.querySelectorAll("#B [data-mb]").forEach(e=>e.onclick=()=>{ B.sel={g:true,i:+e.dataset.mb}; drawB(); });
+}
+drawA(); drawB();
+</script>
+</body>
+</html>
