@@ -327,13 +327,13 @@ func TestVersionBlockShowsBuild(t *testing.T) {
 	if !strings.Contains(all, "build abcdef1") {
 		t.Fatalf("texts %q lack the build line", texts)
 	}
-	for _, want := range []string{"Appearance", "Workspaces", "Claude", "Later:"} {
+	for _, want := range []string{"Appearance", "Workspaces", "Claude", "About", "Later:"} {
 		if !strings.Contains(all, want) {
 			t.Fatalf("nav lacks %q: %q", want, texts)
 		}
 	}
-	if len(win.set.nav) != 3 {
-		t.Fatalf("%d selectable sections, want 3", len(win.set.nav))
+	if len(win.set.nav) != 4 {
+		t.Fatalf("%d selectable sections, want 4", len(win.set.nav))
 	}
 	win.settingsPointer(pressAt(center(win.set.nav[2].rect)))
 	if win.set.section != 2 {

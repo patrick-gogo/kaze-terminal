@@ -22,6 +22,8 @@ import (
 // settingsState is the Settings page: a special tab with no shell behind it.
 // open means its chip is in the tab strip; shown means it is in front instead of the terminal.
 type settingsState struct {
+	aboutCopy string // pending clipboard content, consumed by the About layout
+
 	open, shown       bool
 	section           int             // index into the sections; never a later one
 	focus             int             // index into controls; -1 when no control has focus
@@ -68,6 +70,7 @@ type settingRow struct {
 type settingsSection struct {
 	title, hint string
 	later       bool // greyed with "coming next" and not selectable
+	draw        func(*page, image.Rectangle, *window) int
 	rows        func(win *window) []settingRow
 	act         func(win *window, id string, arg int)
 	show        func(win *window)
@@ -88,6 +91,7 @@ func defaultSections() []settingsSection {
 		appearanceSection(),
 		workspacesSection(),
 		claudeSection(),
+		aboutSection(),
 	}
 }
 
@@ -672,6 +676,9 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 
 // pane draws the shown section: title, hint and its rows.
 func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) int {
+	if sec.draw != nil {
+		return sec.draw(p, r, win)
+	}
 	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
 	y := r.Min.Y
 	call, size := p.text(sec.title, 16, col.title)
