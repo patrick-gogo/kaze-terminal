@@ -158,7 +158,7 @@ func TestReasonIsCleanedAndCapped(t *testing.T) {
 func TestDismissDropsToastKeepsMark(t *testing.T) {
 	var a alerts
 	a.apply(notify.Msg{Tab: 2, Kind: notify.KindNeeds}, 1, true, only(2), t0)
-	a.dismiss(2)
+	a.dismiss(2, 0)
 	if len(a.list()) != 0 || a.markOf(2) != markNeeds {
 		t.Fatalf("after dismiss: toasts %d mark %v", len(a.list()), a.markOf(2))
 	}

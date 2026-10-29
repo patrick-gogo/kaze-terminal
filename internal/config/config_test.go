@@ -277,3 +277,17 @@ func TestChimeFileExpandsTilde(t *testing.T) {
 		t.Fatalf("ChimeFile = %q, want %q", cfg.ChimeFile, f)
 	}
 }
+
+func TestStartupWorkspace(t *testing.T) {
+	if Default().StartupWorkspace != "" {
+		t.Fatal("startup_workspace must default to none")
+	}
+	cfg, warns, err := Load(write(t, "startup_workspace = \"ws_1a2b\"\n"))
+	if err != nil || len(warns) != 0 || cfg.StartupWorkspace != "ws_1a2b" {
+		t.Fatalf("cfg=%q warns=%v err=%v", cfg.StartupWorkspace, warns, err)
+	}
+	cfg, warns, err = Load(write(t, "startup_workspace = 3\n"))
+	if err != nil || len(warns) != 1 || cfg.StartupWorkspace != "" {
+		t.Fatalf("a number: cfg=%q warns=%v err=%v", cfg.StartupWorkspace, warns, err)
+	}
+}

@@ -49,6 +49,8 @@ type Options struct {
 	Shell    []string        // argv, already resolved to the platform default when the config has none
 	Dir      string          // working directory for new shells
 	Bench    *bench.Recorder // nil unless KAZE_BENCH is set
+	// Workspace is the name from --workspace; it wins over the startup_workspace setting.
+	Workspace string
 }
 
 const (
@@ -149,6 +151,11 @@ type window struct {
 	claudePath string      // Claude Code's settings.json; "" checks nothing
 	exePath    string      // this kaze, which a Claude setup fix points the entries at
 	claude     claudeState // the Claude section's setup check and dialog
+
+	runs map[uint64]*wsRun // workspace runs with a tab still open; UI goroutine only
+	wsr  wsRunner
+	grp  groupMenu // the tab group dropdown; UI goroutine only
+	wsp  wsPage    // the Workspaces section: its list and the open draft; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -255,7 +262,7 @@ func (win *window) loop() error {
 					win.w.Perform(system.ActionClose)
 				}
 			}
-			if win.mgr != nil && win.mgr.Empty() {
+			if win.shouldClose() {
 				win.w.Perform(system.ActionClose)
 			}
 		default:
@@ -278,6 +285,7 @@ func (win *window) frameOrShutdown(gtx layout.Context) error {
 // shutdown closes the alert listener and every shell, together within shutdownWait.
 func (win *window) shutdown() {
 	start := time.Now()
+	win.cancelRuns()
 	var done chan struct{}
 	if win.srv != nil {
 		done = make(chan struct{})
@@ -347,9 +355,13 @@ func modes(s *term.Session) term.Modes {
 	return s.Applier().Modes()
 }
 
-func (win *window) start(env []string) (ptyx.Session, error) {
+// start launches a tab's shell in dir, or the window's folder when dir is "".
+func (win *window) start(env []string, dir string) (ptyx.Session, error) {
+	if dir == "" {
+		dir = win.opt.Dir
+	}
 	cols, rows := win.mgr.Size()
-	return ptyx.Start(win.opt.Shell, cols, rows, env, win.opt.Dir)
+	return ptyx.Start(win.opt.Shell, cols, rows, env, dir)
 }
 
 func (win *window) newTab() {
@@ -375,6 +387,8 @@ func startTheme(c config.Config) theme.Theme {
 func (win *window) applyTheme(t theme.Theme) {
 	win.pal = applyColors(t.Term, win.opt.Config.Colors)
 	win.ui.setTheme(t)
+	// Group members match the terminal's colors, [colors] overrides included.
+	win.ui.ansi = win.pal.ANSI
 	win.rendStale = true // rebuilt next frame with the new palette
 	win.w.Invalidate()
 }
@@ -457,7 +471,7 @@ func (win *window) frame(gtx layout.Context) error {
 		if len(win.opt.Config.Shell) > 0 {
 			def = ptyx.Resolve(ptyx.DefaultShell())
 		}
-		if _, _, err := openFirst(win.mgr, &win.opt.Shell, def, win.opt.Warnings); err != nil {
+		if err := win.openStartup(def); err != nil {
 			return fmt.Errorf("start %q: %w", win.opt.Shell, err)
 		}
 		if win.bench != nil {
@@ -470,7 +484,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.mgr.ResizeAll(cols, rows)
 
 	win.barEvents(gtx)
+	win.groupEvents(gtx) // after the strip, so a chip click is not also a click outside
 	win.toastEvents(gtx)
+	win.bannerEvents(gtx)
 	active := win.mgr.Active()
 	if win.set.shown {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
@@ -483,6 +499,7 @@ func (win *window) frame(gtx layout.Context) error {
 	active = win.mgr.Active()
 	win.switchedTo(active)
 	list := win.mgr.Tabs()
+	win.pruneGroupMenu(list)
 	win.pruneSels(list)
 	win.pruneLocs(list)
 	win.alerts.prune(func(id tabs.TabID) bool {
@@ -493,6 +510,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.drainUsage()
 	win.visit(win.shownTab())
 	win.autoScroll(gtx, active, cw, ch)
+	if at, ok := win.wsTick(win.wsNow()); ok {
+		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
+	}
 	sel := win.checkSel(active)
 	// After input, so a key typed this frame shows the cursor in it.
 	if next, ok := win.blink(gtx.Now); ok {
@@ -529,8 +549,10 @@ func (win *window) frame(gtx layout.Context) error {
 
 	if win.set.shown {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
+		win.wsr.hits = win.wsr.hits[:0]
 	} else {
 		win.drawTerminal(gtx, active, termRect, grid, &sel)
+		win.drawWsBanner(gtx, active, termRect) // after the terminal, so it takes the clicks it covers
 	}
 
 	// Status bar.
@@ -560,13 +582,10 @@ func (win *window) frame(gtx layout.Context) error {
 		event.Op(ops, win.toastTag)
 		area.Pop()
 	}
+	win.drawGroupMenu(gtx, list, barH) // last, so it is on top and sees clicks first
 
 	if win.wantFocus {
-		var tag event.Tag = win.termTag
-		if win.set.shown {
-			tag = &win.set.tag
-		}
-		gtx.Execute(key.FocusCmd{Tag: tag})
+		gtx.Execute(key.FocusCmd{Tag: win.focusTarget()})
 		win.wantFocus = false
 	}
 	return nil
@@ -742,6 +761,14 @@ func (win *window) barPress(e pointer.Event) {
 	win.wantFocus = true
 	p := e.Position.Round()
 	primary, middle := e.Buttons.Contain(pointer.ButtonPrimary), e.Buttons.Contain(pointer.ButtonTertiary)
+	if run, on := win.ui.hits.groupAt(p); on {
+		if primary && win.grp.run == run {
+			win.closeGroupMenu()
+		} else if primary {
+			win.openGroupMenu(run)
+		}
+		return // the chip has no ×: a run's tabs close one at a time
+	}
 	if on, onClose := win.ui.hits.settingsAt(p); on {
 		switch {
 		case onClose && primary, middle:
@@ -834,6 +861,7 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 			edited = true
 			win.blinkFrom = time.Time{}
 			if win.gate.allow() && editCommits(batch, i, win.composing) && e.Text != "" {
+				win.takeOver(t)
 				win.benchKey(t)
 				t.Session.Write(input.EncodeText(e.Text))
 				win.snapToBottom(t.Session)
@@ -858,11 +886,29 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	}
 	out := routeKey(runtime.GOOS, win.km, e.Name, e.Modifiers, m)
 	win.gate.onKey(true, out)
-	switch out.act {
+	switch {
+	case out.act != actNone:
+		win.runShortcut(gtx, out.act)
+	case out.data != nil:
+		win.takeOver(t)
+		win.benchKey(t)
+		t.Session.Write(out.data)
+		win.snapToBottom(t.Session)
+	}
+}
+
+// runShortcut does one of kaze's own actions. The terminal, the settings page and
+// the group menu all use it, so a shortcut does the same wherever the keyboard is.
+func (win *window) runShortcut(gtx layout.Context, a action) {
+	switch a {
 	case actNewTab:
 		win.newTab()
 	case actCloseTab:
-		win.mgr.Close(t.ID)
+		if win.set.shown {
+			win.closeSettings()
+		} else if t := win.mgr.Active(); t != nil {
+			win.mgr.Close(t.ID)
+		}
 	case actNextTab:
 		win.cycleTab(1)
 	case actPrevTab:
@@ -870,14 +916,12 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	case actOpenSettings:
 		win.openSettings()
 	case actPaste:
-		gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
+		if win.shownTab() != nil {
+			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
+		}
 	case actCopy:
-		win.copySel(gtx, t)
-	default:
-		if out.data != nil {
-			win.benchKey(t)
-			t.Session.Write(out.data)
-			win.snapToBottom(t.Session)
+		if t := win.shownTab(); t != nil {
+			win.copySel(gtx, t)
 		}
 	}
 }
@@ -889,6 +933,7 @@ func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 	if err != nil || len(b) == 0 {
 		return
 	}
+	win.takeOver(t)
 	t.Session.Write(input.EncodePaste(string(b), m))
 	win.snapToBottom(t.Session)
 }
@@ -913,6 +958,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 		}
 		win.gestureCol, win.gestureRow = col, row
 		if win.toApp {
+			win.takeOver(t) // the app sees the click: the owner is using this shell
 			t.Session.Write(input.EncodeMouse(btn, true, e.Modifiers, col, row, false, m))
 			return
 		}
@@ -927,6 +973,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 		}
 		if win.toApp {
 			if mouseOn(m) {
+				win.takeOver(t)
 				t.Session.Write(input.EncodeMouse(btn, false, e.Modifiers, col, row, false, m))
 			}
 			return
@@ -942,8 +989,11 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 	case pointer.Drag, pointer.Move:
 		if win.toApp || e.Kind == pointer.Move {
 			win.gestureCol, win.gestureRow = col, row
-			if mouseOn(m) {
-				t.Session.Write(input.EncodeMouse(xtermButton(e.Buttons), true, e.Modifiers, col, row, true, m))
+			if b := input.EncodeMouse(xtermButton(e.Buttons), true, e.Modifiers, col, row, true, m); b != nil {
+				if e.Buttons != 0 {
+					win.takeOver(t) // a drag the app sees is the owner using it; a hover is not
+				}
+				t.Session.Write(b)
 			}
 			return
 		}
@@ -958,6 +1008,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 			return
 		}
 		if b := input.EncodeWheel(n, col, row, m); b != nil {
+			win.takeOver(t) // the app is reading the wheel, so the owner is using it
 			t.Session.Write(b)
 			return
 		}
@@ -1097,6 +1148,11 @@ func (win *window) copySel(gtx layout.Context, t *tabs.Tab) {
 	t.Session.Lock()
 	text := render.SelectedText(t.Session.Screen(), ts.sel)
 	t.Session.Unlock()
+	win.writeClipboard(gtx, text)
+}
+
+// writeClipboard copies text, unless it is empty.
+func (win *window) writeClipboard(gtx layout.Context, text string) {
 	if text == "" {
 		return
 	}

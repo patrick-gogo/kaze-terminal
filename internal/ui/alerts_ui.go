@@ -22,6 +22,7 @@ import (
 // toastHit is where a toast, its text and its buttons were drawn, in window pixels.
 type toastHit struct {
 	id                            tabs.TabID
+	run                           uint64
 	rect, text, goRect, closeRect image.Rectangle
 }
 
@@ -192,7 +193,7 @@ func (win *window) toastEvent(e pointer.Event) {
 	for _, h := range win.ui.toastHits {
 		switch {
 		case p.In(h.closeRect):
-			win.alerts.dismiss(h.id)
+			win.alerts.dismiss(h.id, h.run)
 			win.wantFocus = true
 			win.w.Invalidate()
 			return
@@ -259,6 +260,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 
 	type card struct {
 		id              tabs.TabID
+		run             uint64
 		kind            notify.Kind
 		title, rest     op.CallOp
 		titleSz, restSz image.Point
@@ -268,10 +270,13 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	var cards []card
 	total := 0
 	for _, t := range list {
-		k := card{id: t.Tab, kind: t.Kind}
-		k.title, k.titleSz = c.fitLabel(gtx, titles[t.Tab], textRoom, c.th.ToastTitle)
-		rest := " is done"
-		if t.Kind == notify.KindNeeds {
+		k := card{id: t.Tab, run: t.Run, kind: t.Kind}
+		title, rest := titles[t.Tab], " is done"
+		if t.Run != 0 {
+			title, rest = t.Title, t.Text // a workspace run's summary
+		}
+		k.title, k.titleSz = c.fitLabel(gtx, title, textRoom, c.th.ToastTitle)
+		if t.Run == 0 && t.Kind == notify.KindNeeds {
 			rest = " needs you"
 			if t.Text != "" {
 				rest += " · " + t.Text
@@ -312,6 +317,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 		hp := gtx.Dp(4)
 		c.toastHits = append(c.toastHits, toastHit{
 			id:        k.id,
+			run:       k.run,
 			rect:      r,
 			text:      text,
 			goRect:    image.Rect(gx-hp, r.Min.Y+line, gx+goSz.X+hp/2, r.Max.Y-line),

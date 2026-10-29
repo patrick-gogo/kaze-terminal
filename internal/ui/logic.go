@@ -264,6 +264,7 @@ type tabHit struct {
 // barHits is where the last frame drew each tab, its close button and the + button.
 type barHits struct {
 	tabs                    []tabHit
+	groups                  []groupHit // one chip per workspace run
 	plus                    image.Rectangle
 	settings, settingsClose image.Rectangle // the Settings chip; empty while settings is closed
 }

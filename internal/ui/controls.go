@@ -5,10 +5,18 @@ import (
 	"image/color"
 	"strconv"
 
+	"gioui.org/font"
+	"gioui.org/io/clipboard"
+	"gioui.org/io/event"
+	"gioui.org/io/key"
+	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
+	"gioui.org/widget"
 
+	kinput "github.com/patrick-gogo/kaze-terminal/internal/input"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 )
 
@@ -21,6 +29,8 @@ const (
 	ctlSegmented
 	ctlStepper
 	ctlSwatch
+	ctlText
+	ctlColor // one recipe color, a filled square
 )
 
 // ctrl is a control a section asks for. activate gets its id and an arg that
@@ -37,7 +47,15 @@ type ctrl struct {
 	min, max, value int // stepper
 	theme           theme.Theme
 	current         bool // swatch: the theme in use, ringed
-	arg             int  // button, swatch
+	arg             int  // button, swatch, color
+	dead            bool // button: drawn dim and does nothing (Save while the draft is invalid)
+
+	// Text field: val is its value, placed in the editor when the field first shows
+	// and again whenever the row passes a different one; set gets every edit.
+	val, placeholder string
+	err              string // a red line under the field; "" for none
+	width            int    // in dp; 0 is fieldWidth
+	set              func(string)
 }
 
 // control is one clickable area laid out this frame, in window pixels.
@@ -46,7 +64,7 @@ type control struct {
 	rect image.Rectangle
 	id   string
 	arg  int
-	dead bool // a stepper end already at its limit: drawn dim, does nothing
+	dead bool // a stepper end at its limit or a disabled button: drawn dim, does nothing
 }
 
 // shift moves the hit areas [from, to) from a macro's origin to where it was placed.
@@ -73,13 +91,18 @@ func (p *page) ctrl(k ctrl, w int) (op.CallOp, image.Point, int) {
 		size = p.stepper(k)
 	case ctlSwatch:
 		size = p.swatch(k, w)
+	case ctlText:
+		size = p.textField(k)
+	case ctlColor:
+		size = p.colorChip(k)
 	}
 	return m.Stop(), size, from
 }
 
 // hit records a clickable area; the focused one gets a 1px accent ring.
 func (p *page) hit(kind ctrlKind, r image.Rectangle, id string, arg int, dead bool) {
-	if len(p.st.controls) == p.st.focus {
+	// A field with the keyboard shows it with its own accent border instead.
+	if len(p.st.controls) == p.st.focus && (kind != ctlText || id != p.st.editing) {
 		g := p.gtx.Dp(2)
 		stroke(p.gtx.Ops, r.Inset(-g), p.gtx.Dp(9), p.col.accent)
 	}
@@ -93,20 +116,37 @@ func stroke(ops *op.Ops, r image.Rectangle, radius int, col color.NRGBA) {
 
 func (p *page) button(k ctrl) image.Point {
 	gtx, ops := p.gtx, p.gtx.Ops
-	fg := p.col.fg
-	if k.strong {
+	fg, fill := p.col.fg, p.col.accent
+	switch {
+	case k.dead:
+		fg, fill = p.col.dim, tint(p.col.accent, 0x40)
+	case k.strong:
 		fg = p.col.bg
 	}
 	call, size := p.text(k.text, 12, fg)
 	r := image.Rect(0, 0, size.X+2*gtx.Dp(12), gtx.Dp(24))
 	if k.strong {
-		paint.FillShape(ops, p.col.accent, clip.UniformRRect(r, gtx.Dp(7)).Op(ops))
+		paint.FillShape(ops, fill, clip.UniformRRect(r, gtx.Dp(7)).Op(ops))
 	} else {
 		stroke(ops, r, gtx.Dp(7), p.col.line)
 	}
 	place(ops, call, image.Pt((r.Dx()-size.X)/2, (r.Dy()-size.Y)/2))
-	p.hit(ctlButton, r, k.id, k.arg, false)
+	p.hit(ctlButton, r, k.id, k.arg, k.dead)
 	return r.Size()
+}
+
+// colorChip is one recipe color in the current theme; the chosen one is ringed.
+func (p *page) colorChip(k ctrl) image.Point {
+	gtx, ops := p.gtx, p.gtx.Ops
+	s, g := gtx.Dp(18), gtx.Dp(3)
+	r := image.Rect(g, g, g+s, g+s)
+	paint.FillShape(ops, p.c.memberColor(k.text), clip.UniformRRect(r, gtx.Dp(4)).Op(ops))
+	outer := r.Inset(-g)
+	if k.on {
+		paint.FillShape(ops, p.col.title, clip.Stroke{Path: clip.UniformRRect(outer, gtx.Dp(6)).Path(ops), Width: float32(gtx.Dp(2))}.Op())
+	}
+	p.hit(ctlColor, outer, k.id, k.arg, false)
+	return outer.Max
 }
 
 func (p *page) toggle(k ctrl) image.Point {
@@ -208,4 +248,187 @@ func (p *page) swatch(k ctrl, w int) image.Point {
 	}
 	p.hit(ctlSwatch, r, k.id, k.arg, false)
 	return r.Size()
+}
+
+// fieldWidth is a text field's width in dp when its row does not set one.
+const fieldWidth = 240
+
+// textField is one text control's editor. It lives in settingsState.fields by id,
+// so its text, caret and scroll survive frames and theme switches.
+type textField struct {
+	ed      widget.Editor
+	given   string // the val the row passed last
+	set     func(string)
+	had     bool // had the keyboard last frame, to notice a click giving it
+	seen    bool // laid out this frame; fields not seen are dropped
+	filters []event.Filter
+}
+
+// textField draws a field: a filled box with a single-line editor that scrolls
+// sideways, and its error line under it.
+func (p *page) textField(k ctrl) image.Point {
+	gtx, ops, col, s := p.gtx, p.gtx.Ops, p.col, p.st
+	f := s.fields[k.id]
+	if f == nil {
+		if s.fields == nil {
+			s.fields = map[string]*textField{}
+		}
+		f = &textField{given: k.val}
+		f.ed.SingleLine, f.ed.Submit = true, true
+		f.ed.SetText(k.val)
+		p.c.fit(k.val)
+		s.fields[k.id] = f
+	} else if k.val != f.given {
+		if k.val != f.ed.Text() {
+			f.ed.SetText(k.val)
+			p.c.fit(k.val)
+		}
+		f.given = k.val
+	}
+	f.set, f.seen = k.set, true
+	// Clicking the editor gives it the keyboard directly; follow it with the page focus.
+	if on := gtx.Focused(&f.ed); on != f.had {
+		f.had = on
+		if on && s.editing != k.id {
+			s.editing, s.focus, s.navFocus = k.id, len(s.controls), false
+		}
+	}
+
+	w := k.width
+	if w <= 0 {
+		w = fieldWidth
+	}
+	pad, h, radius := gtx.Dp(8), gtx.Dp(26), gtx.Dp(6)
+	box := image.Rect(0, 0, gtx.Dp(unit.Dp(w)), h)
+	paint.FillShape(ops, col.nav, clip.UniformRRect(box, radius).Op(ops))
+	border := col.line
+	if s.editing == k.id {
+		border = col.accent
+	}
+	stroke(ops, box, radius, border)
+
+	if p.fieldH == 0 {
+		_, line := p.c.label(gtx, "Ag", 12, col.fg)
+		p.fieldH = line.Y
+	}
+	at := image.Pt(pad, (h-p.fieldH)/2)
+	if f.ed.Len() == 0 && k.placeholder != "" {
+		call, _ := p.text(k.placeholder, 12, col.dim)
+		place(ops, call, at)
+	}
+	eg := gtx
+	eg.Constraints = layout.Exact(image.Pt(max(box.Dx()-2*pad, 1), p.fieldH))
+	fg := op.Record(ops)
+	paint.ColorOp{Color: col.fg}.Add(ops)
+	fgc := fg.Stop()
+	sel := op.Record(ops)
+	paint.ColorOp{Color: tint(col.accent, 0x55)}.Add(ops)
+	selc := sel.Stop()
+	// Layout drains Update itself and would drop a change still queued; take it first.
+	p.win.drainField(gtx, k.id, f)
+	t := op.Offset(at).Push(ops)
+	f.ed.Layout(eg, p.c.shaper, font.Font{Typeface: chromeFace}, 12, fgc, selc)
+	t.Pop()
+	p.hit(ctlText, box, k.id, 0, false)
+
+	size := box.Size()
+	if k.err != "" {
+		call, es := p.text(k.err, 11, col.err)
+		place(ops, call, image.Pt(0, h+gtx.Dp(3)))
+		size = image.Pt(max(size.X, es.X), h+gtx.Dp(3)+es.Y)
+	}
+	return size
+}
+
+// fieldText is the text in field id, or "" when no such field is shown.
+func (win *window) fieldText(id string) string {
+	if f := win.set.fields[id]; f != nil {
+		return f.ed.Text()
+	}
+	return ""
+}
+
+// editField gives field id the keyboard, from the end of the frame.
+func (win *window) editField(id string) {
+	win.set.editing = id
+	win.wantFocus = true
+	win.w.Invalidate()
+}
+
+// fieldEvents runs the text fields' own keys before their editors see them: Esc
+// and Tab leave a field, so does Enter (its submit), and kaze's Ctrl / Cmd shortcuts still
+// work. Everything else goes to the editor, never to the page or the terminal.
+func (win *window) fieldEvents(gtx layout.Context) {
+	for id, f := range win.set.fields {
+		if f.filters == nil {
+			f.filters = []event.Filter{
+				key.Filter{Focus: &f.ed, Name: key.NameEscape, Optional: allMods},
+				key.Filter{Focus: &f.ed, Name: key.NameTab, Optional: allMods},
+			}
+			for sc := range win.km {
+				if sc.Mods&(key.ModCtrl|key.ModCommand) != 0 {
+					f.filters = append(f.filters, key.Filter{Focus: &f.ed, Name: sc.Name, Required: sc.Mods})
+				}
+			}
+		}
+		for {
+			ev, ok := gtx.Event(f.filters...)
+			if !ok {
+				break
+			}
+			if e, ok := ev.(key.Event); ok && e.State == key.Press && win.fieldKey(gtx, f, e) {
+				return // a shortcut may have closed the page; the layout drains what is left
+			}
+		}
+		win.drainField(gtx, id, f)
+	}
+}
+
+// drainField runs field id's editor events: an edit goes to set, a submit
+// (Enter) gives the keyboard back to the page.
+func (win *window) drainField(gtx layout.Context, id string, f *textField) {
+	for {
+		ev, ok := f.ed.Update(gtx)
+		if !ok {
+			return
+		}
+		switch ev.(type) {
+		case widget.ChangeEvent:
+			text := f.ed.Text()
+			win.ui.fit(text) // loads a fallback font for any rune the bundled ones lack
+			if f.set != nil {
+				f.set(text)
+			}
+		case widget.SubmitEvent:
+			if win.set.editing == id {
+				win.editField("")
+			}
+		}
+	}
+}
+
+// fieldKey handles one key fieldEvents caught; it reports whether a kaze
+// shortcut ran.
+func (win *window) fieldKey(gtx layout.Context, f *textField, e key.Event) bool {
+	if a, ok := win.km[kinput.Shortcut{Name: e.Name, Mods: e.Modifiers}]; ok {
+		switch a {
+		case actPaste:
+			gtx.Execute(clipboard.ReadCmd{Tag: &f.ed})
+		case actCopy:
+			win.writeClipboard(gtx, f.ed.SelectedText())
+		default:
+			win.runShortcut(gtx, a)
+			return true
+		}
+		return false
+	}
+	switch {
+	case e.Name == key.NameEscape:
+		win.editField("")
+	case e.Name == key.NameTab && e.Modifiers == 0:
+		win.moveFocus(1)
+	case e.Name == key.NameTab && e.Modifiers == key.ModShift:
+		win.moveFocus(-1)
+	}
+	return false
 }

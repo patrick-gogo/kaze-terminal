@@ -3,7 +3,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"time"
 
 	"gioui.org/app"
@@ -32,6 +34,10 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "statusline" {
 		os.Exit(runStatusline(stdinForNotify(), os.Stdout, os.Getenv, time.Now()))
 	}
+	wsName, code := workspaceArg(os.Args[1:], os.Stderr)
+	if code != 0 {
+		os.Exit(code) // before any window
+	}
 	rec := bench.FromEnv(os.Getenv) // nil, and free, unless KAZE_BENCH is set
 	cfg, warns := loadConfig()
 	shell := cfg.Shell
@@ -46,7 +52,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("kaze"), app.Size(unit.Dp(1100), unit.Dp(720)), app.Decorated(!ui.CustomTitleBar))
-		if err := ui.Run(w, ui.Options{Config: cfg, Warnings: warns, Shell: shell, Dir: home, Bench: rec}); err != nil {
+		if err := ui.Run(w, ui.Options{Config: cfg, Warnings: warns, Shell: shell, Dir: home, Bench: rec, Workspace: wsName}); err != nil {
 			reportFatal(err)
 			os.Exit(1)
 		}
@@ -66,4 +72,28 @@ func loadConfig() (config.Config, []string) {
 		return config.Default(), append(warns, err.Error()+"; using defaults")
 	}
 	return cfg, warns
+}
+
+// workspaceArg reads --workspace <name> (or --workspace=<name>). A missing name
+// is an error on stderr and exit code 2; other arguments are left alone.
+func workspaceArg(args []string, stderr io.Writer) (name string, code int) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--workspace":
+			if i+1 < len(args) {
+				name = args[i+1]
+			}
+		case strings.HasPrefix(a, "--workspace="):
+			name = strings.TrimPrefix(a, "--workspace=")
+		default:
+			continue
+		}
+		if strings.TrimSpace(name) == "" || strings.HasPrefix(name, "--") {
+			fmt.Fprintln(stderr, `kaze: --workspace needs a workspace name, like kaze --workspace "My project"`)
+			return "", 2
+		}
+		return name, 0
+	}
+	return "", 0
 }
