@@ -4,6 +4,7 @@
 package claudesetup
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -271,7 +272,7 @@ func Write(path string, data []byte, now time.Time) error {
 	old, err := os.ReadFile(path)
 	switch {
 	case err == nil:
-		if err := os.WriteFile(path+".bak-"+now.Format("20060102-150405"), old, 0o600); err != nil {
+		if err := backup(path+".bak-"+now.Format("20060102-150405"), old); err != nil {
 			return fmt.Errorf("backup: %w", err)
 		}
 	case !errors.Is(err, os.ErrNotExist):
@@ -296,6 +297,41 @@ func Write(path string, data []byte, now time.Time) error {
 		os.Remove(name)
 	}
 	return err
+}
+
+// backup writes old to base, or base-2, base-3, ... when a write in the same
+// second already made one: no backup is ever overwritten.
+func backup(base string, old []byte) error {
+	for n := 1; n <= 100; n++ {
+		name := base
+		if n > 1 {
+			name = fmt.Sprintf("%s-%d", base, n)
+		}
+		f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		_, err = f.Write(old)
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		return err
+	}
+	return errors.New("too many backups this second")
+}
+
+// Relayout reports whether writing the settings back would change more than
+// the fixed entries: the file is not in Claude Code's own layout.
+func Relayout(settings []byte) bool {
+	n, err := parse(settings)
+	if err != nil {
+		return false
+	}
+	norm := bytes.ReplaceAll(settings, []byte("\r\n"), []byte("\n"))
+	return !bytes.Equal(bytes.TrimRight(n.encode(), "\n"), bytes.TrimRight(norm, "\n"))
 }
 
 // Diff is the lines that differ between the settings before (as Fix would

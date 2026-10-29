@@ -353,3 +353,33 @@ func TestWriteWithoutOldFileMakesNoBackup(t *testing.T) {
 		t.Fatalf("%d files", len(ents))
 	}
 }
+
+func TestWriteKeepsEveryBackupInOneSecond(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	now := time.Date(2026, 10, 29, 14, 5, 9, 0, time.Local)
+	for _, s := range []string{"one", "two", "three", "four"} {
+		if err := os.WriteFile(path, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := Write(path, []byte("new"), now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	base := path + ".bak-20261029-140509"
+	for suffix, want := range map[string]string{"": "one", "-2": "two", "-3": "three", "-4": "four"} {
+		if b, err := os.ReadFile(base + suffix); err != nil || string(b) != want {
+			t.Errorf("backup %q: %q %v, want %q", suffix, b, err, want)
+		}
+	}
+}
+
+func TestRelayout(t *testing.T) {
+	claudeStyle := "{\n  \"a\": [\n    1\n  ],\n  \"b\": {}\n}\n"
+	if Relayout([]byte(claudeStyle)) || Relayout([]byte(strings.ReplaceAll(claudeStyle, "\n", "\r\n"))) {
+		t.Fatal("Claude Code's own layout flagged as rewritten")
+	}
+	if !Relayout([]byte("{\n    \"a\": [1],\n    \"b\": {}\n}\n")) {
+		t.Fatal("a 4-space file not flagged")
+	}
+}

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/json"
+	"errors"
 	"image"
 	"os"
 	"path/filepath"
@@ -354,5 +355,74 @@ func TestClaudeSectionFitsDefaultWindow(t *testing.T) {
 		if c.rect.Max.Y > bottom || c.rect.Min.Y < 38 {
 			t.Fatalf("dialog button %s at %v is off the page", c.id, c.rect)
 		}
+	}
+}
+
+func unreadableWindow(t *testing.T, write func(path string)) (*window, string) {
+	t.Helper()
+	f := newClaudeFixture(t, "", true)
+	if err := os.Remove(f.settings); err != nil {
+		t.Fatal(err)
+	}
+	if write != nil {
+		write(f.settings)
+	}
+	return claudeWindow(t, f, 800, 600), f.settings
+}
+
+func TestMissingSettingsFileCannotBeRead(t *testing.T) {
+	win, path := unreadableWindow(t, nil)
+	if !pageHas(win, "Can't read ") || !pageHas(win, "settings.json (not found)") {
+		t.Fatalf("texts %q", win.set.texts)
+	}
+	if len(controlsOf(win, "claude_fix"))+len(controlsOf(win, "claude_replace")) != 0 {
+		t.Fatal("Fix or Replace offered for a missing file")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("settings file created: %v", err)
+	}
+}
+
+func TestEmptyAndInvalidSettingsCannotBeRead(t *testing.T) {
+	for body, want := range map[string]string{"": "(empty)", " \t ": "(empty)", "{nope": "(not valid JSON)"} {
+		win, _ := unreadableWindow(t, func(p string) {
+			if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		})
+		if !pageHas(win, "Can't read ") || !pageHas(win, want) {
+			t.Errorf("%q: texts %q", body, win.set.texts)
+		}
+		if len(controlsOf(win, "claude_fix"))+len(controlsOf(win, "claude_replace")) != 0 {
+			t.Errorf("%q: Fix or Replace offered", body)
+		}
+	}
+}
+
+const relayoutLine = "The file's layout will also be rewritten (values unchanged)."
+
+func TestFixDialogFlagsALayoutRewrite(t *testing.T) {
+	f := newClaudeFixture(t, "", true)
+	var v any
+	if err := json.Unmarshal([]byte(readFile(t, f.settings)), &v); err != nil {
+		t.Fatal(err)
+	}
+	four, _ := json.MarshalIndent(v, "", "    ")
+	if err := os.WriteFile(f.settings, four, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	win := claudeWindow(t, f, 800, 600)
+	pressAny(t, win, "claude_fix", 0)
+	if win.claude.dialog == nil || !slices.Contains(win.claude.dialog.summary, relayoutLine) {
+		t.Fatalf("4-space file: dialog %+v", win.claude.dialog)
+	}
+}
+
+func TestFixDialogQuietForClaudeLayout(t *testing.T) {
+	f := newClaudeFixture(t, "", true) // json.MarshalIndent with 2 spaces: Claude Code's layout
+	win := claudeWindow(t, f, 800, 600)
+	pressAny(t, win, "claude_fix", 0)
+	if win.claude.dialog == nil || slices.Contains(win.claude.dialog.summary, relayoutLine) {
+		t.Fatalf("2-space file: dialog %+v", win.claude.dialog)
 	}
 }

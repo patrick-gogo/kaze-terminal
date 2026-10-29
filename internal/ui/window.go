@@ -202,12 +202,20 @@ var newChime = func(file string) (func(time.Time), string) {
 
 // ensureChime builds the player the first time a chime is needed, so turning a
 // chime on (or pressing Test) works when both were off at startup.
+// The player is built outside alertMu: reading a WAV file must not hold up onNotify.
 func (win *window) ensureChime() (warn string) {
 	win.alertMu.Lock()
-	defer win.alertMu.Unlock()
-	if win.chime == nil {
-		win.chime, warn = newChime(win.opt.Config.ChimeFile)
+	have := win.chime != nil
+	win.alertMu.Unlock()
+	if have {
+		return ""
 	}
+	play, warn := newChime(win.opt.Config.ChimeFile) // ChimeFile only changes on the UI goroutine
+	win.alertMu.Lock()
+	if win.chime == nil {
+		win.chime = play
+	}
+	win.alertMu.Unlock()
 	return warn
 }
 

@@ -72,10 +72,7 @@ func (win *window) setupRow() settingRow {
 		row.lines = []string{"Claude Code settings not found"}
 		return row
 	case cs.readErr != "":
-		row.lines = []string{"Cannot read " + tildeHome(win.claudePath, win.home) + ": " + truncateRight(cs.readErr, 60)}
-		return row
-	case r.Stop.State == claudesetup.Unreadable:
-		row.lines = []string{tildeHome(win.claudePath, win.home) + " is not valid settings JSON"}
+		row.lines = []string{"Can't read " + tildeHome(win.claudePath, win.home) + " (" + truncateRight(cleanText(cs.readErr), 60) + ")"}
 		return row
 	}
 	row.lines = []string{
@@ -135,17 +132,23 @@ func exeExists(p string) bool {
 	return err == nil && st.Mode().IsRegular()
 }
 
-// readClaude reads the settings file; a missing file reads as empty settings,
-// so Fix can create it.
+// readClaude reads the settings file. A missing, empty or invalid file is an
+// error saying which, so the page offers no Fix for it.
 func (win *window) readClaude() (data []byte, r claudesetup.Report, err error) {
 	data, err = os.ReadFile(win.claudePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, claudesetup.Inspect([]byte("{}"), exeExists), nil
-	}
-	if err != nil {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil, r, errors.New("not found")
+	case err != nil:
 		return nil, r, err
+	case len(bytes.TrimSpace(data)) == 0:
+		return nil, r, errors.New("empty")
 	}
-	return data, claudesetup.Inspect(data, exeExists), nil
+	r = claudesetup.Inspect(data, exeExists)
+	if r.Stop.State == claudesetup.Unreadable {
+		return nil, r, errors.New("not valid JSON")
+	}
+	return data, r, nil
 }
 
 // loadClaude re-reads the settings and drops any dialog computed from older ones.
@@ -242,11 +245,7 @@ func (win *window) openFix() {
 	if !ok {
 		return
 	}
-	src := data
-	if src == nil {
-		src = []byte("{}")
-	}
-	out, summary, err := claudesetup.Fix(src, r, win.exePath)
+	out, summary, err := claudesetup.Fix(data, r, win.exePath)
 	if err != nil {
 		win.note("Claude settings: " + err.Error())
 		win.loadClaude()
@@ -257,8 +256,8 @@ func (win *window) openFix() {
 		return
 	}
 	win.claude.dialog = &claudeDialog{
-		title: "Fix the Claude Code setup", summary: summary,
-		diff: claudesetup.Diff(src, out, maxDiffLines), from: data, out: out,
+		title: "Fix the Claude Code setup", summary: withRelayout(summary, data),
+		diff: claudesetup.Diff(data, out, maxDiffLines), from: data, out: out,
 	}
 }
 
@@ -275,10 +274,10 @@ func (win *window) openReplace() {
 	}
 	win.claude.dialog = &claudeDialog{
 		title: "Replace the status line",
-		summary: []string{
+		summary: withRelayout([]string{
 			"Removes: " + cleanText(removed),
 			`Adds: "` + win.exePath + `" statusline`,
-		},
+		}, data),
 		diff: claudesetup.Diff(data, out, maxDiffLines), from: data, out: out,
 	}
 }
@@ -292,13 +291,10 @@ func (win *window) writeClaude() {
 	}
 	defer win.loadClaude()
 	cur, err := os.ReadFile(win.claudePath)
-	if errors.Is(err, os.ErrNotExist) {
-		cur, err = nil, nil
-	}
 	switch {
 	case err != nil:
 		win.note("Claude settings: " + err.Error())
-	case !bytes.Equal(cur, d.from) || (cur == nil) != (d.from == nil):
+	case !bytes.Equal(cur, d.from):
 		win.note("Claude settings changed meanwhile; nothing written, check again")
 	default:
 		if err := claudesetup.Write(win.claudePath, d.out, time.Now()); err != nil {
@@ -307,6 +303,15 @@ func (win *window) writeClaude() {
 			win.note("Claude settings updated; the old file is kept as a .bak copy")
 		}
 	}
+}
+
+// withRelayout adds a line when the write also re-lays out the whole file, so
+// the dialog's diff (against the re-laid-out file) does not hide that.
+func withRelayout(summary []string, data []byte) []string {
+	if claudesetup.Relayout(data) {
+		return append(summary, "The file's layout will also be rewritten (values unchanged).")
+	}
+	return summary
 }
 
 // claudeDialogBox is the open confirm dialog, if any.
