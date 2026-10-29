@@ -53,7 +53,8 @@ type Document struct {
 	Workspaces []Workspace
 }
 
-// FieldError names one problem; Workspace and Tab are IDs, empty when it does not apply.
+// FieldError names one problem; Workspace and Tab are the name and title (the ID
+// when those are empty), empty when it does not apply.
 type FieldError struct {
 	Workspace, Tab, Field, Msg string
 }
@@ -145,7 +146,11 @@ func (d Document) validate(home string, tildeOK bool) []FieldError {
 	names := map[string]bool{}
 	wsIDs := map[string]bool{}
 	for _, w := range d.Workspaces {
-		add := func(tab, field, msg string) { errs = append(errs, FieldError{w.ID, tab, field, msg}) }
+		wl := label(w.Name, w.ID)
+		add := func(tab, field, msg string) { errs = append(errs, FieldError{wl, tab, field, msg}) }
+		if len(w.Tabs) == 0 {
+			add("", "tabs", "A workspace needs at least one tab.")
+		}
 		if msg := checkID(w.ID); msg != "" {
 			add("", "id", msg)
 		} else if wsIDs[w.ID] {
@@ -165,7 +170,7 @@ func (d Document) validate(home string, tildeOK bool) []FieldError {
 		}
 		tabIDs := map[string]bool{}
 		for _, t := range w.Tabs {
-			tadd := func(field, msg string) { add(t.ID, field, msg) }
+			tadd := func(field, msg string) { add(label(t.Title, t.ID), field, msg) }
 			if msg := checkID(t.ID); msg != "" {
 				tadd("id", msg)
 			} else if tabIDs[t.ID] {
@@ -210,6 +215,13 @@ func (d Document) validate(home string, tildeOK bool) []FieldError {
 	return errs
 }
 
+func label(text, id string) string {
+	if t := strings.TrimSpace(text); t != "" {
+		return t
+	}
+	return id
+}
+
 func checkID(id string) string {
 	if id == "" || strings.IndexFunc(id, unicode.IsControl) >= 0 || utf8.RuneCountInString(id) > MaxNameRunes {
 		return "Every workspace and tab needs an ID of up to 80 characters without control characters"
@@ -248,6 +260,9 @@ func (d Document) normalize() Document {
 			t.Commands = cmds
 			if t.Wait == "" {
 				t.Wait = WaitNone
+			}
+			if t.Color == "" {
+				t.Color = "cyan"
 			}
 			tabs[j] = t
 		}

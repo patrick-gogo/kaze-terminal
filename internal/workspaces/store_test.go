@@ -108,14 +108,15 @@ func TestStrictLoadErrors(t *testing.T) {
 		"schema 2":        "schema_version = 2\n",
 		"no schema":       "[[workspaces]]\nid = \"w\"\nname = \"x\"\n",
 		"bad toml":        "schema_version = [",
-		"dup ids":         validHead + tabToml(abs, "") + "[[workspaces]]\nid = \"w1\"\nname = \"B\"\n",
-		"dup names":       validHead + tabToml(abs, "") + "[[workspaces]]\nid = \"w2\"\nname = \"a\"\n",
+		"dup ids":         validHead + tabToml(abs, "") + "[[workspaces]]\nid = \"w1\"\nname = \"B\"\n" + tabToml(abs, ""),
+		"dup names":       validHead + tabToml(abs, "") + "[[workspaces]]\nid = \"w2\"\nname = \"a\"\n" + tabToml(abs, ""),
 		"bad color":       validHead + strings.Replace(tabToml(abs, ""), "red", "pink", 1),
 		"port 0":          validHead + strings.Replace(tabToml(abs, "port = 0\n"), `"none"`, `"port"`, 1),
 		"port 65536":      validHead + strings.Replace(tabToml(abs, "port = 65536\n"), `"none"`, `"port"`, 1),
 		"port with none":  validHead + tabToml(abs, "port = 80\n"),
 		"CR in command":   validHead + strings.Replace(tabToml(abs, ""), `"ls"`, `"ls\r"`, 1),
 		"empty title":     validHead + strings.Replace(tabToml(abs, ""), `"T"`, `"  "`, 1),
+		"no tabs":         validHead,
 		"21 tabs":         validHead + long,
 		"relative folder": validHead + tabToml("src/x", ""),
 	}
@@ -135,7 +136,7 @@ func TestStrictLoadErrors(t *testing.T) {
 		}
 		// Save with the zero revision must refuse and keep the bytes.
 		_, d2 := samurai(t)
-		if _, err := Save(p, d2, rev); !errors.Is(err, ErrStale) {
+		if _, err := Save(p, d2, rev); !errors.Is(err, ErrInvalidFile) {
 			t.Errorf("%s: Save over an invalid file: %v", name, err)
 		}
 		if got, _ := os.ReadFile(p); string(got) != body {
@@ -233,4 +234,36 @@ func mustRead(t *testing.T, p string) []byte {
 		t.Fatal(err)
 	}
 	return b
+}
+
+func TestEmptyColorDefaultsToCyan(t *testing.T) {
+	abs := filepath.ToSlash(t.TempDir())
+	p := filepath.Join(t.TempDir(), "workspaces.toml")
+	writeFile(t, p, validHead+strings.Replace(tabToml(abs, ""), "color = \"red\"\n", "", 1))
+	d, _, err := Load(p)
+	if err != nil || d.Workspaces[0].Tabs[0].Color != "cyan" {
+		t.Fatalf("%v %+v", err, d)
+	}
+	_, d2 := samurai(t)
+	d2.Workspaces[0].Tabs[0].Color = ""
+	p2 := filepath.Join(t.TempDir(), "w.toml")
+	if _, err := Save(p2, d2, Revision{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(mustRead(t, p2)), `color = "cyan"`) {
+		t.Fatal("save should write color = cyan")
+	}
+}
+
+func TestInvalidFileErrorIsDistinct(t *testing.T) {
+	_, d := samurai(t)
+	p := filepath.Join(t.TempDir(), "workspaces.toml")
+	writeFile(t, p, "schema_version = 2\n")
+	_, err := Save(p, d, Revision{})
+	if !errors.Is(err, ErrInvalidFile) || errors.Is(err, ErrStale) {
+		t.Fatalf("got %v", err)
+	}
+	if !strings.Contains(err.Error(), "fix it or delete it before saving") {
+		t.Fatal(err)
+	}
 }

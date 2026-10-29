@@ -21,6 +21,9 @@ const (
 // ErrStale means the file changed since it was loaded, so nothing was written.
 var ErrStale = errors.New("workspaces.toml changed since it was loaded; reload it and try again")
 
+// ErrInvalidFile means the file on disk does not load, so it is never replaced.
+var ErrInvalidFile = errors.New("The workspaces file has a problem; fix it or delete it before saving.")
+
 // Revision identifies the file bytes a Document was loaded from; zero for a missing file.
 type Revision [32]byte
 
@@ -123,6 +126,7 @@ func Save(path string, d Document, prev Revision) (Revision, error) {
 		return Revision{}, fmt.Errorf("workspaces are larger than %d MiB", MaxFileSize>>20)
 	}
 
+	// Folders keep a leading ~ as written; it is expanded at load and run.
 	// A symlinked file (a dotfiles repo) is updated in place, not replaced by a plain file.
 	if real, err := filepath.EvalSymlinks(path); err == nil {
 		path = real
@@ -130,6 +134,9 @@ func Save(path string, d Document, prev Revision) (Revision, error) {
 	if _, cur, err := readCurrent(path); err != nil {
 		return Revision{}, err
 	} else if cur != prev {
+		if _, _, err := Load(path); err != nil {
+			return Revision{}, ErrInvalidFile
+		}
 		return Revision{}, ErrStale
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

@@ -66,6 +66,7 @@ func TestValidateRejects(t *testing.T) {
 			w.ID, w.Name = "ws_2", "  MY PROJECT "
 			d.Workspaces = append(d.Workspaces, w)
 		}, "name"},
+		"no tabs": {func(d *Document) { d.Workspaces[0].Tabs = nil }, "tabs"},
 		"21 tabs": {func(d *Document) {
 			var tabs []Tab
 			for i := 0; i < 21; i++ {
@@ -137,5 +138,31 @@ func TestLookupsAndIDs(t *testing.T) {
 	}
 	if id := NewTabID(); len(id) != len("t_")+8 || !strings.HasPrefix(id, "t_") {
 		t.Fatalf("NewTabID %q", id)
+	}
+}
+
+func TestFieldErrorUsesNames(t *testing.T) {
+	home := t.TempDir()
+	d := okDoc(home)
+	d.Workspaces[0].Tabs[0].Color = "pink"
+	e := d.Validate(home)[0]
+	if got := e.Error(); !strings.HasPrefix(got, "My project/Code: ") {
+		t.Fatalf("got %q", got)
+	}
+	d.Workspaces[0].Name, d.Workspaces[0].Tabs[0].Title = "", ""
+	for _, e := range d.Validate(home) {
+		if e.Field == "color" && !strings.HasPrefix(e.Error(), "ws_1/t_1: ") {
+			t.Fatalf("want ID fallback, got %q", e.Error())
+		}
+	}
+}
+
+func TestNoTabsMessage(t *testing.T) {
+	home := t.TempDir()
+	d := okDoc(home)
+	d.Workspaces[0].Tabs = nil
+	errs := d.Validate(home)
+	if len(errs) != 1 || errs[0].Msg != "A workspace needs at least one tab." {
+		t.Fatalf("%v", errs)
 	}
 }
