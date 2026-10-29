@@ -1,4 +1,4 @@
-const tabs = [...document.querySelectorAll('[role="tab"]')];
+const tabs = [...document.querySelectorAll('.platform-tabs [role="tab"]')];
 function selectPlatform(platform, focus = false) {
   tabs.forEach(tab => {
     const selected = tab.id === `tab-${platform}`;
@@ -34,5 +34,21 @@ document.querySelectorAll('[data-copy]').forEach(button => {
       button.textContent = 'Select text';
       document.getElementById('copy-status').textContent = 'Copy unavailable. Select and copy the commands below.';
     }
+  });
+});
+
+const captures = {
+  terminal: { alt: 'Kaze 0.6 running on macOS with a four-tab workspace menu and real Go test output', caption: 'Workspace tabs on macOS' },
+  workspaces: { alt: 'The real Kaze Workspaces settings page with a saved four-tab demo recipe and startup selection', caption: 'Workspaces settings on macOS' },
+  about: { alt: 'The real Kaze About page showing the logo, version 0.6, build details, and copy button', caption: 'About Kaze 0.6 on macOS' }
+};
+document.querySelectorAll('[data-shot]').forEach(button => {
+  button.addEventListener('click', () => {
+    const shot = button.dataset.shot;
+    const image = document.getElementById('product-shot');
+    image.src = `site-assets/kaze-${shot}.png`;
+    image.alt = captures[shot].alt;
+    document.getElementById('capture-description').textContent = captures[shot].caption;
+    document.querySelectorAll('[data-shot]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
   });
 });
