@@ -158,7 +158,15 @@ func (win *window) runWorkspace(id string) {
 		win.wsNotice(ws.Name + ": " + err.Error())
 		return
 	}
-	win.launch(ws, plan, nil)
+	run := win.launch(ws, plan, nil)
+	if win.openRun(ws.ID) == nil {
+		// No tab means no banner or summary card either; say it here.
+		why := "no shell could start"
+		if len(run.members) > 0 && run.members[0].run.Err != "" {
+			why = run.members[0].run.Err
+		}
+		win.wsNotice(ws.Name + ": " + why)
+	}
 }
 
 // launch opens the tabs of a preflighted workspace and starts its probes; the

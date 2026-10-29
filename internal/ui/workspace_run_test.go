@@ -718,3 +718,35 @@ func TestFailedBannerOffersDismiss(t *testing.T) {
 	}
 }
 
+// Run from the page says so when not one shell started; nothing else would.
+func TestRunThatOpensNothingPostsANotice(t *testing.T) {
+	f := newRunFixture(t)
+	f.st.mu.Lock()
+	f.st.fail = errors.New("out of ptys")
+	f.st.mu.Unlock()
+	f.win.runWorkspace("ws_samurai")
+	if len(f.win.mgr.Tabs()) != 0 {
+		t.Fatalf("%d tabs opened", len(f.win.mgr.Tabs()))
+	}
+	if !strings.Contains(f.win.notice, "samurai") || !strings.Contains(f.win.notice, "out of ptys") {
+		t.Fatalf("notice %q, want the workspace and why", f.win.notice)
+	}
+}
+
+// Dragging in a mouse-reporting app is the owner using it; hovering is not.
+func TestAppDragTakesOverButHoverDoesNot(t *testing.T) {
+	f := newRunFixture(t)
+	f.deps.portOK = true
+	f.win.runWorkspace("ws_samurai")
+	tab := f.win.mgr.Tabs()[0]
+	go f.st.pty(0).w.Write([]byte("[?1003h")) // any-motion mouse mode
+	f.until("mouse mode on", func() bool { return modes(tab.Session).MouseAny })
+	f.win.onPointer(layout.Context{}, tab, pointer.Event{Kind: pointer.Move, Position: cellPos(2, 2)}, modes(tab.Session), testCW, testCH)
+	if f.state(0) != workspaces.Waiting {
+		t.Fatalf("api is %v after a hover report, want Waiting", f.state(0))
+	}
+	f.win.onPointer(layout.Context{}, tab, pointer.Event{Kind: pointer.Move, Buttons: pointer.ButtonPrimary, Position: cellPos(3, 2)}, modes(tab.Session), testCW, testCH)
+	if f.state(0) != workspaces.Cancelled {
+		t.Fatalf("api is %v after a drag report to the app, want Cancelled", f.state(0))
+	}
+}

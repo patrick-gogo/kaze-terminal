@@ -989,8 +989,11 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 	case pointer.Drag, pointer.Move:
 		if win.toApp || e.Kind == pointer.Move {
 			win.gestureCol, win.gestureRow = col, row
-			if mouseOn(m) {
-				t.Session.Write(input.EncodeMouse(xtermButton(e.Buttons), true, e.Modifiers, col, row, true, m))
+			if b := input.EncodeMouse(xtermButton(e.Buttons), true, e.Modifiers, col, row, true, m); b != nil {
+				if e.Buttons != 0 {
+					win.takeOver(t) // a drag the app sees is the owner using it; a hover is not
+				}
+				t.Session.Write(b)
 			}
 			return
 		}
