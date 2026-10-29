@@ -49,6 +49,8 @@ type Options struct {
 	Shell    []string        // argv, already resolved to the platform default when the config has none
 	Dir      string          // working directory for new shells
 	Bench    *bench.Recorder // nil unless KAZE_BENCH is set
+	// Workspace is the name from --workspace; it wins over the startup_workspace setting.
+	Workspace string
 }
 
 const (
