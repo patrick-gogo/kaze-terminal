@@ -6,3 +6,4 @@
 spike-gio.exe
 *.exe
 capture.bin
+/dist/
