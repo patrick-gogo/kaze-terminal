@@ -180,17 +180,20 @@ func TestFontStepperClamps(t *testing.T) {
 func TestAppearanceChoicesApplyAndSave(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	win := appearanceWindow(t, path)
-	fresh := func() { win.rend = render.NewRenderer(14, win.pal, rendOptions(win.opt.Config)) }
+	fresh := func() {
+		win.rend = render.NewRenderer(14, win.pal, rendOptions(win.opt.Config))
+		win.rendStale = false
+	}
 
 	fresh()
 	press(t, win, "spacing", 2)
-	if win.opt.Config.LineSpacing != "roomy" || win.rend != nil {
-		t.Fatalf("Roomy: spacing %q, renderer kept %v", win.opt.Config.LineSpacing, win.rend != nil)
+	if win.opt.Config.LineSpacing != "roomy" || !win.rendStale {
+		t.Fatalf("Roomy: spacing %q, renderer kept %v", win.opt.Config.LineSpacing, !win.rendStale)
 	}
 	fresh()
 	press(t, win, "cursor", 1)
-	if win.opt.Config.CursorStyle != "bar" || win.rend != nil {
-		t.Fatalf("Bar: cursor %q, renderer kept %v", win.opt.Config.CursorStyle, win.rend != nil)
+	if win.opt.Config.CursorStyle != "bar" || !win.rendStale {
+		t.Fatalf("Bar: cursor %q, renderer kept %v", win.opt.Config.CursorStyle, !win.rendStale)
 	}
 	press(t, win, "blink", 1)
 	if !win.opt.Config.CursorBlink {

@@ -36,8 +36,8 @@ func TestApplyThemeRepaintsChrome(t *testing.T) {
 	if win.pal.BG != rgb(0x111111) {
 		t.Fatalf("terminal bg %v, want #111111", win.pal.BG)
 	}
-	if win.rend != nil {
-		t.Fatal("the renderer kept the old palette")
+	if win.rend == nil || !win.rendStale {
+		t.Fatal("the renderer kept the old palette, or was dropped mid-frame")
 	}
 	win.opt.Config.Colors = map[string]string{"bg": "#203040"}
 	win.applyTheme(mustTheme(t, "sumi"))

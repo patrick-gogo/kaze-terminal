@@ -96,19 +96,19 @@ func (win *window) setFontSize(n int) {
 		return
 	}
 	win.opt.Config.FontSize = float32(n)
-	win.rend = nil // the next frame rebuilds it and resizes every tab to the new grid
+	win.rendStale = true // the next frame rebuilds it and resizes every tab to the new grid
 	win.saveSetting("font_size", n)
 }
 
 func (win *window) setLineSpacing(v string) {
 	win.opt.Config.LineSpacing = v
-	win.rend = nil // same font size, so frame would keep the old renderer
+	win.rendStale = true // same font size, so frame would keep the old renderer
 	win.saveSetting("line_spacing", v)
 }
 
 func (win *window) setCursorStyle(v string) {
 	win.opt.Config.CursorStyle = v
-	win.rend = nil
+	win.rendStale = true
 	win.saveSetting("cursor_style", v)
 }
 

@@ -74,6 +74,7 @@ type window struct {
 	mgr       *tabs.Manager
 	rend      *render.Renderer
 	rendPx    float32
+	rendStale bool // a setting changed: rebuild before the next layout, never mid-frame
 	ui        *chrome
 	termTag   *int
 	barTag    *int
@@ -374,7 +375,7 @@ func startTheme(c config.Config) theme.Theme {
 func (win *window) applyTheme(t theme.Theme) {
 	win.pal = applyColors(t.Term, win.opt.Config.Colors)
 	win.ui.setTheme(t)
-	win.rend = nil // rebuilt next frame with the new palette
+	win.rendStale = true // rebuilt next frame with the new palette
 	win.w.Invalidate()
 }
 
@@ -427,11 +428,11 @@ func (win *window) setCursorHidden(h bool) {
 func (win *window) frame(gtx layout.Context) error {
 	barH, statusH, pad := gtx.Dp(38), gtx.Dp(24), gtx.Dp(8)
 	px := gtx.Metric.PxPerSp * win.opt.Config.FontSize
-	if win.rend == nil || px != win.rendPx {
+	if win.rend == nil || win.rendStale || px != win.rendPx {
 		// A DPI change (another monitor) needs glyphs at the new size.
 		win.rend = render.NewRenderer(px, win.pal, rendOptions(win.opt.Config))
 		win.rend.SetFocused(win.focused)
-		win.rendPx = px
+		win.rendPx, win.rendStale = px, false
 	}
 	cw, ch := win.rend.CellSize()
 	size := gtx.Constraints.Max
@@ -581,7 +582,9 @@ func (win *window) drawTerminal(gtx layout.Context, active *tabs.Tab, termRect, 
 	if win.bench != nil {
 		win.benchBeforeDraw(active)
 	}
-	win.rend.Layout(tg, active.Session, sel)
+	if win.rend != nil { // frame builds it first; a nil here must not take the window down
+		win.rend.Layout(tg, active.Session, sel)
+	}
 	if win.bench != nil {
 		win.benchAfterDraw(active)
 	}

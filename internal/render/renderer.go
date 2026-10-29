@@ -152,6 +152,9 @@ func (r *Renderer) Release() {
 // CellSize is one cell in pixels, for computing cols and rows from a window size.
 func (r *Renderer) CellSize() (w, h int) { return r.cellW, r.cellH }
 
+// Palette is the palette the renderer draws with.
+func (r *Renderer) Palette() Palette { return r.pal }
+
 // SetCursorShown sets the blink phase; a hidden cursor draws nothing.
 func (r *Renderer) SetCursorShown(shown bool) { r.hidden = !shown }
 
