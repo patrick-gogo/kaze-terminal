@@ -383,3 +383,27 @@ func TestRelayout(t *testing.T) {
 		t.Fatal("a 4-space file not flagged")
 	}
 }
+
+func TestWriteFollowsASymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "dotfiles", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "settings.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks not permitted here: %v", err)
+	}
+	if err := Write(link, []byte("new"), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the link was replaced by a plain file: %v %v", fi, err)
+	}
+	if b, _ := os.ReadFile(target); string(b) != "new" {
+		t.Fatalf("target %q", b)
+	}
+}

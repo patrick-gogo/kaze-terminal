@@ -278,6 +278,10 @@ func Write(path string, data []byte, now time.Time) error {
 	case !errors.Is(err, os.ErrNotExist):
 		return err
 	}
+	// The backup stays beside the path the user knows; the write goes to a symlink's target.
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
 	if err != nil {
 		return err

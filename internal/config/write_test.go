@@ -155,3 +155,52 @@ func TestSetKeepsCommentedCRLFFileWithColors(t *testing.T) {
 		t.Fatalf("cfg %+v warns %v err %v", cfg, warns, err)
 	}
 }
+
+// A stale config.toml.tmp left by another writer must not block or corrupt the save.
+func TestSetUsesAFreshTempFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.Mkdir(path+".tmp", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Set(path, "theme", "tide"); err != nil {
+		t.Fatalf("Set beside a stale temp: %v", err)
+	}
+	if b, _ := os.ReadFile(path); string(b) != "theme = \"tide\"\n" {
+		t.Fatalf("file %q", b)
+	}
+	ents, _ := os.ReadDir(dir)
+	if len(ents) != 2 {
+		t.Fatalf("left behind %v, want only the file and the stale temp", ents)
+	}
+}
+
+// symlinkOrSkip links link to target, or skips where the OS does not allow it.
+func symlinkOrSkip(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks not permitted here: %v", err)
+	}
+}
+
+func TestSetFollowsASymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "dotfiles", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("font_size = 14\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "config.toml")
+	symlinkOrSkip(t, target, link)
+	if err := Set(link, "theme", "tide"); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the link was replaced by a plain file: %v %v", fi, err)
+	}
+	if b, _ := os.ReadFile(target); string(b) != "font_size = 14\ntheme = \"tide\"\n" {
+		t.Fatalf("target %q", b)
+	}
+}

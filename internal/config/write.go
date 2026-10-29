@@ -76,18 +76,41 @@ func Set(path, key string, value any) error {
 		return fmt.Errorf("config %s: edit would not parse: %w", path, err)
 	}
 
+	// A symlinked config (a dotfiles repo) is updated in place, not replaced by a plain file.
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+	return replace(path, []byte(out))
+}
+
+// replace writes data to a fresh temp file beside path and renames it over
+// path, so a crash or a second writer never leaves a half-written config.
+func replace(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return err
+	name := tmp.Name()
+	err = tmp.Chmod(0o644) // CreateTemp makes 0600; the config was always world-readable
+	if err == nil {
+		_, err = tmp.Write(data)
 	}
-	return nil
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(name, path)
+	}
+	if err != nil {
+		os.Remove(name)
+	}
+	return err
 }
 
 // commentOf returns the whitespace and "# comment" after the value on a
