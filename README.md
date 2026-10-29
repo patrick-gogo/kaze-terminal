@@ -1,4 +1,9 @@
-# kaze
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/kaze-logo.svg">
+    <img src="assets/branding/kaze-logo-light.svg" alt="kaze" width="360">
+  </picture>
+</p>
 
 kaze is my personal terminal: a small, fast terminal with tabs, written in Go with
 [Gio](https://gioui.org). I built it for working in [Claude Code](https://claude.com/claude-code)
