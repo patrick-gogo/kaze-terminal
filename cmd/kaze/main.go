@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/config"
 	"github.com/patrick-gogo/kaze-terminal/internal/ptyx"
 	"github.com/patrick-gogo/kaze-terminal/internal/ui"
+	"github.com/patrick-gogo/kaze-terminal/internal/version"
 )
 
 // r is set at link time (-X main.r=...) only to give a rebuild a new hash when
@@ -20,6 +22,10 @@ var r string
 
 func main() {
 	_ = r
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		fmt.Println(version.Text()) // before any window code
+		os.Exit(0)
+	}
 	if len(os.Args) > 1 && os.Args[1] == "notify" {
 		os.Exit(runNotify(os.Args[2:], stdinForNotify(), os.Getenv)) // before any window code
 	}
