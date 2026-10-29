@@ -59,13 +59,15 @@ func (f *fakePTY) lastSize() [2]int {
 type starter struct {
 	mu    sync.Mutex
 	envs  [][]string
+	dirs  []string
 	fakes []*fakePTY
 }
 
-func (s *starter) start(env []string) (ptyx.Session, error) {
+func (s *starter) start(env []string, dir string) (ptyx.Session, error) {
 	f := newFake()
 	s.mu.Lock()
 	s.envs = append(s.envs, env)
+	s.dirs = append(s.dirs, dir)
 	s.fakes = append(s.fakes, f)
 	s.mu.Unlock()
 	return f, nil
@@ -279,7 +281,7 @@ func TestBackgroundTabOutputRequestsNoFrame(t *testing.T) {
 }
 
 func TestStartErrorAddsNoTab(t *testing.T) {
-	m := tabs.NewManager(func([]string) (ptyx.Session, error) { return nil, io.ErrUnexpectedEOF }, 80, 24, nil)
+	m := tabs.NewManager(func([]string, string) (ptyx.Session, error) { return nil, io.ErrUnexpectedEOF }, 80, 24, nil)
 	if _, err := m.New(); err == nil {
 		t.Fatal("New returned no error")
 	}
@@ -331,7 +333,7 @@ func (s *slowClose) Close() error {
 
 func TestCloseAllWaitsForACloseInProgress(t *testing.T) {
 	var slow *slowClose
-	m := tabs.NewManager(func([]string) (ptyx.Session, error) {
+	m := tabs.NewManager(func([]string, string) (ptyx.Session, error) {
 		slow = &slowClose{fakePTY: newFake()}
 		return slow, nil
 	}, 80, 24, nil)

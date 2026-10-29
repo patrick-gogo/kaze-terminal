@@ -347,9 +347,13 @@ func modes(s *term.Session) term.Modes {
 	return s.Applier().Modes()
 }
 
-func (win *window) start(env []string) (ptyx.Session, error) {
+// start launches a tab's shell in dir, or the window's folder when dir is "".
+func (win *window) start(env []string, dir string) (ptyx.Session, error) {
+	if dir == "" {
+		dir = win.opt.Dir
+	}
 	cols, rows := win.mgr.Size()
-	return ptyx.Start(win.opt.Shell, cols, rows, env, win.opt.Dir)
+	return ptyx.Start(win.opt.Shell, cols, rows, env, dir)
 }
 
 func (win *window) newTab() {

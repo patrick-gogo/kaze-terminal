@@ -67,7 +67,7 @@ type recStarter struct {
 	fail error // returned instead of starting while set
 }
 
-func (s *recStarter) start([]string) (ptyx.Session, error) {
+func (s *recStarter) start([]string, string) (ptyx.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.fail != nil {
@@ -125,11 +125,11 @@ func TestBadShellFallsBackToTheDefault(t *testing.T) {
 	st := &recStarter{}
 	shell := []string{"no-such-shell"}
 	def := []string{"pwsh"}
-	m := tabs.NewManager(func(env []string) (ptyx.Session, error) {
+	m := tabs.NewManager(func(env []string, dir string) (ptyx.Session, error) {
 		if shell[0] == "no-such-shell" {
 			return nil, errors.New("not found")
 		}
-		return st.start(env)
+		return st.start(env, dir)
 	}, 80, 24, nil)
 	t.Cleanup(m.CloseAll)
 
@@ -163,7 +163,7 @@ func TestBadShellFallsBackToTheDefault(t *testing.T) {
 }
 
 func TestDefaultShellFailureIsAnError(t *testing.T) {
-	m := tabs.NewManager(func([]string) (ptyx.Session, error) { return nil, errors.New("boom") }, 80, 24, nil)
+	m := tabs.NewManager(func([]string, string) (ptyx.Session, error) { return nil, errors.New("boom") }, 80, 24, nil)
 	shell := []string{"pwsh"}
 	if _, _, err := openFirst(m, &shell, []string{"pwsh"}, nil); err == nil {
 		t.Fatal("the default shell failing was not reported")
@@ -186,7 +186,7 @@ func TestNewTabFailureShowsInTheStatusBar(t *testing.T) {
 }
 
 func TestBothShellsFailingNamesBoth(t *testing.T) {
-	m := tabs.NewManager(func([]string) (ptyx.Session, error) { return nil, errors.New("boom") }, 80, 24, nil)
+	m := tabs.NewManager(func([]string, string) (ptyx.Session, error) { return nil, errors.New("boom") }, 80, 24, nil)
 	shell := []string{"no-such-shell"}
 	_, _, err := openFirst(m, &shell, []string{"pwsh"}, nil)
 	if err == nil || !strings.Contains(err.Error(), `"no-such-shell"`) || strings.Count(err.Error(), "boom") != 2 {
