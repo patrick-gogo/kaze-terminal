@@ -155,7 +155,7 @@ func Run(w *app.Window, opt Options) error {
 
 		toastTag: new(int),
 	}
-	win.applyTheme(theme.Default())
+	win.applyTheme(startTheme(opt.Config))
 	win.snapFocused.Store(true)
 	win.flash = func() { flashTaskbar(win.hwnd.Load()) }
 	if c := opt.Config; c.ChimeNeeds || c.ChimeDone {
@@ -314,6 +314,14 @@ func (win *window) newTab() {
 		win.noticeUntil = time.Now().Add(noticeFor)
 		win.w.Invalidate()
 	}
+}
+
+// startTheme is the theme named in the config; Load already warned about unknown names.
+func startTheme(c config.Config) theme.Theme {
+	if t, ok := theme.ByKey(c.Theme); ok {
+		return t
+	}
+	return theme.Default()
 }
 
 // applyTheme repaints the terminal and chrome; [colors] overrides still win over the theme.

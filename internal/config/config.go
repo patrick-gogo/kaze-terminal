@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -35,6 +36,13 @@ type Config struct {
 	ChimeNeeds      bool              `toml:"chime_needs"`      // chime when Claude needs you; default true
 	ChimeDone       bool              `toml:"chime_done"`       // chime when Claude is done; default false
 	ChimeFile       string            `toml:"chime_file"`       // custom WAV; ~ expands to home, other relative paths use the working dir; empty = bundled chime
+	Theme           string            `toml:"theme"`            // midnight|sumi|tide|washi|sakura
+	LineSpacing     string            `toml:"line_spacing"`     // tight|normal|roomy
+	CursorStyle     string            `toml:"cursor_style"`     // block|bar|underline
+	CursorBlink     bool              `toml:"cursor_blink"`     // default false
+	TaskbarFlash    bool              `toml:"taskbar_flash"`    // flash the taskbar button on alerts; default true
+	DoneToast       string            `toml:"done_toast"`       // 3s|6s|10s|until_seen
+	ShowUsage       bool              `toml:"show_usage"`       // usage readout in the status bar; default true
 }
 
 // KnownActions are the action names accepted under [keys]; the window binds each one.
@@ -59,6 +67,12 @@ func Default() Config {
 		FontSize:        defaultFontSize,
 		ScrollbackLines: defaultScrollback,
 		ChimeNeeds:      true,
+		Theme:           "midnight",
+		LineSpacing:     "normal",
+		CursorStyle:     "block",
+		TaskbarFlash:    true,
+		DoneToast:       "6s",
+		ShowUsage:       true,
 		Colors:          map[string]string{},
 		Keys:            map[string]string{},
 	}
@@ -172,6 +186,20 @@ func Load(path string) (Config, []string, error) {
 				}
 			}
 			cfg.ChimeFile = s
+		case "theme":
+			loadChoice(v, k, &cfg.Theme, []string{"midnight", "sumi", "tide", "washi", "sakura"}, warn)
+		case "line_spacing":
+			loadChoice(v, k, &cfg.LineSpacing, []string{"tight", "normal", "roomy"}, warn)
+		case "cursor_style":
+			loadChoice(v, k, &cfg.CursorStyle, []string{"block", "bar", "underline"}, warn)
+		case "done_toast":
+			loadChoice(v, k, &cfg.DoneToast, []string{"3s", "6s", "10s", "until_seen"}, warn)
+		case "cursor_blink":
+			loadBool(v, k, &cfg.CursorBlink, warn)
+		case "taskbar_flash":
+			loadBool(v, k, &cfg.TaskbarFlash, warn)
+		case "show_usage":
+			loadBool(v, k, &cfg.ShowUsage, warn)
 		case "colors":
 			loadColors(v, &cfg, warn)
 		case "keys":
@@ -181,6 +209,23 @@ func Load(path string) (Config, []string, error) {
 		}
 	}
 	return cfg, warns, nil
+}
+
+// loadChoice sets *dst to v when it is one of choices; otherwise it warns and keeps the default.
+func loadChoice(v any, name string, dst *string, choices []string, warn func(string, ...any)) {
+	if s, ok := v.(string); ok && slices.Contains(choices, s) {
+		*dst = s
+		return
+	}
+	warn("%s must be one of %s, got %v; using %s", name, strings.Join(choices, ", "), v, *dst)
+}
+
+func loadBool(v any, name string, dst *bool, warn func(string, ...any)) {
+	if b, ok := v.(bool); ok {
+		*dst = b
+		return
+	}
+	warn("%s must be true or false, got %v; using %t", name, v, *dst)
 }
 
 func loadColors(v any, cfg *Config, warn func(string, ...any)) {

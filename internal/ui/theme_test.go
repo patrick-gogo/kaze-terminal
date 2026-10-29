@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/patrick-gogo/kaze-terminal/internal/config"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
@@ -90,5 +91,14 @@ func TestTabShapesKeepTheLayout(t *testing.T) {
 				t.Fatalf("%s: tab %d at %v, want %v", k, i, got[i], want[i])
 			}
 		}
+	}
+}
+
+func TestStartThemeFollowsConfig(t *testing.T) {
+	if got := startTheme(config.Config{Theme: "sumi"}); got.UI.Accent != rgb(0xe2553d) {
+		t.Fatalf("accent %v, want Sumi's #e2553d", got.UI.Accent)
+	}
+	if got := startTheme(config.Config{Theme: "nope"}); got.UI != theme.Default().UI {
+		t.Fatal("an unknown theme did not fall back to Midnight")
 	}
 }
