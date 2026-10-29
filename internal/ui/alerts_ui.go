@@ -132,11 +132,16 @@ func (win *window) onNotify(m notify.Msg) {
 	}
 	focused := win.snapFocused.Load()
 	if id != tabs.TabID(win.snapActive.Load()) || !focused {
-		cfg := win.opt.Config
-		if win.chime != nil && (m.Kind == notify.KindNeeds && cfg.ChimeNeeds || m.Kind == notify.KindDone && cfg.ChimeDone) {
-			win.chime(time.Now()) // non-blocking; the player coalesces bursts
+		// The settings page changes these on the UI goroutine.
+		win.alertMu.Lock()
+		cfg, chime := &win.opt.Config, win.chime // only these fields: others change unlocked
+		ring := m.Kind == notify.KindNeeds && cfg.ChimeNeeds || m.Kind == notify.KindDone && cfg.ChimeDone
+		flash := m.Kind == notify.KindNeeds && !focused && cfg.TaskbarFlash
+		win.alertMu.Unlock()
+		if chime != nil && ring {
+			chime(time.Now()) // non-blocking; the player coalesces bursts
 		}
-		if m.Kind == notify.KindNeeds && !focused && win.flash != nil {
+		if flash && win.flash != nil {
 			win.flash()
 		}
 	}
@@ -156,15 +161,17 @@ func (win *window) drainAlerts(now time.Time) {
 // deliver updates the marks and toasts for one alert; the chime already
 // happened in onNotify.
 func (win *window) deliver(m notify.Msg, now time.Time) {
-	var active tabs.TabID
-	if t := win.mgr.Active(); t != nil {
+	var active tabs.TabID // none while settings hides the terminal
+	if t := win.shownTab(); t != nil {
 		active = t.ID
 	}
+	win.alerts.doneToast = win.opt.Config.DoneToast
 	win.alerts.apply(m, active, win.focused, win.mgr.Has, now)
 }
 
 // selectTab is the one tab switch for a tab click and a toast's "Go ›".
 func (win *window) selectTab(id tabs.TabID) {
+	win.hideSettings()
 	win.mgr.SetActive(id)
 	win.wantFocus = true
 }
@@ -241,8 +248,8 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	dot, radius, line := gtx.Dp(7), gtx.Dp(10), max(gtx.Dp(1), 1)
 	maxW := max(min(gtx.Dp(460), width-2*margin), 0)
 
-	goCall, goSz := c.label(gtx, "Go ›", 12, colToastGo)
-	xCall, xSz := c.label(gtx, "×", 12, colMuted)
+	goCall, goSz := c.label(gtx, "Go ›", 12, c.th.ToastGo)
+	xCall, xSz := c.label(gtx, "×", 12, c.th.Muted)
 	lead := padX + dot + inner
 	tail := inner + goSz.X + inner + xSz.X + padX
 	textRoom := maxW - lead - tail
@@ -262,7 +269,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	total := 0
 	for _, t := range list {
 		k := card{id: t.Tab, kind: t.Kind}
-		k.title, k.titleSz = c.fitLabel(gtx, titles[t.Tab], textRoom, colToastTitle)
+		k.title, k.titleSz = c.fitLabel(gtx, titles[t.Tab], textRoom, c.th.ToastTitle)
 		rest := " is done"
 		if t.Kind == notify.KindNeeds {
 			rest = " needs you"
@@ -270,7 +277,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 				rest += " · " + t.Text
 			}
 		}
-		k.rest, k.restSz = c.fitLabel(gtx, rest, textRoom-k.titleSz.X, colToastFG)
+		k.rest, k.restSz = c.fitLabel(gtx, rest, textRoom-k.titleSz.X, c.th.ToastFG)
 		k.w = lead + k.titleSz.X + k.restSz.X + tail
 		k.h = max(k.titleSz.Y, k.restSz.Y, goSz.Y) + 2*padY
 		if total+k.h > bottom-top {
@@ -282,13 +289,13 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	y := bottom - (total - gap)
 	for _, k := range cards {
 		r := image.Rect(width-margin-k.w, y, width-margin, y+k.h)
-		paint.FillShape(ops, colToastLine, clip.UniformRRect(r, radius).Op(ops))
-		paint.FillShape(ops, colToastBG, clip.UniformRRect(r.Inset(line), max(radius-line, 0)).Op(ops))
+		paint.FillShape(ops, c.th.ToastLine, clip.UniformRRect(r, radius).Op(ops))
+		paint.FillShape(ops, c.th.ToastBG, clip.UniformRRect(r.Inset(line), max(radius-line, 0)).Op(ops))
 		mid := r.Min.Y + k.h/2
 		x := r.Min.X + padX
-		dc := colDone
+		dc := c.th.Done
 		if k.kind == notify.KindNeeds {
-			dc = colNeeds
+			dc = c.th.Needs
 		}
 		paint.FillShape(ops, dc, clip.Ellipse(image.Rect(x, mid-dot/2, x+dot, mid-dot/2+dot)).Op(ops))
 		x += dot + inner

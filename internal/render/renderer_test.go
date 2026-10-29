@@ -51,7 +51,7 @@ func newHarness(t *testing.T, cols, rows int) *harness {
 	h := &harness{t: t, pty: newFakePTY(), changed: make(chan struct{}, 64)}
 	h.s = term.NewSession(h.pty, cols, rows, func() { h.changed <- struct{}{} })
 	t.Cleanup(h.s.Close)
-	h.r = NewRenderer(14, DefaultPalette())
+	h.r = NewRenderer(14, DefaultPalette(), Options{})
 	return h
 }
 
@@ -108,7 +108,7 @@ func TestOnlyDirtyStripsGetNewImage(t *testing.T) {
 
 func TestGlyphRasterizedOnce(t *testing.T) {
 	h := newHarness(t, 80, 24)
-	h.r = NewRenderer(14.25, DefaultPalette()) // a size no other test uses, so its shared cache starts empty
+	h.r = NewRenderer(14.25, DefaultPalette(), Options{}) // a size no other test uses, so its shared cache starts empty
 	h.frame()
 	for i := 0; i < 10; i++ {
 		h.out(strings.Repeat("a", 100))
@@ -146,7 +146,7 @@ func TestSynchronizedOutputHoldsFrame(t *testing.T) {
 }
 
 func TestJapaneseUsesFallbackFont(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	g := r.glyphs.get('日', false, true)
 	if g.face != faceCJK {
 		t.Fatalf("'日' came from face %d, want the CJK face", g.face)
@@ -172,7 +172,7 @@ func hasInk(m *image.Alpha) bool {
 }
 
 func TestCellSizeComesFromMonoFont(t *testing.T) {
-	r := NewRenderer(14, DefaultPalette())
+	r := NewRenderer(14, DefaultPalette(), Options{})
 	w, h := r.CellSize()
 	if w < 6 || w > 12 || h < w || h > 3*w {
 		t.Fatalf("CellSize = %dx%d, implausible for 14px", w, h)
@@ -340,4 +340,95 @@ func TestSelectionFollowsViewOffset(t *testing.T) {
 func (r *Renderer) pixelAt(x, y int) color.RGBA {
 	st := r.strips[y/r.cellH/r.rowsPerStrip]
 	return st.img.RGBAAt(x, y-st.row0*r.cellH)
+}
+
+func TestLineScaleChangesCellHeight(t *testing.T) {
+	// 14.5 is used by no other test, so these font sets are built here.
+	nw, nh := NewRenderer(14.5, DefaultPalette(), Options{LineScale: 1}).CellSize()
+	tw, th := NewRenderer(14.5, DefaultPalette(), Options{LineScale: 0.92}).CellSize()
+	rw, rh := NewRenderer(14.5, DefaultPalette(), Options{LineScale: 1.2}).CellSize()
+	if !(th < nh && nh < rh) {
+		t.Fatalf("cell heights tight %d normal %d roomy %d, want increasing", th, nh, rh)
+	}
+	if tw != nw || rw != nw {
+		t.Fatalf("cell widths tight %d normal %d roomy %d, want equal", tw, nw, rw)
+	}
+	if zw, zh := NewRenderer(14.5, DefaultPalette(), Options{}).CellSize(); zw != nw || zh != nh {
+		t.Fatalf("zero Options cell %dx%d, want normal %dx%d", zw, zh, nw, nh)
+	}
+}
+
+func TestBoxDrawingFillsScaledCell(t *testing.T) {
+	r := NewRenderer(14.5, DefaultPalette(), Options{LineScale: 1.2})
+	g := r.glyphs.get('│', false, false)
+	m := g.mask
+	if m.Rect.Dy() != r.cellH {
+		t.Fatalf("box mask %d tall, want the scaled cell %d", m.Rect.Dy(), r.cellH)
+	}
+	inked := func(y int) bool {
+		for x := 0; x < m.Rect.Dx(); x++ {
+			if m.AlphaAt(x, y).A != 0 {
+				return true
+			}
+		}
+		return false
+	}
+	if !inked(0) || !inked(r.cellH-1) {
+		t.Fatal("│ at roomy does not reach the top and bottom rows, so lines would not join")
+	}
+}
+
+// cursorHarness draws one frame of a focused 10x3 grid with the cursor at 3,1.
+func cursorHarness(t *testing.T, o Options) *harness {
+	t.Helper()
+	h := newHarness(t, 10, 3)
+	h.r = NewRenderer(14, DefaultPalette(), o)
+	h.out("\x1b[2;4H")
+	h.frame()
+	return h
+}
+
+func TestBarAndUnderlineCursor(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		style CursorStyle
+		want  func(cw, ch int) image.Rectangle
+	}{
+		{"bar", CursorBar, func(cw, ch int) image.Rectangle { return image.Rect(3*cw, ch, 3*cw+2, 2*ch) }},
+		{"underline", CursorUnderline, func(cw, ch int) image.Rectangle { return image.Rect(3*cw, 2*ch-2, 4*cw, 2*ch) }},
+	} {
+		h := cursorHarness(t, Options{Cursor: tc.style})
+		cw, ch := h.r.CellSize()
+		if h.r.curPaint.image || h.r.curImg != nil {
+			t.Fatalf("%s: the cursor used an image", tc.name)
+		}
+		got := h.r.edges[:h.r.curPaint.rects]
+		if len(got) != 1 || got[0] != tc.want(cw, ch) {
+			t.Fatalf("%s: painted %v, want [%v]", tc.name, got, tc.want(cw, ch))
+		}
+	}
+	h := cursorHarness(t, Options{})
+	if !h.r.curPaint.image || h.r.curPaint.rects != 0 {
+		t.Fatalf("block cursor painted %+v, want its image", h.r.curPaint)
+	}
+}
+
+func TestCursorHiddenPhase(t *testing.T) {
+	for _, style := range []CursorStyle{CursorBlock, CursorBar, CursorUnderline} {
+		h := cursorHarness(t, Options{Cursor: style})
+		before := h.r.Stats().StripsUploaded
+		h.r.SetCursorShown(false)
+		h.frame()
+		if p := h.r.curPaint; p.image || p.rects != 0 {
+			t.Fatalf("style %d: hidden phase painted %+v", style, p)
+		}
+		h.r.SetCursorShown(true)
+		h.frame()
+		if p := h.r.curPaint; !p.image && p.rects == 0 {
+			t.Fatalf("style %d: shown phase painted nothing", style)
+		}
+		if d := h.r.Stats().StripsUploaded - before; d != 0 {
+			t.Fatalf("style %d: blinking made %d strip uploads, want 0", style, d)
+		}
+	}
 }

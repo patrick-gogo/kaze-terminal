@@ -18,6 +18,7 @@ const (
 	capMinimize
 	capMaximize // shows "restore" when maximized
 	capClose
+	capGear // opens settings; sits left of minimize, outside Buttons
 )
 
 // barLayout is where things go in the top bar, in pixels.
@@ -26,11 +27,13 @@ type barLayout struct {
 	Drag    image.Rectangle    // empty space that moves the window; may be empty
 	Band    image.Rectangle    // the strip above the tabs, also a move area; may be empty
 	Buttons [3]image.Rectangle // indexed capMinimize-1, capMaximize-1, capClose-1
+	Gear    image.Rectangle    // the settings button, left of Buttons; may be empty
 }
 
 // barDims are the bar's fixed sizes in pixels.
 type barDims struct {
 	buttonW int // one caption button
+	gearW   int // the settings button; 0 leaves it out
 	minDrag int // move area always kept between the tabs and the buttons
 	band    int // height of the move strip above the tabs (the tabs' top margin)
 }
@@ -50,15 +53,19 @@ func layoutBar(size image.Point, tabsWidth int, d barDims, custom bool) barLayou
 		// A bar narrower than three buttons cuts them off rather than overhang it.
 		b.Buttons[i] = image.Rect(x, 0, x+d.buttonW, size.Y).Intersect(bar)
 	}
+	gearL := max(left-max(d.gearW, 0), 0)
+	if gearL < left {
+		b.Gear = image.Rect(gearL, 0, left, size.Y).Intersect(bar)
+	}
 	// Many tabs must still leave something to grab the window by.
-	tabsEnd := min(max(tabsWidth, 0), max(left-d.minDrag, 0))
+	tabsEnd := min(max(tabsWidth, 0), max(gearL-d.minDrag, 0))
 	band := min(max(d.band, 0), size.Y)
 	b.Tabs = image.Rect(0, band, tabsEnd, size.Y)
 	if band > 0 && tabsEnd > 0 {
 		b.Band = image.Rect(0, 0, tabsEnd, band)
 	}
-	if tabsEnd < left {
-		b.Drag = image.Rect(tabsEnd, 0, left, size.Y)
+	if tabsEnd < gearL {
+		b.Drag = image.Rect(tabsEnd, 0, gearL, size.Y)
 	}
 	return b
 }
@@ -70,10 +77,13 @@ func (b barLayout) captionAt(p image.Point) captionButton {
 			return captionButton(i + 1)
 		}
 	}
+	if p.In(b.Gear) {
+		return capGear
+	}
 	return capNone
 }
 
-// captionState tracks hover/press for the three buttons across pointer events.
+// captionState tracks hover/press for the caption buttons across pointer events.
 type captionState struct{ hover, pressed captionButton }
 
 // pointer feeds one pointer event and returns the button to fire now. A click
@@ -102,7 +112,7 @@ func (s *captionState) pointer(kind pointer.Kind, p image.Point, b barLayout) ca
 }
 
 // actionFor maps a fired button to the window action, given the real maximized state.
-// It returns 0 (no action) for capNone; callers only Perform a fired, non-capNone button.
+// It returns 0 (no action) for capNone and capGear, which the window handles itself.
 func actionFor(c captionButton, maximized bool) system.Action {
 	switch c {
 	case capMinimize:

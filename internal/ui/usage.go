@@ -12,8 +12,6 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
 
-var colUsageHigh = rgb(0xff6b6b)
-
 // usageBox hands usage reports from notify goroutines to the UI goroutine. It
 // is apart from the alert inbox, which keeps one message per tab, so a report
 // can never replace a pending alert. Only the latest report per tab matters.
@@ -105,12 +103,12 @@ func cwdSeq(t *tabs.Tab) uint64 {
 	return s.Applier().CwdSeq()
 }
 
-func usageColor(l usage.Level) color.NRGBA {
+func (c *chrome) usageColor(l usage.Level) color.NRGBA {
 	switch l {
 	case usage.High:
-		return colUsageHigh
+		return c.th.UsageHigh
 	case usage.Warn:
-		return colNeeds
+		return c.th.Needs
 	}
-	return colFolder
+	return c.th.Folder
 }

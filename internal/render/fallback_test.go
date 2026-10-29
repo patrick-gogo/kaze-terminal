@@ -25,7 +25,7 @@ func segoeSymbol(t *testing.T) string {
 
 func TestFallbackDrawsClaudeSymbols(t *testing.T) {
 	segoeSymbol(t)
-	c := NewRenderer(15, DefaultPalette()).glyphs
+	c := NewRenderer(15, DefaultPalette(), Options{}).glyphs
 	w, h := c.fs.cellW, c.fs.cellH
 	notdef := c.get(notdefProbe, false, false)
 	for _, r := range []rune{'⏺', '⎿', '✻', '✔'} {
@@ -44,7 +44,7 @@ func TestFallbackDrawsClaudeSymbols(t *testing.T) {
 }
 
 func TestRuneMissingEverywhereIsNotdef(t *testing.T) {
-	c := NewRenderer(16, DefaultPalette()).glyphs
+	c := NewRenderer(16, DefaultPalette(), Options{}).glyphs
 	a := c.get(0x10FFFD, false, false) // plane 16 private use: no font maps it
 	b := c.get(0xE01EF, false, false)  // variation selector supplement: never drawn by these fonts
 	if a.face != faceMissing || a != b {
@@ -55,7 +55,7 @@ func TestRuneMissingEverywhereIsNotdef(t *testing.T) {
 func TestSystemFontParsedOnlyOnMiss(t *testing.T) {
 	path := segoeSymbol(t)
 	sys := &sysFonts{paths: []string{filepath.Join(t.TempDir(), "absent.ttf"), path}}
-	fs := newFontSet(13)
+	fs := newFontSet(13, 1)
 	fs.sys = sys
 	c := &glyphCache{fs: fs, m: make(map[glyphKey]*glyph)}
 	for _, r := range []rune{'A', '日', '─', '→'} {
@@ -77,7 +77,7 @@ func TestSystemFontParsedOnlyOnMiss(t *testing.T) {
 func TestFallbackLookupIsMemoized(t *testing.T) {
 	path := segoeSymbol(t)
 	sys := &sysFonts{paths: []string{path}}
-	fs := newFontSet(13)
+	fs := newFontSet(13, 1)
 	fs.sys = sys
 	c := &glyphCache{fs: fs, m: make(map[glyphKey]*glyph)}
 	for _, r := range []rune{'⏺', '✻', 0x10FFFD, '日'} {
@@ -120,7 +120,7 @@ func TestBadSystemFontIsSkipped(t *testing.T) {
 		}
 		return sfnt.ParseCollectionReaderAt(r)
 	}
-	fs := newFontSet(13)
+	fs := newFontSet(13, 1)
 	fs.sys = sys
 	c := &glyphCache{fs: fs, m: make(map[glyphKey]*glyph)}
 	if g := c.get('⏺', false, false); g.face == faceMissing || g.empty {
@@ -159,7 +159,7 @@ func TestRareKanjiFallsBackToSystemJapaneseFont(t *testing.T) {
 	if _, err := os.Stat(p); err != nil {
 		t.Skip("Yu Gothic Medium is not installed")
 	}
-	c := NewRenderer(15, DefaultPalette()).glyphs
+	c := NewRenderer(15, DefaultPalette(), Options{}).glyphs
 	for _, r := range []rune{0x20B9F, 0x4FF1} { // 𠮟 and 俱: JIS X 0213, not in cp932
 		if BundledCovers(r) {
 			t.Errorf("%U is in the bundled fonts; pick a rarer kanji", r)

@@ -25,7 +25,7 @@ Today Patrick uses **Warp** on both Windows and macOS. He uses it like a plain t
 
 - Typing Japanese through an IME. Patrick does not type Japanese. Japanese must **display** correctly (from output and paste) but IME composition is out.
 - General split panes. The only split is the "related view" for a subagent beside its lead (section 6.3).
-- A settings screen. Configuration is a file.
+- A settings screen. Configuration is a file. *Reversed 2026-10-29 by Patrick: see `2026-10-29-kaze-settings-page-design.md`; the file stays the source of truth.*
 - Built-in AI chat, blocks, cloud sync, collaboration, themes marketplace: everything Warp has that Patrick does not use.
 - Linux support (not ruled out later, not designed for now).
 
@@ -110,6 +110,8 @@ When Claude Code in any tab finishes its turn or needs Patrick (a question, a pe
 ### 6.6 Config
 
 A single config file in a standard per-user location (font, font size, colors, default shell, scrollback cap, keybindings). Reloaded on change if cheap; otherwise on restart.
+
+> Note (2026-10-29): a settings page now edits this file, one key at a time with comments kept. See `2026-10-29-kaze-settings-page-design.md`.
 
 ### 6.7 Look: "Midnight" (Patrick's pick, 2026-10-28)
 

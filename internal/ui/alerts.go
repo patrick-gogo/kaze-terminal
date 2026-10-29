@@ -22,9 +22,8 @@ const (
 )
 
 const (
-	doneToastFor = 6 * time.Second
-	maxToasts    = 3
-	maxReason    = 120
+	maxToasts = 3
+	maxReason = 120
 )
 
 // toast is one alert card. Text is the cleaned reason; the tab title is read
@@ -38,8 +37,23 @@ type toast struct {
 
 // alerts holds the tab marks and toasts. Used only on the UI goroutine.
 type alerts struct {
-	marks  map[tabs.TabID]mark
-	toasts []toast // oldest first, at most maxToasts
+	marks     map[tabs.TabID]mark
+	toasts    []toast // oldest first, at most maxToasts
+	doneToast string  // the done_toast setting: how long a "done" card stays
+}
+
+// doneToastFor is how long a "done" card stays for a done_toast value; 0 means
+// until seen. Anything unknown is the default, 6s.
+func doneToastFor(v string) time.Duration {
+	switch v {
+	case "3s":
+		return 3 * time.Second
+	case "10s":
+		return 10 * time.Second
+	case "until_seen":
+		return 0
+	}
+	return 6 * time.Second
 }
 
 // apply records one alert. It does nothing for a tab that is gone or for the
@@ -62,8 +76,8 @@ func (a *alerts) apply(m notify.Msg, active tabs.TabID, focused bool, exists fun
 		a.marks[id] = markDone
 	}
 	t := toast{Tab: id, Kind: m.Kind, Text: cleanReason(m.Reason)}
-	if m.Kind == notify.KindDone {
-		t.Until = now.Add(doneToastFor)
+	if d := doneToastFor(a.doneToast); m.Kind == notify.KindDone && d > 0 {
+		t.Until = now.Add(d)
 	}
 	a.dropToast(id) // one card per tab: the latest news replaces the old
 	a.toasts = append(a.toasts, t)
@@ -138,26 +152,15 @@ func cleanReason(s string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// Alert colors (design spec 6.7).
-var (
-	colNeeds      = rgb(0xf2b84b)
-	colDone       = rgb(0x62d39a)
-	colToastBG    = rgb(0x1a1f2c)
-	colToastLine  = rgb(0x2a3142)
-	colToastFG    = rgb(0xe7e9f0)
-	colToastGo    = rgb(0xb9a6ff)
-	colToastTitle = rgb(0xffffff)
-)
-
 // dotColor is the dot a tab shows: an alert mark wins over the active accent.
-func dotColor(active bool, m mark) (color.NRGBA, bool) {
+func (c *chrome) dotColor(active bool, m mark) (color.NRGBA, bool) {
 	switch {
 	case m == markNeeds:
-		return colNeeds, true
+		return c.th.Needs, true
 	case m == markDone:
-		return colDone, true
+		return c.th.Done, true
 	case active:
-		return colAccent, true
+		return c.th.Accent, true
 	}
 	return color.NRGBA{}, false
 }

@@ -1,10 +1,15 @@
-# kaze
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/kaze-logo.svg">
+    <img src="assets/branding/kaze-logo-light.svg" alt="kaze" width="360">
+  </picture>
+</p>
 
 kaze is my personal terminal: a small, fast terminal with tabs, written in Go with
 [Gio](https://gioui.org). I built it for working in [Claude Code](https://claude.com/claude-code)
 all day, so it does a few things well (tabs, fast redraws, Japanese text, Claude Code's
-symbols) and leaves out most of what a full terminal suite has. It has no settings screen;
-everything lives in one small config file.
+symbols) and leaves out most of what a full terminal suite has. It has a small settings page for
+the everyday choices, and everything it changes lives in one config file you can also edit by hand.
 
 ## Status
 
@@ -73,6 +78,15 @@ if it fails to start, kaze falls back to the default shell and says so in the fi
 shell can start at all, kaze shows the error in a message box on Windows (on macOS it prints
 it to stderr) and exits.
 
+On Windows the kaze icon (exe file, taskbar, title bar, Alt+Tab) and the version details come
+from `cmd/kaze/rsrc_windows_*.syso`, which `go build` picks up by itself. They are generated
+from `cmd/kaze/winres/winres.json` and `assets/branding/kaze-icon-512.png`. After changing the
+icon or the version, regenerate them from `cmd/kaze`:
+
+```
+go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out rsrc --arch amd64,arm64
+```
+
 ### Smart App Control (Windows)
 
 With Smart App Control on, Windows sometimes blocks a fresh unsigned build ("An Application
@@ -95,11 +109,12 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 | Previous tab | Ctrl+Shift+Tab | Ctrl+Shift+Tab |
 | Copy the selection | Ctrl+Shift+C | Cmd+C |
 | Paste | Ctrl+Shift+V | Cmd+V |
+| Open settings | Ctrl+, | Cmd+, |
 | New line in Claude Code (without sending) | Alt+Enter | Option+Enter |
 
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
 submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The tab, copy
-and paste shortcuts can be changed under `[keys]` in the config.
+paste and settings shortcuts can be changed under `[keys]` in the config.
 
 ## Mouse
 
@@ -112,6 +127,51 @@ and paste shortcuts can be changed under `[keys]` in the config.
 - **Wheel:** scrolls back through history. Typing jumps back to the bottom. Full-screen apps
   that don't use the mouse have no history to scroll.
 
+## Settings
+
+Open it with the gear button in the title bar (Windows) or with Ctrl+, (Cmd+, on macOS). It opens as a
+tab-like chip next to your tabs and closes with its ×. It has three sections in a menu on the left:
+
+- **Appearance:** theme, font size, line spacing, cursor shape and blinking.
+- **Claude:** the alert and usage choices (chimes, taskbar flash, how long the "done" toast stays,
+  the usage readout in the status bar) and a check of your Claude Code setup (below).
+- **Workspaces:** coming next. It is shown greyed out for now.
+
+A change applies right away and is saved when you make it. kaze edits only that one key in
+`config.toml` and leaves every other line and your comments as they are, so a hand-edited file
+stays yours.
+
+### Themes
+
+| Theme | Look |
+|---|---|
+| Midnight | The original: soft dark blue-black with a violet accent and rounded tabs. The default. |
+| Sumi | Ink-black with warm paper text and a vermilion accent; tabs get an underline. |
+| Tide | Deep navy with a turquoise accent; pill-shaped tabs. |
+| Washi | The light theme: warm paper background, dark ink text, indigo accent. |
+| Sakura | Dark plum with soft pink accents. |
+
+A theme sets the terminal colors and the window colors together. Colors you set under `[colors]`
+still win over the theme's terminal palette.
+
+### Claude Code setup check
+
+The Claude section reads `~/.claude/settings.json` and shows the state of the three entries kaze
+needs: the Stop hook (`notify done`), the Notification hook (`notify needs`) and the status line
+(`statusline`):
+
+| State | Meaning |
+|---|---|
+| OK | The entry is there and the kaze exe it points to exists. |
+| missing | No kaze entry. |
+| broken | A kaze entry whose exe is gone (for example after moving kaze). |
+| taken | The status line is another program's. kaze never overwrites it by itself. |
+
+**Fix** adds missing entries and repoints broken ones; **Replace** swaps another program's status
+line for kaze's. Both show exactly what will change in a confirm dialog first, and write only after
+you confirm. Before writing, kaze copies the file to `settings.json.bak-<date>-<time>`, and it
+touches no other entry. If the file is empty or not valid JSON, kaze reports that and offers no fix.
+
 ## Config
 
 kaze reads one TOML file at startup:
@@ -119,8 +179,9 @@ kaze reads one TOML file at startup:
 - Windows: `%AppData%\kaze\config.toml`
 - macOS: `~/Library/Application Support/kaze/config.toml`
 
-The file is optional. Restart kaze after editing it. A bad value falls back to its default and
-shows up as a warning in the first tab; a TOML syntax error makes kaze use all defaults.
+The file is optional. The settings page writes to it for you; restart kaze after editing it by hand.
+A bad value falls back to its default and shows up as a warning in the first tab; a TOML syntax
+error makes kaze use all defaults.
 
 | Key | What it does | Default |
 |---|---|---|
@@ -131,8 +192,15 @@ shows up as a warning in the first tab; a TOML syntax error makes kaze use all d
 | `chime_needs` | Chime when Claude Code needs you (see Alerts) | `true` |
 | `chime_done` | Chime when Claude Code finishes its turn | `false` |
 | `chime_file` | Your own chime, a WAV file up to 2MB; `~` means your home folder | the bundled chime |
+| `theme` | `midnight`, `sumi`, `tide`, `washi` or `sakura` | `midnight` |
+| `line_spacing` | `tight`, `normal` or `roomy` | `normal` |
+| `cursor_style` | `block`, `bar` or `underline` | `block` |
+| `cursor_blink` | Blink the cursor (off keeps idle CPU at zero) | `false` |
+| `taskbar_flash` | Flash the taskbar button on alerts (Windows) | `true` |
+| `done_toast` | How long the "done" toast stays: `3s`, `6s`, `10s` or `until_seen` | `6s` |
+| `show_usage` | Show the Claude usage readout in the status bar | `true` |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
-| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste` | the shortcuts above |
+| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `open_settings` | the shortcuts above |
 | `font_family` | **Not supported yet.** Setting it only adds a warning; kaze always uses its bundled font. | |
 
 Shortcuts are written like `"ctrl+shift+t"`. Modifiers: `ctrl`, `shift`, `alt` (or `option`),
@@ -279,6 +347,11 @@ replaces any you have.
 - Plan usage appears only for Claude Pro and Max subscriptions, after the first reply in a session.
 - It always exits 0 and finishes within about 300ms.
 
+## Version
+
+`kaze --version` prints the version and the commit and time it was built from, then exits without
+opening a window. The settings page shows the version at the bottom.
+
 ## Benchmarks
 
 Numbers for the first milestone on Windows (key latency, Claude Code streaming, launch,
@@ -294,9 +367,12 @@ Done:
 - Plan 3: alerts with a chime when Claude Code needs you, kaze's own title bar on Windows, and
   the current folder and git branch in the status bar.
 - Plan 4: Claude's 5-hour and weekly usage and the tab's context in the status bar.
+- Plan 5a: the settings page (Appearance and Claude), five themes and the Claude Code setup check.
 
 Next:
 
+- Plan 5b: Workspaces (launch a saved set of tabs in one click).
+- A redesign of the alert notification card (GitHub issue #9).
 - Plan 2: child tabs for Claude Code subagents.
 - The Mac milestone: run, fix and benchmark kaze on macOS.
 

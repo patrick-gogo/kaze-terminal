@@ -43,6 +43,27 @@ type strip struct {
 	hasImage bool
 }
 
+// CursorStyle is the shape of the focused cursor; an unfocused one is always an outline.
+type CursorStyle int
+
+const (
+	CursorBlock CursorStyle = iota
+	CursorBar
+	CursorUnderline
+)
+
+// Options are the user's look settings that change how cells are drawn.
+type Options struct {
+	LineScale float32 // cell height factor; 0 means 1
+	Cursor    CursorStyle
+}
+
+// cursorPaint is what the last paint drew for the cursor, read by tests.
+type cursorPaint struct {
+	image bool // the block cursor's image
+	rects int  // r.edges[:rects] were filled
+}
+
 type cursorState struct {
 	col, row int
 	cell     screen.Cell
@@ -78,11 +99,15 @@ type Renderer struct {
 	curImg    *image.RGBA       // the image curOp shows
 	curImgs   [2][2]*image.RGBA // [narrow, wide] x two, alternated so the shown one is never redrawn
 	curFlip   int
-	edges     [4]image.Rectangle // outline cursor scratch, kept to avoid a per-frame allocation
+	edges     [4]image.Rectangle // outline, bar and underline cursor scratch, kept to avoid a per-frame allocation
+	curPaint  cursorPaint
+	style     CursorStyle
+	hidden    bool // the blink's off phase
 	holdUntil time.Time
 
 	fixed map[uint64]color.NRGBA // readable text colors by packed (fg, bg)
-	defFG color.NRGBA            // readable(pal.FG, pal.BG): most cells, skips the map
+	defFG color.NRGBA            // readable(pal.FG, pal.BG, ink): most cells, skips the map
+	ink   color.NRGBA            // inkOf(pal), the dark end readable pulls toward
 
 	now   func() time.Time // replaceable so tests can drive the sync timeout
 	stats Stats
@@ -90,9 +115,14 @@ type Renderer struct {
 
 // NewRenderer builds a renderer for a font size in pixels (the caller applies DPI scale).
 // Renderers of the same size share fonts and glyphs.
-func NewRenderer(fontSize float32, palette Palette) *Renderer {
-	g := sharedGlyphs(fontSize)
+func NewRenderer(fontSize float32, palette Palette, o Options) *Renderer {
+	scale := o.LineScale
+	if scale <= 0 {
+		scale = 1
+	}
+	g := sharedGlyphs(fontSize, scale)
 	r := &Renderer{
+		style:   o.Cursor,
 		pal:     palette,
 		fs:      g.fs,
 		glyphs:  g,
@@ -100,7 +130,8 @@ func NewRenderer(fontSize float32, palette Palette) *Renderer {
 		cellH:   g.fs.cellH,
 		focused: true,
 		now:     time.Now,
-		defFG:   readable(palette.FG, palette.BG),
+		ink:     inkOf(palette),
+		defFG:   readable(palette.FG, palette.BG, inkOf(palette)),
 	}
 	for i := range r.curImgs {
 		r.curImgs[i][0] = image.NewRGBA(image.Rect(0, 0, r.cellW, r.cellH))
@@ -120,6 +151,12 @@ func (r *Renderer) Release() {
 
 // CellSize is one cell in pixels, for computing cols and rows from a window size.
 func (r *Renderer) CellSize() (w, h int) { return r.cellW, r.cellH }
+
+// Palette is the palette the renderer draws with.
+func (r *Renderer) Palette() Palette { return r.pal }
+
+// SetCursorShown sets the blink phase; a hidden cursor draws nothing.
+func (r *Renderer) SetCursorShown(shown bool) { r.hidden = !shown }
 
 // SetFocused switches the cursor between a block (focused) and an outline.
 func (r *Renderer) SetFocused(f bool) { r.focused = f }
@@ -390,8 +427,8 @@ func (r *Renderer) updateCursor() {
 		return
 	}
 	r.curDrawn = c
-	if !c.visible || !c.focused {
-		return // hidden, or an outline drawn as plain ops in paint
+	if !c.visible || !c.focused || r.style != CursorBlock {
+		return // hidden, or drawn as plain ops in paint
 	}
 	cells := 1
 	if c.cell.Width == 2 {
@@ -418,16 +455,18 @@ func (r *Renderer) paint(gtx layout.Context) {
 		t.Pop()
 	}
 
+	r.curPaint = cursorPaint{}
 	c := r.curDrawn
-	if !c.visible || c.row >= r.rows || c.col >= r.cols {
+	if !c.visible || r.hidden || c.row >= r.rows || c.col >= r.cols {
 		return
 	}
 	p := image.Pt(c.col*r.cellW, c.row*r.cellH)
-	if c.focused && r.curImg != nil {
+	if c.focused && r.style == CursorBlock && r.curImg != nil {
 		t := op.Offset(p).Push(ops)
 		r.curOp.Add(ops)
 		paint.PaintOp{}.Add(ops)
 		t.Pop()
+		r.curPaint.image = true
 		return
 	}
 	w := r.cellW
@@ -435,13 +474,23 @@ func (r *Renderer) paint(gtx layout.Context) {
 		w *= 2
 	}
 	box := image.Rectangle{Min: p, Max: p.Add(image.Pt(w, r.cellH))}
-	r.edges = [4]image.Rectangle{
-		{Min: box.Min, Max: image.Pt(box.Max.X, box.Min.Y+1)},
-		{Min: image.Pt(box.Min.X, box.Max.Y-1), Max: box.Max},
-		{Min: box.Min, Max: image.Pt(box.Min.X+1, box.Max.Y)},
-		{Min: image.Pt(box.Max.X-1, box.Min.Y), Max: box.Max},
+	n := 1
+	switch {
+	case c.focused && r.style == CursorBar:
+		r.edges[0] = image.Rectangle{Min: box.Min, Max: image.Pt(box.Min.X+min(2, w), box.Max.Y)}
+	case c.focused && r.style == CursorUnderline:
+		r.edges[0] = image.Rectangle{Min: image.Pt(box.Min.X, box.Max.Y-min(2, r.cellH)), Max: box.Max}
+	default: // unfocused outline
+		r.edges = [4]image.Rectangle{
+			{Min: box.Min, Max: image.Pt(box.Max.X, box.Min.Y+1)},
+			{Min: image.Pt(box.Min.X, box.Max.Y-1), Max: box.Max},
+			{Min: box.Min, Max: image.Pt(box.Min.X+1, box.Max.Y)},
+			{Min: image.Pt(box.Max.X-1, box.Min.Y), Max: box.Max},
+		}
+		n = 4
 	}
-	for _, edge := range r.edges {
+	for _, edge := range r.edges[:n] {
 		paint.FillShape(ops, r.pal.Cursor, clip.Rect(edge).Op())
 	}
+	r.curPaint.rects = n
 }

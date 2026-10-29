@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"image/color"
+	"math"
 	"os"
 	"strings"
 	"unicode"
@@ -22,20 +23,8 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/assets/fonts"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
+	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
-)
-
-// Midnight chrome tokens (design spec 6.7).
-var (
-	colChrome   = rgb(0x0b0d12)
-	colActive   = rgb(0x0f1117)
-	colActiveFG = rgb(0xffffff)
-	colMuted    = rgb(0x8a90a2)
-	colBorder   = rgb(0x1d2230)
-	colAccent   = rgb(0x8b7bff)
-	colStatusFG = rgb(0x7d8394)
-	colFolder   = rgb(0xc9cdd8)
-	colBranch   = rgb(0x62d39a)
 )
 
 func rgb(v uint32) color.NRGBA {
@@ -49,6 +38,8 @@ type chrome struct {
 	shaper    *text.Shaper
 	hits      barHits
 	toastHits []toastHit
+	th        theme.Chrome
+	shape     theme.TabShape
 
 	faces   []font.FontFace
 	covered map[rune]bool   // rune -> some face has it
@@ -72,7 +63,14 @@ func newChrome() *chrome {
 		faces:   faces,
 		covered: map[rune]bool{},
 		loaded:  map[string]bool{},
+		th:      theme.Default().UI,
+		shape:   theme.Default().Tabs,
 	}
+}
+
+// setTheme switches the colors and tab shape the next frame draws with.
+func (c *chrome) setTheme(t theme.Theme) {
+	c.th, c.shape = t.UI, t.Tabs
 }
 
 // fit makes s drawable: for each rune the bundled fonts lack, it adds the system font
@@ -184,43 +182,54 @@ func place(ops *op.Ops, call op.CallOp, at image.Point) {
 // tabTop is the gap above the tabs, in dp; on Windows it also moves the window.
 const tabTop = 7
 
-// layoutTabBar fills the bar's background, draws the tabs and the + button left of limit,
-// records where each one is for clicks, and returns where the strip ends.
-// marks gives each tab's alert mark; nil means none.
-func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, marks func(tabs.TabID) mark, def string, height, limit int) int {
+// layoutTabBar fills the bar's background, draws the tabs, the Settings chip when open
+// and the + button left of limit, records where each one is for clicks, and returns
+// where the strip ends. marks gives each tab's alert mark; nil means none.
+func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, marks func(tabs.TabID) mark, def string, height, limit int, chip settingsChip) int {
 	ops := gtx.Ops
 	width := gtx.Constraints.Max.X
-	paint.FillShape(ops, colChrome, clip.Rect{Max: image.Pt(width, height)}.Op())
+	paint.FillShape(ops, c.th.Chrome, clip.Rect{Max: image.Pt(width, height)}.Op())
 
 	top := gtx.Dp(tabTop)
 	padX, gap, dot, radius := gtx.Dp(12), gtx.Dp(7), gtx.Dp(7), gtx.Dp(9)
 	x := gtx.Dp(8)
 	c.hits = barHits{tabs: c.hits.tabs[:0]}
 
-	closeCall, closeSize := c.label(gtx, "×", 12, colMuted)
-	plusCall, plusSize := c.label(gtx, "+", 13, colMuted)
+	closeCall, closeSize := c.label(gtx, "×", 12, c.th.Muted)
+	plusCall, plusSize := c.label(gtx, "+", 13, c.th.Muted)
+	var chipCall op.CallOp
+	var chipSize image.Point
+	chipW := 0 // room kept after the tabs so the chip never overflows away
+	if chip.open {
+		fg := c.th.Muted
+		if chip.shown {
+			fg = c.th.ActiveFG
+		}
+		chipCall, chipSize = c.label(gtx, "Settings", 12, fg)
+		chipW = padX + chipSize.X + gap + closeSize.X + padX + gtx.Dp(4)
+	}
 	for _, t := range list {
 		on := t.ID == active
-		fg := colMuted
+		fg := c.th.Muted
 		if on {
-			fg = colActiveFG
+			fg = c.th.ActiveFG
 		}
 		call, size := c.label(gtx, c.tabLabelFit(t, def), 12, fg)
 		var mk mark
 		if marks != nil {
 			mk = marks(t.ID)
 		}
-		dc, hasDot := dotColor(on, mk)
+		dc, hasDot := c.dotColor(on, mk)
 		w := padX + size.X + gap + closeSize.X + padX
 		if hasDot {
 			w += dot + gap
 		}
-		if x+w > limit-plusSize.X-2*padX {
+		if x+w > limit-plusSize.X-2*padX-chipW {
 			break // overflow: the rest stay reachable with next/prev tab
 		}
 		r := image.Rect(x, top, x+w, height)
 		if on {
-			paint.FillShape(ops, colActive, clip.RRect{Rect: r, NW: radius, NE: radius}.Op(ops))
+			c.activeTab(gtx, r, radius)
 		}
 		cx := x + padX
 		mid := top + (height-top)/2
@@ -237,6 +246,21 @@ func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.
 		c.hits.tabs = append(c.hits.tabs, tabHit{id: t.ID, rect: r, close: closeRect})
 		x += w + gtx.Dp(4)
 	}
+	if chip.open && x+chipW <= limit {
+		r := image.Rect(x, top, x+chipW-gtx.Dp(4), height)
+		if chip.shown {
+			c.activeTab(gtx, r, radius)
+		}
+		mid := top + (height-top)/2
+		cx := x + padX
+		place(ops, chipCall, image.Pt(cx, mid-chipSize.Y/2))
+		cx += chipSize.X + gap
+		place(ops, closeCall, image.Pt(cx, mid-closeSize.Y/2))
+		hitPad := gtx.Dp(4)
+		c.hits.settings = r
+		c.hits.settingsClose = image.Rect(cx-hitPad, mid-closeSize.Y/2-hitPad, cx+closeSize.X+hitPad, mid+closeSize.Y/2+hitPad)
+		x += chipW
+	}
 	pr := image.Rect(x, top, x+plusSize.X+2*padX, height)
 	if pr.Max.X > limit {
 		return min(x, limit) // too narrow for +; the new-tab shortcut still works
@@ -246,27 +270,43 @@ func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.
 	return pr.Max.X
 }
 
-// Caption button colors (design spec 6.7).
-var (
-	colCapGlyph   = rgb(0xa7adbd)
-	colCapHover   = rgb(0x1a1f2c)
-	colCapPress   = rgb(0x151925)
-	colCloseHover = rgb(0xe5484d)
-	colClosePress = rgb(0xc93c40)
-)
+// activeTab draws the active tab's background in the theme's shape.
+func (c *chrome) activeTab(gtx layout.Context, r image.Rectangle, radius int) {
+	ops := gtx.Ops
+	switch c.shape {
+	case theme.Underline:
+		paint.FillShape(ops, c.th.Accent, clip.Rect(image.Rect(r.Min.X, r.Max.Y-gtx.Dp(2), r.Max.X, r.Max.Y)).Op())
+	case theme.Pill:
+		// Inset top and bottom alike so the label stays centred in the pill.
+		in := gtx.Dp(3)
+		p := image.Rect(r.Min.X, r.Min.Y+in, r.Max.X, r.Max.Y-in)
+		rr := clip.UniformRRect(p, p.Dy()/2)
+		paint.FillShape(ops, pillTint(c.th.Accent), rr.Op(ops))
+		paint.FillShape(ops, c.th.Accent, clip.Stroke{Path: rr.Path(ops), Width: 1}.Op())
+	default:
+		paint.FillShape(ops, c.th.Active, clip.RRect{Rect: r, NW: radius, NE: radius}.Op(ops))
+	}
+}
 
-// layoutCaptions draws the minimize, maximize/restore and close buttons.
+// pillTint is the accent at 13% alpha, the active pill's fill.
+func pillTint(a color.NRGBA) color.NRGBA {
+	a.A = 0x21
+	return a
+}
+
+// layoutCaptions draws the settings gear and the minimize, maximize/restore and close buttons.
 func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState, maximized bool) {
 	ops := gtx.Ops
-	for i, r := range b.Buttons {
+	rects := [4]image.Rectangle{b.Buttons[0], b.Buttons[1], b.Buttons[2], b.Gear}
+	for i, r := range rects {
 		if r.Empty() {
 			continue
 		}
 		btn := captionButton(i + 1)
-		fg := colCapGlyph
-		if bg, ok := captionBG(btn, st); ok {
+		fg := c.th.CapGlyph
+		if bg, ok := c.captionBG(btn, st); ok {
 			paint.FillShape(ops, bg, clip.Rect(r).Op())
-			fg = colActiveFG
+			fg = c.th.ActiveFG
 		}
 		cl := clip.Rect(r).Push(ops)
 		paint.FillShape(ops, fg, captionGlyph(gtx, btn, r, maximized))
@@ -275,10 +315,10 @@ func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState
 }
 
 // captionBG is a button's background: pressed while held over it, hover when only hovered.
-func captionBG(btn captionButton, st captionState) (color.NRGBA, bool) {
-	hover, press := colCapHover, colCapPress
+func (c *chrome) captionBG(btn captionButton, st captionState) (color.NRGBA, bool) {
+	hover, press := c.th.CapHover, c.th.CapPress
 	if btn == capClose {
-		hover, press = colCloseHover, colClosePress
+		hover, press = c.th.CloseHover, c.th.ClosePress
 	}
 	switch {
 	case st.pressed == btn && st.hover == btn:
@@ -326,6 +366,17 @@ func captionGlyph(gtx layout.Context, btn captionButton, r image.Rectangle, maxi
 		p.LineTo(f32.Pt(x0+s, y0+s))
 		p.MoveTo(f32.Pt(x0+s, y0))
 		p.LineTo(f32.Pt(x0, y0+s))
+	case btn == capGear:
+		// A ring with eight teeth.
+		cx, cy, ring := x0+s/2, y0+s/2, s*0.27
+		p.MoveTo(f32.Pt(cx+ring, cy))
+		p.Arc(f32.Pt(-ring, 0), f32.Pt(-ring, 0), 2*math.Pi)
+		for i := range 8 {
+			a := float64(i) * math.Pi / 4
+			dx, dy := float32(math.Cos(a)), float32(math.Sin(a))
+			p.MoveTo(f32.Pt(cx+dx*s*0.38, cy+dy*s*0.38))
+			p.LineTo(f32.Pt(cx+dx*(s/2), cy+dy*(s/2)))
+		}
 	}
 	return clip.Stroke{Path: p.End(), Width: sw}.Op()
 }
@@ -335,9 +386,9 @@ func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) {
 	ops := gtx.Ops
 	width := gtx.Constraints.Max.X
 	pad := gtx.Dp(14)
-	paint.FillShape(ops, colChrome, clip.Rect{Max: image.Pt(width, height)}.Op())
-	paint.FillShape(ops, colBorder, clip.Rect{Max: image.Pt(width, 1)}.Op())
-	call, size := c.label(gtx, p.Right, 11, colStatusFG)
+	paint.FillShape(ops, c.th.Chrome, clip.Rect{Max: image.Pt(width, height)}.Op())
+	paint.FillShape(ops, c.th.Border, clip.Rect{Max: image.Pt(width, 1)}.Op())
+	call, size := c.label(gtx, p.Right, 11, c.th.StatusFG)
 	place(ops, call, image.Pt(width-size.X-pad, (height-size.Y)/2))
 	right := width - size.X - pad // where the right-hand text starts
 	if ux := c.layoutUsage(gtx, p.Usage, right-gtx.Dp(16), height); ux >= 0 {
@@ -350,12 +401,12 @@ func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) {
 	var bsize image.Point
 	gap := gtx.Dp(12)
 	if p.Branch != "" {
-		bcall, bsize = c.label(gtx, c.branchLabel(p.Branch), 11, colBranch)
+		bcall, bsize = c.label(gtx, c.branchLabel(p.Branch), 11, c.th.Branch)
 		avail -= bsize.X + gap
 	}
 	if p.Folder != "" && avail > 0 {
 		folder := p.Folder
-		fcall, fsize := c.label(gtx, folder, 11, colFolder)
+		fcall, fsize := c.label(gtx, folder, 11, c.th.Folder)
 		// Shorten from the left until it fits; bounded so a bad measure cannot spin.
 		for i := 0; i < 8 && fsize.X > avail && folder != "…"; i++ {
 			n := utf8.RuneCountInString(folder) * avail / fsize.X
@@ -363,7 +414,7 @@ func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) {
 				n = utf8.RuneCountInString(folder) - 1
 			}
 			folder = truncateLeft(folder, n)
-			fcall, fsize = c.label(gtx, folder, 11, colFolder)
+			fcall, fsize = c.label(gtx, folder, 11, c.th.Folder)
 		}
 		place(ops, fcall, image.Pt(x, (height-fsize.Y)/2))
 		x += fsize.X + gap
@@ -387,11 +438,11 @@ func (c *chrome) layoutUsage(gtx layout.Context, segs []usage.Segment, end, heig
 	w := 0
 	for i, s := range segs {
 		if i > 0 {
-			call, size := c.label(gtx, "  ·  ", 11, colStatusFG)
+			call, size := c.label(gtx, "  ·  ", 11, c.th.StatusFG)
 			ps = append(ps, piece{call, size})
 			w += size.X
 		}
-		call, size := c.label(gtx, s.Text, 11, usageColor(s.Level))
+		call, size := c.label(gtx, s.Text, 11, c.usageColor(s.Level))
 		ps = append(ps, piece{call, size})
 		w += size.X
 	}

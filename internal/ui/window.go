@@ -7,10 +7,12 @@ import (
 	"image"
 	"io"
 	"log"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -36,6 +38,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/sound"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/term"
+	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
 
@@ -58,6 +61,8 @@ const (
 	noticeFor = 15 * time.Second
 	// shutdownWait bounds quitting, as tabs.CloseAll does for the shells.
 	shutdownWait = 2 * time.Second
+	// blinkEvery is one blink phase, shown or hidden.
+	blinkEvery = 530 * time.Millisecond
 )
 
 type window struct {
@@ -69,6 +74,7 @@ type window struct {
 	mgr       *tabs.Manager
 	rend      *render.Renderer
 	rendPx    float32
+	rendStale bool // a setting changed: rebuild before the next layout, never mid-frame
 	ui        *chrome
 	termTag   *int
 	barTag    *int
@@ -77,6 +83,9 @@ type window struct {
 	lastTab   *tabs.Tab
 	focused   bool
 	wantFocus bool
+
+	blinkFrom    time.Time // start of the shown phase; zero restarts it
+	cursorHidden bool
 
 	wheel     wheel
 	gate      textGate
@@ -120,7 +129,8 @@ type window struct {
 	srv         *notify.Server  // nil when the listener could not start
 	inbox       inbox           // notify goroutines -> UI goroutine
 	alerts      alerts          // UI goroutine only
-	chime       func(time.Time) // sound.Player.Play; nil when both chimes are off
+	alertMu     sync.Mutex      // guards chime and the alert settings onNotify reads
+	chime       func(time.Time) // sound.Player.Play; nil until a chime is on or tested
 	flash       func()          // flashes the taskbar button
 	toastTag    *int
 	liveMgr     atomic.Pointer[tabs.Manager] // win.mgr, for onNotify
@@ -132,6 +142,13 @@ type window struct {
 	usageIn usageBox                // notify goroutines -> UI goroutine
 	acct    notify.Usage            // plan limits (no Ctx); UI goroutine only
 	ctx     map[tabs.TabID]ctxEntry // per-tab context use; UI goroutine only
+
+	set     settingsState // the Settings page; UI goroutine only
+	cfgPath string        // where the page saves; "" applies changes without saving
+
+	claudePath string      // Claude Code's settings.json; "" checks nothing
+	exePath    string      // this kaze, which a Claude setup fix points the entries at
+	claude     claudeState // the Claude section's setup check and dialog
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -141,7 +158,6 @@ func Run(w *app.Window, opt Options) error {
 	opt.Warnings = append(opt.Warnings, warns...)
 	win := &window{
 		w: w, opt: opt, km: km,
-		pal:      applyColors(render.DefaultPalette(), opt.Config.Colors),
 		ui:       newChrome(),
 		termTag:  new(int),
 		barTag:   new(int),
@@ -154,15 +170,21 @@ func Run(w *app.Window, opt Options) error {
 		capTag: new(int),
 
 		toastTag: new(int),
+		cfgPath:  config.Path(),
 	}
+	win.applyTheme(startTheme(opt.Config))
 	win.snapFocused.Store(true)
 	win.flash = func() { flashTaskbar(win.hwnd.Load()) }
+	if home := win.home; home != "" {
+		win.claudePath = filepath.Join(home, ".claude", "settings.json")
+	}
+	if exe, err := os.Executable(); err == nil {
+		win.exePath = exe
+	}
 	if c := opt.Config; c.ChimeNeeds || c.ChimeDone {
-		p, warn := sound.New(c.ChimeFile)
-		if warn != "" {
+		if warn := win.ensureChime(); warn != "" {
 			win.opt.Warnings = append(win.opt.Warnings, warn)
 		}
-		win.chime = p.Play
 	}
 	// Last: onNotify may run as soon as this returns.
 	if srv, err := notify.Listen(win.onNotify); err != nil {
@@ -171,6 +193,31 @@ func Run(w *app.Window, opt Options) error {
 		win.srv = srv
 	}
 	return win.loop()
+}
+
+// newChime builds the chime player; tests replace it.
+var newChime = func(file string) (func(time.Time), string) {
+	p, warn := sound.New(file)
+	return p.Play, warn
+}
+
+// ensureChime builds the player the first time a chime is needed, so turning a
+// chime on (or pressing Test) works when both were off at startup.
+// The player is built outside alertMu: reading a WAV file must not hold up onNotify.
+func (win *window) ensureChime() (warn string) {
+	win.alertMu.Lock()
+	have := win.chime != nil
+	win.alertMu.Unlock()
+	if have {
+		return ""
+	}
+	play, warn := newChime(win.opt.Config.ChimeFile) // ChimeFile only changes on the UI goroutine
+	win.alertMu.Lock()
+	if win.chime == nil {
+		win.chime = play
+	}
+	win.alertMu.Unlock()
+	return warn
 }
 
 func shellName(argv []string) string {
@@ -306,6 +353,7 @@ func (win *window) start(env []string) (ptyx.Session, error) {
 }
 
 func (win *window) newTab() {
+	win.hideSettings() // the new tab is shown
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
 		// A windowsgui build has no console, so the status bar is where this can be seen.
@@ -315,14 +363,76 @@ func (win *window) newTab() {
 	}
 }
 
+// startTheme is the theme named in the config; Load already warned about unknown names.
+func startTheme(c config.Config) theme.Theme {
+	if t, ok := theme.ByKey(c.Theme); ok {
+		return t
+	}
+	return theme.Default()
+}
+
+// applyTheme repaints the terminal and chrome; [colors] overrides still win over the theme.
+func (win *window) applyTheme(t theme.Theme) {
+	win.pal = applyColors(t.Term, win.opt.Config.Colors)
+	win.ui.setTheme(t)
+	win.rendStale = true // rebuilt next frame with the new palette
+	win.w.Invalidate()
+}
+
+// rendOptions maps the look settings to the renderer; Load already validated them.
+func rendOptions(c config.Config) render.Options {
+	o := render.Options{LineScale: 1, Cursor: render.CursorBlock}
+	switch c.LineSpacing {
+	case "tight":
+		o.LineScale = 0.92
+	case "roomy":
+		o.LineScale = 1.2
+	}
+	switch c.CursorStyle {
+	case "bar":
+		o.Cursor = render.CursorBar
+	case "underline":
+		o.Cursor = render.CursorUnderline
+	}
+	return o
+}
+
+// blinks reports whether the cursor blinks: only while the terminal is in front of the user.
+func (win *window) blinks() bool {
+	return win.opt.Config.CursorBlink && win.focused && !win.set.shown
+}
+
+// blink sets the cursor's phase for now and returns when the next phase starts;
+// ok is false when the cursor is steady, so an idle window never wakes for it.
+func (win *window) blink(now time.Time) (next time.Time, ok bool) {
+	if !win.blinks() {
+		win.blinkFrom = time.Time{}
+		win.setCursorHidden(false)
+		return time.Time{}, false
+	}
+	if win.blinkFrom.IsZero() || now.Before(win.blinkFrom) {
+		win.blinkFrom = now
+	}
+	n := now.Sub(win.blinkFrom) / blinkEvery
+	win.setCursorHidden(n%2 == 1)
+	return win.blinkFrom.Add((n + 1) * blinkEvery), true
+}
+
+func (win *window) setCursorHidden(h bool) {
+	win.cursorHidden = h
+	if win.rend != nil {
+		win.rend.SetCursorShown(!h)
+	}
+}
+
 func (win *window) frame(gtx layout.Context) error {
 	barH, statusH, pad := gtx.Dp(38), gtx.Dp(24), gtx.Dp(8)
 	px := gtx.Metric.PxPerSp * win.opt.Config.FontSize
-	if win.rend == nil || px != win.rendPx {
+	if win.rend == nil || win.rendStale || px != win.rendPx {
 		// A DPI change (another monitor) needs glyphs at the new size.
-		win.rend = render.NewRenderer(px, win.pal)
+		win.rend = render.NewRenderer(px, win.pal, rendOptions(win.opt.Config))
 		win.rend.SetFocused(win.focused)
-		win.rendPx = px
+		win.rendPx, win.rendStale = px, false
 	}
 	cw, ch := win.rend.CellSize()
 	size := gtx.Constraints.Max
@@ -362,7 +472,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.barEvents(gtx)
 	win.toastEvents(gtx)
 	active := win.mgr.Active()
-	if active != nil {
+	if win.set.shown {
+		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
+	} else if active != nil {
 		win.termEvents(gtx, active, cw, ch)
 	}
 	if win.mgr.Empty() {
@@ -376,19 +488,27 @@ func (win *window) frame(gtx layout.Context) error {
 	win.alerts.prune(func(id tabs.TabID) bool {
 		return slices.ContainsFunc(list, func(t *tabs.Tab) bool { return t.ID == id })
 	})
-	win.publish(active, win.focused)
+	win.publish(win.shownTab(), win.focused)
 	win.drainAlerts(gtx.Now)
 	win.drainUsage()
-	win.visit(active)
+	win.visit(win.shownTab())
 	win.autoScroll(gtx, active, cw, ch)
 	sel := win.checkSel(active)
+	// After input, so a key typed this frame shows the cursor in it.
+	if next, ok := win.blink(gtx.Now); ok {
+		gtx.Execute(op.InvalidateCmd{At: next}) // one wake per phase, only while blinking
+	}
 
 	ops := gtx.Ops
 
 	// Tab bar, plus the caption buttons and the empty space that moves the window.
 	bar := gtx
 	bar.Constraints = layout.Exact(image.Pt(size.X, barH))
-	win.drawBar(bar, list, active.ID, barH)
+	var shown tabs.TabID // none while settings is shown
+	if t := win.shownTab(); t != nil {
+		shown = t.ID
+	}
+	win.drawBar(bar, list, shown, barH)
 	area := clip.Rect(win.bar.Tabs).Push(ops)
 	event.Op(ops, win.barTag)
 	area.Pop()
@@ -402,36 +522,23 @@ func (win *window) frame(gtx layout.Context) error {
 		area.Pop()
 	}
 	if win.custom {
-		area = clip.Rect(win.bar.Buttons[0].Union(win.bar.Buttons[2])).Push(ops)
+		area = clip.Rect(win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])).Push(ops)
 		event.Op(ops, win.capTag)
 		area.Pop()
 	}
 
-	// Terminal: only the active tab is drawn.
-	paint.FillShape(ops, win.pal.BG, clip.Rect(termRect).Op())
-	area = clip.Rect(termRect).Push(ops)
-	event.Op(ops, win.termTag)
-	area.Pop()
-	g := clip.Rect(grid).Push(ops)
-	off := op.Offset(grid.Min).Push(ops)
-	tg := gtx
-	tg.Constraints = layout.Exact(grid.Size())
-	if win.bench != nil {
-		win.benchBeforeDraw(active)
+	if win.set.shown {
+		win.drawSettings(gtx, termRect) // the renderer is not laid out
+	} else {
+		win.drawTerminal(gtx, active, termRect, grid, &sel)
 	}
-	win.rend.Layout(tg, active.Session, &sel)
-	if win.bench != nil {
-		win.benchAfterDraw(active)
-	}
-	off.Pop()
-	g.Pop()
 
 	// Status bar.
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
 	win.ui.layoutStatus(sg, win.statusParts(), statusH)
-	if at := usage.NextReset(win.acct, gtx.Now); !at.IsZero() {
+	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
 	}
 	if at, ok := win.noticeWake(time.Now()); ok {
@@ -443,7 +550,11 @@ func (win *window) frame(gtx layout.Context) error {
 	if next, _ := win.alerts.expire(gtx.Now); !next.IsZero() {
 		gtx.Execute(op.InvalidateCmd{At: next}) // one wake for the next done toast, no ticker
 	}
-	win.drawToasts(gtx, size.Y, statusH, barH)
+	if win.dialogShown() {
+		win.ui.toastHits = win.ui.toastHits[:0] // the confirm dialog answers every click; toasts wait
+	} else {
+		win.drawToasts(gtx, size.Y, statusH, barH)
+	}
 	for _, h := range win.ui.toastHits {
 		area = clip.Rect(h.rect).Push(ops)
 		event.Op(ops, win.toastTag)
@@ -451,10 +562,55 @@ func (win *window) frame(gtx layout.Context) error {
 	}
 
 	if win.wantFocus {
-		gtx.Execute(key.FocusCmd{Tag: win.termTag})
+		var tag event.Tag = win.termTag
+		if win.set.shown {
+			tag = &win.set.tag
+		}
+		gtx.Execute(key.FocusCmd{Tag: tag})
 		win.wantFocus = false
 	}
 	return nil
+}
+
+// usageWake is when the status bar's usage next changes on its own.
+func (win *window) usageWake(now time.Time) (time.Time, bool) {
+	if !win.opt.Config.ShowUsage {
+		return time.Time{}, false // nothing shown, nothing to clear at a reset
+	}
+	at := usage.NextReset(win.acct, now)
+	return at, !at.IsZero()
+}
+
+// drawTerminal draws the active tab, the only one drawn, and takes the terminal's input.
+func (win *window) drawTerminal(gtx layout.Context, active *tabs.Tab, termRect, grid image.Rectangle, sel *render.Selection) {
+	ops := gtx.Ops
+	paint.FillShape(ops, win.pal.BG, clip.Rect(termRect).Op())
+	area := clip.Rect(termRect).Push(ops)
+	event.Op(ops, win.termTag)
+	area.Pop()
+	g := clip.Rect(grid).Push(ops)
+	off := op.Offset(grid.Min).Push(ops)
+	tg := gtx
+	tg.Constraints = layout.Exact(grid.Size())
+	if win.bench != nil {
+		win.benchBeforeDraw(active)
+	}
+	if win.rend != nil { // frame builds it first; a nil here must not take the window down
+		win.rend.Layout(tg, active.Session, sel)
+	}
+	if win.bench != nil {
+		win.benchAfterDraw(active)
+	}
+	off.Pop()
+	g.Pop()
+}
+
+// shownTab is the terminal tab in front of the user, or nil while settings is shown.
+func (win *window) shownTab() *tabs.Tab {
+	if win.set.shown {
+		return nil
+	}
+	return win.mgr.Active()
 }
 
 // switchedTo redraws a newly shown tab in full and moves focus reports to it.
@@ -482,6 +638,9 @@ func (win *window) switchedTo(t *tabs.Tab) {
 
 func (win *window) updateTitle(t *tabs.Tab) {
 	title := "kaze · " + tabLabel(t, win.defTitle)
+	if win.set.shown {
+		title = "kaze · Settings"
+	}
 	if title != win.winTitle {
 		win.winTitle = title
 		win.w.Option(app.Title(title))
@@ -518,9 +677,10 @@ func (win *window) statusText(n int) string {
 // caption buttons less a minimum drag area, and whatever it doesn't use is added to it.
 func (win *window) drawBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, barH int) {
 	size := image.Pt(gtx.Constraints.Max.X, barH)
-	d := barDims{buttonW: gtx.Dp(46), minDrag: gtx.Dp(48), band: gtx.Dp(tabTop)}
+	d := barDims{buttonW: gtx.Dp(46), gearW: gtx.Dp(46), minDrag: gtx.Dp(48), band: gtx.Dp(tabTop)}
 	room := layoutBar(size, size.X, d, win.custom).Tabs.Max.X
-	used := win.ui.layoutTabBar(gtx, list, active, win.alerts.markOf, win.defTitle, barH, room)
+	chip := settingsChip{open: win.set.open, shown: win.set.shown}
+	used := win.ui.layoutTabBar(gtx, list, active, win.alerts.markOf, win.defTitle, barH, room, chip)
 	win.bar = layoutBar(size, used, d, win.custom)
 	if win.custom {
 		win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized)
@@ -538,7 +698,11 @@ func (win *window) captionEvent(e pointer.Event) {
 		return
 	}
 	before := win.caption
-	if c := win.caption.pointer(e.Kind, e.Position.Round(), win.bar); c != capNone {
+	switch c := win.caption.pointer(e.Kind, e.Position.Round(), win.bar); c {
+	case capNone:
+	case capGear:
+		win.openSettings()
+	default:
 		win.perform(actionFor(c, win.maximized))
 	}
 	if win.caption != before {
@@ -564,21 +728,38 @@ func (win *window) barEvents(gtx layout.Context) {
 		if !ok {
 			return
 		}
-		e, ok := ev.(pointer.Event)
-		if !ok || e.Kind != pointer.Press || win.bench.IgnoreInput() {
-			continue
+		if e, ok := ev.(pointer.Event); ok {
+			win.barPress(e)
 		}
-		win.wantFocus = true
-		id, onClose, onPlus := win.ui.hits.at(e.Position.Round())
+	}
+}
+
+// barPress handles a press on the tab strip.
+func (win *window) barPress(e pointer.Event) {
+	if e.Kind != pointer.Press || win.bench.IgnoreInput() {
+		return
+	}
+	win.wantFocus = true
+	p := e.Position.Round()
+	primary, middle := e.Buttons.Contain(pointer.ButtonPrimary), e.Buttons.Contain(pointer.ButtonTertiary)
+	if on, onClose := win.ui.hits.settingsAt(p); on {
 		switch {
-		case onPlus && e.Buttons.Contain(pointer.ButtonPrimary):
-			win.newTab()
-		case id == 0:
-		case onClose && e.Buttons.Contain(pointer.ButtonPrimary), e.Buttons.Contain(pointer.ButtonTertiary):
-			win.mgr.Close(id)
-		case e.Buttons.Contain(pointer.ButtonPrimary):
-			win.selectTab(id)
+		case onClose && primary, middle:
+			win.closeSettings()
+		case primary:
+			win.openSettings()
 		}
+		return
+	}
+	id, onClose, onPlus := win.ui.hits.at(p)
+	switch {
+	case onPlus && primary:
+		win.newTab()
+	case id == 0:
+	case onClose && primary, middle:
+		win.mgr.Close(id)
+	case primary:
+		win.selectTab(id)
 	}
 }
 
@@ -632,7 +813,13 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 	for i, ev := range batch {
 		switch e := ev.(type) {
 		case key.Event:
+			if e.State == key.Press {
+				win.blinkFrom = time.Time{} // typing shows the cursor and restarts the blink
+			}
 			win.onKey(gtx, t, e, m)
+			if win.set.shown {
+				return // the key showed settings; the rest of the frame's input is not the terminal's
+			}
 			if a := win.mgr.Active(); a != t {
 				// The key opened, closed or switched tabs; the rest of the frame's input goes to the new one.
 				win.endGesture()
@@ -645,6 +832,7 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 			win.composing = compositionActive(e)
 		case key.EditEvent:
 			edited = true
+			win.blinkFrom = time.Time{}
 			if win.gate.allow() && editCommits(batch, i, win.composing) && e.Text != "" {
 				win.benchKey(t)
 				t.Session.Write(input.EncodeText(e.Text))
@@ -676,9 +864,11 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	case actCloseTab:
 		win.mgr.Close(t.ID)
 	case actNextTab:
-		win.mgr.Next()
+		win.cycleTab(1)
 	case actPrevTab:
-		win.mgr.Prev()
+		win.cycleTab(-1)
+	case actOpenSettings:
+		win.openSettings()
 	case actPaste:
 		gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
 	case actCopy:

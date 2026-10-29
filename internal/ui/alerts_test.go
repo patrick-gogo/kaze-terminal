@@ -189,6 +189,7 @@ func alertWindow(t *testing.T, n int) (*window, *[]time.Time) {
 	var played []time.Time
 	win.chime = func(at time.Time) { played = append(played, at) }
 	win.opt.Config.ChimeNeeds = true
+	win.opt.Config.TaskbarFlash, win.opt.Config.ShowUsage = true, true
 	return win, &played
 }
 
@@ -442,12 +443,12 @@ func TestTabDotsFollowMarks(t *testing.T) {
 		{list[2].ID, false, true, 0x62d39a},
 	}
 	for _, c := range cases {
-		col, ok := dotColor(c.on, win.alerts.markOf(c.id))
+		col, ok := win.ui.dotColor(c.on, win.alerts.markOf(c.id))
 		if ok != c.want || col != rgb(c.col) {
 			t.Fatalf("tab %d: dot %v %v, want %06x", c.id, col, ok, c.col)
 		}
 	}
-	if _, ok := dotColor(false, markNone); ok {
+	if _, ok := win.ui.dotColor(false, markNone); ok {
 		t.Fatal("an unmarked inactive tab has a dot")
 	}
 }

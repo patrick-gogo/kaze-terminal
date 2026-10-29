@@ -31,7 +31,9 @@ type locEntry struct {
 func (win *window) statusParts() statusParts {
 	p := statusParts{Right: win.statusText(len(win.mgr.Tabs()))}
 	t := win.mgr.Active()
-	p.Usage = win.usageSegments(t, time.Now())
+	if win.opt.Config.ShowUsage {
+		p.Usage = win.usageSegments(t, time.Now())
+	}
 	if t == nil {
 		return p
 	}

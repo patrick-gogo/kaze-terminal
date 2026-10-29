@@ -1,0 +1,26 @@
+{
+  "RT_GROUP_ICON": {
+    "#1": {
+      "0000": "../../../assets/branding/kaze-icon-512.png"
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": {
+          "file_version": "0.5.0.0",
+          "product_version": "0.5.0.0"
+        },
+        "info": {
+          "0409": {
+            "FileDescription": "kaze terminal",
+            "FileVersion": "0.5",
+            "LegalCopyright": "MIT License",
+            "ProductName": "kaze",
+            "ProductVersion": "0.5"
+          }
+        }
+      }
+    }
+  }
+}
