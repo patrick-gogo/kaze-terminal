@@ -203,7 +203,8 @@ While one member is shown it reads `samurai › admin`.
   while the list is closed. "Done" works the same in green. Visiting the member clears it.
 - Ctrl+Tab and Ctrl+Shift+Tab step through the members one by one, like any other tabs.
 - The chip has no × of its own, so you can't close four servers by accident. Close members one at a
-  time (Ctrl+Shift+W, or the × in the list). The group goes away with its last member.
+  time with your close-tab shortcut (Ctrl+Shift+W, Cmd+W on macOS) or the × in the list. The group
+  goes away with its last member.
 - Only a workspace run makes a group. You can't drag ordinary tabs into one.
 
 ### How commands are sent
@@ -211,15 +212,17 @@ While one member is shown it reads `samurai › admin`.
 A tab's commands are typed as one line, then Enter. In PowerShell the lines are joined as
 `a; if ($?) { b }; if ($?) { c }`, and in zsh, bash and sh as `a && b && c`, so a line runs only
 if the one before it worked. It runs in the tab's own shell, so a venv activation or `cd` stays in
-effect, the shell stays open afterwards, and the exact line shows in the shell's history. A shell
-kaze can't join for (anything but pwsh, powershell, zsh, bash or sh) still opens tabs without
-commands; a tab with commands says why it didn't start.
+effect, the shell stays open afterwards, and the exact line shows in the shell's history. If your
+shell isn't pwsh, powershell, zsh, bash or sh and any tab of the workspace has commands, kaze
+refuses the whole run and shows a status-bar message naming that tab; nothing opens. (At startup
+the message goes into the usual first tab instead.)
 
 kaze types only after the shell has shown its first prompt. It knows that from the folder report
 described under "Folder and branch in the status bar" below, so add that snippet to your profile
 for hands-off launching. Without it, after 3 seconds the tab shows a banner with **Run commands**
 and **Use shell**: the first types the commands anyway, the second leaves the tab to you. Typing in
-a tab that is still waiting cancels its commands.
+a tab that is still waiting cancels its commands. A workspace waiting in a minimized window starts
+its commands when the window is shown again.
 
 When a tab waits for Docker, kaze starts Docker Desktop once if it isn't running. Docker and port
 waits give up after 3 minutes with a message in that tab, and the commands are not run.

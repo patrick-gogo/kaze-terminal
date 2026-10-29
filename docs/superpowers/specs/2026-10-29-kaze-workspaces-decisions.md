@@ -30,7 +30,7 @@ Four or five tabs per project is too much tab-strip space. Until kaze has real p
   - zsh / bash: `a && b && c`
 - It runs in the tab's own interactive shell, so a venv activation or `cd` stays in effect, a long-running last command never receives later lines as input, and the exact line is visible in the shell's history.
 - No generated temporary scripts. Command text is the owner's own and is not re-quoted.
-- A shell kaze does not know how to join for (anything but pwsh, powershell, zsh, bash, sh) can still open command-free workspace tabs; command-bearing tabs fail preflight with a clear message (agrees with the proposal).
+- A shell kaze does not know how to join for (anything but pwsh, powershell, zsh, bash, sh) can still run a workspace whose tabs have no commands; if any tab has commands, preflight refuses the whole run with a message naming that tab, and nothing opens (agrees with the proposal).
 - The proposal's input-queue fix stays: delivery of the line reports accepted / full / closed and is never retried.
 
 ## 4. Smaller changes
