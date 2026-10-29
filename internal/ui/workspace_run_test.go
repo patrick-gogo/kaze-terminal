@@ -22,6 +22,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/config"
+	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 	"github.com/patrick-gogo/kaze-terminal/internal/ptyx"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/workspaces"
@@ -618,5 +619,99 @@ func TestFrameDrawsTheBannerOverTheTerminal(t *testing.T) {
 	sizedFrame(t, f.win, &r, 800, 600)
 	if len(f.win.wsr.hits) != 0 {
 		t.Fatal("the banner kept its buttons under the settings page")
+	}
+}
+
+// A key typed in the same frame that the dependency and the prompt become
+// ready wins: the owner's input is forwarded and the line is never typed.
+func TestKeyInTheSameFrameAsReadinessWins(t *testing.T) {
+	f := newRunFixture(t)
+	f.deps.portOK = true
+	f.win.opt.Config = config.Default()
+	f.win.runWorkspace("ws_samurai")
+	var r input.Router
+	sizedFrame(t, f.win, &r, 800, 600) // focuses the terminal on the first member
+
+	close(f.deps.dockerUp)
+	deadline := time.Now().Add(3 * time.Second)
+	for len(f.win.wsr.results) == 0 { // queued, not yet drained: no tick runs here
+		if time.Now().After(deadline) {
+			t.Fatal("the Docker result never arrived")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	api := f.win.mgr.Tabs()[0]
+	go f.st.pty(0).w.Write([]byte("\x1b]133;A\x07PS> "))
+	for !promptSeen(api.Session) {
+		if time.Now().After(deadline) {
+			t.Fatal("the prompt marker never arrived")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if f.state(0) != workspaces.Waiting {
+		t.Fatalf("api is %v before the frame, want Waiting", f.state(0))
+	}
+
+	r.Queue(key.Event{Name: key.NameReturn, State: key.Press})
+	sizedFrame(t, f.win, &r, 800, 600)
+	if f.state(0) != workspaces.Cancelled {
+		t.Fatalf("api is %v after the frame, want Cancelled", f.state(0))
+	}
+	waitSent(t, f.st.pty(0), "\r")
+	time.Sleep(10 * time.Millisecond)
+	if got := f.st.pty(0).sent(); got != "\r" {
+		t.Fatalf("api got %q, want only the typed Enter", got)
+	}
+}
+
+func TestAppWheelTakesOverButHoverDoesNot(t *testing.T) {
+	f := newRunFixture(t)
+	f.deps.portOK = true
+	f.win.runWorkspace("ws_samurai")
+	tab := f.win.mgr.Tabs()[0]
+	go f.st.pty(0).w.Write([]byte("\x1b[?1003h")) // any-motion mouse mode
+	f.until("mouse mode on", func() bool { return modes(tab.Session).MouseAny })
+	f.win.onPointer(layout.Context{}, tab, pointer.Event{Kind: pointer.Move, Position: cellPos(2, 2)}, modes(tab.Session), testCW, testCH)
+	if f.state(0) != workspaces.Waiting {
+		t.Fatalf("api is %v after a hover report, want Waiting", f.state(0))
+	}
+	f.win.onPointer(layout.Context{}, tab, pointer.Event{Kind: pointer.Scroll, Scroll: f32.Pt(0, -120), Position: cellPos(2, 2)}, modes(tab.Session), testCW, testCH)
+	if f.state(0) != workspaces.Cancelled {
+		t.Fatalf("api is %v after a wheel report to the app, want Cancelled", f.state(0))
+	}
+}
+
+// A run whose only missing tab is one the owner took over is not a failure.
+func TestTakeoverOnlyRunGetsADoneCard(t *testing.T) {
+	f := newRunFixture(t)
+	f.deps.portOK = true
+	close(f.deps.dockerUp)
+	f.win.runWorkspace("ws_samurai")
+	f.win.route(layout.Context{}, []event.Event{key.EditEvent{Text: "x"}}, testCW, testCH)
+	for i := 1; i < 4; i++ {
+		f.prompt(i)
+	}
+	f.until("every tab settled", f.allSettled)
+	tst := f.runToast()
+	if tst.Kind != notify.KindDone || tst.Until.IsZero() {
+		t.Fatalf("toast kind %q until %v, want a timed done card", tst.Kind, tst.Until)
+	}
+	if got := tst.Title + tst.Text; got != "samurai: started 3 of 4 tabs" {
+		t.Fatalf("summary %q", got)
+	}
+	if label, needs := f.win.runState(f.theRun().id); label != "3 of 4" || needs {
+		t.Fatalf("run state %q needs %v, want 3 of 4 without needs", label, needs)
+	}
+}
+
+func TestFailedBannerOffersDismiss(t *testing.T) {
+	f := newRunFixture(t)
+	f.win.runWorkspace("ws_samurai")
+	f.until("api logs failed", func() bool { return f.state(3) == workspaces.Failed })
+	if got := bannerButtons(&f.theRun().members[3].run); len(got) != 1 || got[0].text != "Dismiss" {
+		t.Fatalf("failed banner buttons %+v, want only Dismiss", got)
+	}
+	if got := bannerButtons(&f.theRun().members[0].run); len(got) != 1 || got[0].text != "Use shell" {
+		t.Fatalf("waiting banner buttons %+v, want only Use shell", got)
 	}
 }

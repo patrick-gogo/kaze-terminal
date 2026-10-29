@@ -145,7 +145,8 @@ func (r *TabRun) Settled() bool {
 	return r.State == Launched || r.State == Failed || r.State == Cancelled
 }
 
-// Summary is the one-line result of a settled run, and whether every tab started.
+// Summary is the one-line result of a settled run, and whether no tab failed; a
+// tab the owner took over is not a failure.
 func Summary(name string, runs []TabRun, titles []string) (string, bool) {
 	started := 0
 	var fails []string
@@ -161,7 +162,7 @@ func Summary(name string, runs []TabRun, titles []string) (string, bool) {
 	if len(fails) > 0 {
 		s += ". " + strings.Join(fails, " ")
 	}
-	return s, started == len(runs)
+	return s, len(fails) == 0
 }
 
 func lowerFirst(s string) string {

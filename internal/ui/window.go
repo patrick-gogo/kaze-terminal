@@ -977,6 +977,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 			return
 		}
 		if b := input.EncodeWheel(n, col, row, m); b != nil {
+			win.takeOver(t) // the app is reading the wheel, so the owner is using it
 			t.Session.Write(b)
 			return
 		}

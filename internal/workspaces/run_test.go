@@ -197,18 +197,19 @@ func TestSummary(t *testing.T) {
 		runs   []TabRun
 		titles []string
 		want   string
-		full   bool
+		ok     bool
 	}{
 		{"all", []TabRun{ok, ok, ok, ok}, []string{"api", "admin", "storefront", "api logs"}, "samurai: started 4 of 4 tabs", true},
 		{"port", []TabRun{ok, ok, ok, {State: Failed, Err: "Port 8000 never answered."}}, []string{"api", "admin", "storefront", "api logs"},
 			"samurai: started 3 of 4 tabs. api logs: port 8000 never answered.", false},
+		{"takeover only", []TabRun{ok, {State: Cancelled}}, []string{"api", "admin"}, "samurai: started 1 of 2 tabs", true},
 		{"two failures and a takeover", []TabRun{{State: Failed, Err: "Docker is not installed."}, {State: Cancelled}, ok, {State: Failed, Err: "Port 8000 never answered."}}, []string{"api", "admin", "storefront", "api logs"},
 			"samurai: started 1 of 4 tabs. api: docker is not installed. api logs: port 8000 never answered.", false},
 	}
 	for _, c := range cases {
-		got, full := Summary("samurai", c.runs, c.titles)
-		if got != c.want || full != c.full {
-			t.Errorf("%s: Summary = %q, %v; want %q, %v", c.name, got, full, c.want, c.full)
+		got, ok := Summary("samurai", c.runs, c.titles)
+		if got != c.want || ok != c.ok {
+			t.Errorf("%s: Summary = %q, %v; want %q, %v", c.name, got, ok, c.want, c.ok)
 		}
 	}
 }
