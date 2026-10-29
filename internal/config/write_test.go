@@ -138,3 +138,20 @@ func TestLoadNewKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestSetKeepsCommentedCRLFFileWithColors(t *testing.T) {
+	const in = "# kaze settings\r\nfont_size = 14  # x\r\n\r\n# colors\r\n[colors]\r\nbg = \"#ffffff\"  # c\r\n"
+	p := write(t, in)
+	if err := Set(p, "theme", "sumi"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(p)
+	want := "# kaze settings\r\nfont_size = 14  # x\r\ntheme = \"sumi\"\r\n\r\n# colors\r\n[colors]\r\nbg = \"#ffffff\"  # c\r\n"
+	if string(got) != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	cfg, warns, err := Load(p)
+	if err != nil || len(warns) != 0 || cfg.Theme != "sumi" || cfg.Colors["bg"] != "#ffffff" {
+		t.Fatalf("cfg %+v warns %v err %v", cfg, warns, err)
+	}
+}

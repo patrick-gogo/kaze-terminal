@@ -60,8 +60,11 @@ func Set(path, key string, value any) error {
 			}
 			lines = append(lines, line)
 		} else {
-			// Above the table, but keep the blank line that separates them.
+			// Above the table's own comment block and the blank line before it.
 			at := firstTable
+			for at > 0 && strings.HasPrefix(strings.TrimSpace(lines[at-1]), "#") {
+				at--
+			}
 			for at > 0 && strings.TrimSpace(lines[at-1]) == "" {
 				at--
 			}
