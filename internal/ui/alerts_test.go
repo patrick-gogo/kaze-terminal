@@ -189,6 +189,7 @@ func alertWindow(t *testing.T, n int) (*window, *[]time.Time) {
 	var played []time.Time
 	win.chime = func(at time.Time) { played = append(played, at) }
 	win.opt.Config.ChimeNeeds = true
+	win.opt.Config.TaskbarFlash, win.opt.Config.ShowUsage = true, true
 	return win, &played
 }
 

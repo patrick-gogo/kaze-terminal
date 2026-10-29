@@ -7,10 +7,12 @@ import (
 	"image"
 	"io"
 	"log"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -126,7 +128,8 @@ type window struct {
 	srv         *notify.Server  // nil when the listener could not start
 	inbox       inbox           // notify goroutines -> UI goroutine
 	alerts      alerts          // UI goroutine only
-	chime       func(time.Time) // sound.Player.Play; nil when both chimes are off
+	alertMu     sync.Mutex      // guards chime and the alert settings onNotify reads
+	chime       func(time.Time) // sound.Player.Play; nil until a chime is on or tested
 	flash       func()          // flashes the taskbar button
 	toastTag    *int
 	liveMgr     atomic.Pointer[tabs.Manager] // win.mgr, for onNotify
@@ -141,6 +144,10 @@ type window struct {
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
+
+	claudePath string      // Claude Code's settings.json; "" checks nothing
+	exePath    string      // this kaze, which a Claude setup fix points the entries at
+	claude     claudeState // the Claude section's setup check and dialog
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -167,12 +174,16 @@ func Run(w *app.Window, opt Options) error {
 	win.applyTheme(startTheme(opt.Config))
 	win.snapFocused.Store(true)
 	win.flash = func() { flashTaskbar(win.hwnd.Load()) }
+	if home := win.home; home != "" {
+		win.claudePath = filepath.Join(home, ".claude", "settings.json")
+	}
+	if exe, err := os.Executable(); err == nil {
+		win.exePath = exe
+	}
 	if c := opt.Config; c.ChimeNeeds || c.ChimeDone {
-		p, warn := sound.New(c.ChimeFile)
-		if warn != "" {
+		if warn := win.ensureChime(); warn != "" {
 			win.opt.Warnings = append(win.opt.Warnings, warn)
 		}
-		win.chime = p.Play
 	}
 	// Last: onNotify may run as soon as this returns.
 	if srv, err := notify.Listen(win.onNotify); err != nil {
@@ -181,6 +192,23 @@ func Run(w *app.Window, opt Options) error {
 		win.srv = srv
 	}
 	return win.loop()
+}
+
+// newChime builds the chime player; tests replace it.
+var newChime = func(file string) (func(time.Time), string) {
+	p, warn := sound.New(file)
+	return p.Play, warn
+}
+
+// ensureChime builds the player the first time a chime is needed, so turning a
+// chime on (or pressing Test) works when both were off at startup.
+func (win *window) ensureChime() (warn string) {
+	win.alertMu.Lock()
+	defer win.alertMu.Unlock()
+	if win.chime == nil {
+		win.chime, warn = newChime(win.opt.Config.ChimeFile)
+	}
+	return warn
 }
 
 func shellName(argv []string) string {

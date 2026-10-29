@@ -47,17 +47,29 @@ type navHit struct {
 // settingRow is one line of a section: label and dim hint on the left, controls on the right.
 type settingRow struct {
 	label, hint string
+	lines       []string // extra lines between the label and the hint (the setup check)
 	ctrls       []ctrl
 	block       bool // the controls sit under the label across the pane (theme swatches)
 }
 
 // settingsSection is one entry of the page's menu. rows builds its content each
-// frame from the window's state; act runs one of its controls (see activate).
+// frame from the window's state; act runs one of its controls (see activate);
+// show runs each time the section comes into view; dialog, when it returns one,
+// covers the page and takes every click.
 type settingsSection struct {
 	title, hint string
 	later       bool // greyed with "coming next" and not selectable
 	rows        func(win *window) []settingRow
 	act         func(win *window, id string, arg int)
+	show        func(win *window)
+	dialog      func(win *window) *dialogBox
+}
+
+// dialogBox is a confirm box over the page: a title, plain lines, code lines and buttons.
+type dialogBox struct {
+	title       string
+	lines, code []string
+	buttons     []ctrl
 }
 
 // defaultSections are the page's menu; the Appearance and Claude sections fill in rows and act.
@@ -65,7 +77,7 @@ func defaultSections() []settingsSection {
 	return []settingsSection{
 		appearanceSection(),
 		{title: "Workspaces", later: true},
-		{title: "Claude", hint: "Alerts come from Claude Code hooks; usage comes from its status line."},
+		claudeSection(),
 	}
 }
 
@@ -96,6 +108,7 @@ func (win *window) openSettings() {
 	}
 	if !s.shown {
 		s.shown = true
+		win.showSection()
 		win.endGesture() // a held terminal drag must not stay stuck under the page
 		win.wantFocus = true
 	}
@@ -164,7 +177,15 @@ func (win *window) selectSection(i int) {
 		return
 	}
 	win.set.section, win.set.focus = i, -1
+	win.showSection()
 	win.w.Invalidate()
+}
+
+// showSection tells the shown section it came into view.
+func (win *window) showSection() {
+	if secs := win.sections(); win.set.section < len(secs) && secs[win.set.section].show != nil {
+		secs[win.set.section].show(win)
+	}
 }
 
 // settingsEvents takes the page's clicks and keys; the terminal gets none of them.
@@ -310,7 +331,106 @@ func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	pane := image.Rect(r.Min.X+navW+gtx.Dp(28), r.Min.Y+gtx.Dp(22), r.Max.X-gtx.Dp(28), r.Max.Y)
 	if pane.Dx() > 0 && s.section < len(secs) {
 		p.pane(pane, secs[s.section], win)
+		if dlg := secs[s.section].dialog; dlg != nil {
+			if d := dlg(win); d != nil {
+				// Only the dialog's buttons answer while it is open.
+				s.controls, s.nav = s.controls[:0], s.nav[:0]
+				p.dialog(r, d)
+			}
+		}
 	}
+}
+
+// truncateMiddle keeps both ends of a long line, so a command keeps its arguments.
+func truncateMiddle(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max || max < 3 {
+		return s
+	}
+	head := (max - 1) / 2
+	return string(r[:head]) + "…" + string(r[len(r)-(max-1-head):])
+}
+
+// dialog dims the page and draws d centered in r, its buttons bottom right.
+func (p *page) dialog(r image.Rectangle, d *dialogBox) {
+	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
+	paint.FillShape(ops, tint(col.nav, 0xc0), clip.Rect(r).Op())
+	pad, gap := gtx.Dp(20), gtx.Dp(8)
+	w := min(gtx.Dp(640), r.Dx()-gtx.Dp(32))
+	if w <= 2*pad {
+		return
+	}
+	inner := w - 2*pad
+	type line struct {
+		call op.CallOp
+		size image.Point
+	}
+	var body []line
+	add := func(s string, size unit.Sp, c color.NRGBA) {
+		call, sz := p.text(s, size, c)
+		body = append(body, line{call, sz})
+	}
+	add(d.title, 14, col.title)
+	for _, l := range d.lines {
+		for _, wl := range p.wrap(l, 12, inner) {
+			add(wl, 12, col.fg)
+		}
+	}
+	codeAt := len(body)
+	for _, l := range d.code {
+		add(truncateMiddle(l, 110), 11, col.muted)
+	}
+	var btns []line
+	var from []int
+	bw := 0
+	for i, k := range d.buttons {
+		call, size, f := p.ctrl(k, 0)
+		btns, from = append(btns, line{call, size}), append(from, f)
+		if i > 0 {
+			bw += gap
+		}
+		bw += size.X
+	}
+	h := pad
+	for i, l := range body {
+		if i == 1 || i == codeAt && codeAt < len(body) {
+			h += gap
+		}
+		h += l.size.Y
+	}
+	bh := 0
+	for _, b := range btns {
+		bh = max(bh, b.size.Y)
+	}
+	h += pad + bh + pad
+	h = min(h, r.Dy()-gtx.Dp(16))
+	box := image.Rect(r.Min.X+(r.Dx()-w)/2, r.Min.Y+(r.Dy()-h)/2, 0, 0)
+	box.Max = box.Min.Add(image.Pt(w, h))
+	paint.FillShape(ops, col.bg, clip.UniformRRect(box, gtx.Dp(10)).Op(ops))
+	stroke(ops, box, gtx.Dp(10), col.line)
+
+	// Buttons first, so a long change never pushes them off the box.
+	x, by := box.Max.X-pad-bw, box.Max.Y-pad-bh
+	for i, b := range btns {
+		at := image.Pt(x, by+(bh-b.size.Y)/2)
+		end := len(p.st.controls)
+		if i+1 < len(from) {
+			end = from[i+1]
+		}
+		p.st.shift(from[i], end, at)
+		place(ops, b.call, at)
+		x += b.size.X + gap
+	}
+	cl := clip.Rect(image.Rect(box.Min.X+pad, box.Min.Y+pad, box.Max.X-pad, by-gap)).Push(ops)
+	y := box.Min.Y + pad
+	for i, l := range body {
+		if i == 1 || i == codeAt && codeAt < len(body) {
+			y += gap
+		}
+		place(ops, l.call, image.Pt(box.Min.X+pad, y))
+		y += l.size.Y
+	}
+	cl.Pop()
 }
 
 // page draws one frame of the settings page and records its hit areas and text.
@@ -438,6 +558,17 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	if row.hint != "" {
 		hc, hs = p.text(row.hint, 11, col.dim)
 	}
+	type text struct {
+		call op.CallOp
+		size image.Point
+	}
+	var extra []text
+	extraH := 0
+	for _, l := range row.lines {
+		call, size := p.text(l, 12, col.fg)
+		extra = append(extra, text{call, size})
+		extraH += size.Y
+	}
 	gap := gtx.Dp(8)
 	type laid struct {
 		call     op.CallOp
@@ -455,11 +586,17 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 		w += size.X
 		h = max(h, size.Y)
 	}
-	labelH := ls.Y + hs.Y
+	labelH := ls.Y + extraH + hs.Y
 	rowH := max(labelH, h) + gtx.Dp(22)
-	place(ops, lc, image.Pt(r.Min.X, y+(rowH-labelH)/2))
+	ty := y + (rowH-labelH)/2
+	place(ops, lc, image.Pt(r.Min.X, ty))
+	ty += ls.Y
+	for _, e := range extra {
+		place(ops, e.call, image.Pt(r.Min.X, ty))
+		ty += e.size.Y
+	}
 	if row.hint != "" {
-		place(ops, hc, image.Pt(r.Min.X, y+(rowH-labelH)/2+ls.Y))
+		place(ops, hc, image.Pt(r.Min.X, ty))
 	}
 	x := r.Max.X - w
 	for _, c := range cs {

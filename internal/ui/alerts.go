@@ -22,9 +22,8 @@ const (
 )
 
 const (
-	doneToastFor = 6 * time.Second
-	maxToasts    = 3
-	maxReason    = 120
+	maxToasts = 3
+	maxReason = 120
 )
 
 // toast is one alert card. Text is the cleaned reason; the tab title is read
@@ -38,8 +37,23 @@ type toast struct {
 
 // alerts holds the tab marks and toasts. Used only on the UI goroutine.
 type alerts struct {
-	marks  map[tabs.TabID]mark
-	toasts []toast // oldest first, at most maxToasts
+	marks     map[tabs.TabID]mark
+	toasts    []toast // oldest first, at most maxToasts
+	doneToast string  // the done_toast setting: how long a "done" card stays
+}
+
+// doneToastFor is how long a "done" card stays for a done_toast value; 0 means
+// until seen. Anything unknown is the default, 6s.
+func doneToastFor(v string) time.Duration {
+	switch v {
+	case "3s":
+		return 3 * time.Second
+	case "10s":
+		return 10 * time.Second
+	case "until_seen":
+		return 0
+	}
+	return 6 * time.Second
 }
 
 // apply records one alert. It does nothing for a tab that is gone or for the
@@ -62,8 +76,8 @@ func (a *alerts) apply(m notify.Msg, active tabs.TabID, focused bool, exists fun
 		a.marks[id] = markDone
 	}
 	t := toast{Tab: id, Kind: m.Kind, Text: cleanReason(m.Reason)}
-	if m.Kind == notify.KindDone {
-		t.Until = now.Add(doneToastFor)
+	if d := doneToastFor(a.doneToast); m.Kind == notify.KindDone && d > 0 {
+		t.Until = now.Add(d)
 	}
 	a.dropToast(id) // one card per tab: the latest news replaces the old
 	a.toasts = append(a.toasts, t)

@@ -132,11 +132,16 @@ func (win *window) onNotify(m notify.Msg) {
 	}
 	focused := win.snapFocused.Load()
 	if id != tabs.TabID(win.snapActive.Load()) || !focused {
-		cfg := win.opt.Config
-		if win.chime != nil && (m.Kind == notify.KindNeeds && cfg.ChimeNeeds || m.Kind == notify.KindDone && cfg.ChimeDone) {
-			win.chime(time.Now()) // non-blocking; the player coalesces bursts
+		// The settings page changes these on the UI goroutine.
+		win.alertMu.Lock()
+		cfg, chime := &win.opt.Config, win.chime // only these fields: others change unlocked
+		ring := m.Kind == notify.KindNeeds && cfg.ChimeNeeds || m.Kind == notify.KindDone && cfg.ChimeDone
+		flash := m.Kind == notify.KindNeeds && !focused && cfg.TaskbarFlash
+		win.alertMu.Unlock()
+		if chime != nil && ring {
+			chime(time.Now()) // non-blocking; the player coalesces bursts
 		}
-		if m.Kind == notify.KindNeeds && !focused && win.flash != nil {
+		if flash && win.flash != nil {
 			win.flash()
 		}
 	}
@@ -160,6 +165,7 @@ func (win *window) deliver(m notify.Msg, now time.Time) {
 	if t := win.shownTab(); t != nil {
 		active = t.ID
 	}
+	win.alerts.doneToast = win.opt.Config.DoneToast
 	win.alerts.apply(m, active, win.focused, win.mgr.Has, now)
 }
 
