@@ -49,7 +49,8 @@ func KindOf(argv []string) ShellKind {
 }
 
 // JoinLine builds the single line typed into the shell. Commands are copied
-// verbatim; blank ones are skipped.
+// verbatim; blank ones are skipped. POSIX fields are grouped in the current
+// shell so operators inside one field cannot escape the surrounding && chain.
 func JoinLine(k ShellKind, cmds []string) (string, error) {
 	var parts []string
 	for _, c := range cmds {
@@ -59,6 +60,17 @@ func JoinLine(k ShellKind, cmds []string) (string, error) {
 	}
 	if len(parts) == 0 {
 		return "", nil
+	}
+	if k == ShellPOSIX && len(parts) > 1 {
+		for i, c := range parts {
+			// A brace group runs in this shell, unlike a parenthesized subshell:
+			// environment activation and cd must remain available afterwards.
+			end := "; }"
+			if endsWithSeparator(c) {
+				end = " }"
+			}
+			parts[i] = "{ " + c + end
+		}
 	}
 	var sep func(string) string
 	switch k {
@@ -75,6 +87,20 @@ func JoinLine(k ShellKind, cmds []string) (string, error) {
 		b.WriteString(sep(c))
 	}
 	return b.String(), nil
+}
+
+// endsWithSeparator distinguishes a trailing shell separator from a literal
+// escaped semicolon. Quotes cannot end at ';' in a valid complete statement.
+func endsWithSeparator(c string) bool {
+	c = strings.TrimRightFunc(c, unicode.IsSpace)
+	if !strings.HasSuffix(c, ";") {
+		return false
+	}
+	n := 0
+	for i := len(c) - 2; i >= 0 && c[i] == '\\'; i-- {
+		n++
+	}
+	return n%2 == 0
 }
 
 // CheckCommands rejects commands that type fine alone but break the joined

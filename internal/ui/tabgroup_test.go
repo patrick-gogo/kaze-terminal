@@ -428,3 +428,76 @@ func TestGroupMenuClosesWhenItsChipOverflows(t *testing.T) {
 		t.Fatal("the menu stayed open with its chip gone")
 	}
 }
+
+// largeGroupWindow exercises the maximum saved workspace size in the default window.
+func largeGroupWindow(t *testing.T) (*window, []tabs.TabID) {
+	t.Helper()
+	win, _, ids := groupWindow(t)
+	for i := len(ids); i < workspaces.MaxTabs; i++ {
+		tab, err := win.mgr.NewOpts(tabs.StartOpts{Title: "extra", Color: "cyan", Group: &tabs.Group{Workspace: "w1", Name: "samurai", Run: 1, Member: i}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		win.runs[1].members = append(win.runs[1].members, &wsMember{tab: tab.ID, title: "extra"})
+		ids = append(ids, tab.ID)
+	}
+	win.mgr.SetActive(ids[0])
+	drawGroupBar(win)
+	return win, ids
+}
+
+func wantVisibleGroupMember(t *testing.T, win *window, id tabs.TabID) {
+	t.Helper()
+	for _, r := range win.grp.rows {
+		if !r.rect.In(win.grp.card) || !r.close.In(win.grp.card) {
+			t.Fatalf("hit areas outside menu: %+v in %v", r, win.grp.card)
+		}
+		if r.id == id {
+			return
+		}
+	}
+	t.Fatalf("member %d has no visible row; scroll %d", id, win.grp.scroll)
+}
+
+func TestGroupMenuRevealsActiveMemberBeyondViewport(t *testing.T) {
+	win, ids := largeGroupWindow(t)
+	win.mgr.SetActive(ids[len(ids)-1])
+	win.openGroupMenu(1)
+	drawGroupBar(win)
+	wantVisibleGroupMember(t, win, ids[len(ids)-1])
+	if win.grp.scroll == 0 {
+		t.Fatal("large menu did not scroll to the active member")
+	}
+}
+
+func TestGroupMenuKeyboardRevealsWrappedRow(t *testing.T) {
+	win, ids := largeGroupWindow(t)
+	win.openGroupMenu(1)
+	drawGroupBar(win)
+	win.groupKey(pageContext(1000, 600), modPress(key.NameUpArrow, 0))
+	drawGroupBar(win)
+	wantVisibleGroupMember(t, win, ids[len(ids)-1])
+	win.groupKey(pageContext(1000, 600), modPress(key.NameDownArrow, 0))
+	drawGroupBar(win)
+	wantVisibleGroupMember(t, win, ids[0])
+	if win.grp.scroll != 0 {
+		t.Fatalf("first row not at top: %d", win.grp.scroll)
+	}
+}
+
+func TestGroupMenuScrollKeepsHitsWithinRows(t *testing.T) {
+	win, ids := largeGroupWindow(t)
+	win.openGroupMenu(1)
+	drawGroupBar(win)
+	win.groupPress(pointer.Event{Kind: pointer.Scroll, Scroll: f32.Pt(0, 10000)})
+	drawGroupBar(win)
+	wantVisibleGroupMember(t, win, ids[len(ids)-1])
+	header := win.grp.card.Min.Add(image.Pt(30, 15))
+	win.groupPress(pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: f32.Pt(float32(header.X), float32(header.Y))})
+	if win.grp.run != 1 || win.mgr.Active().ID != ids[0] {
+		t.Fatal("a scrolled row received a click on the fixed header")
+	}
+	win.groupPress(pointer.Event{Kind: pointer.Scroll, Scroll: f32.Pt(0, -10000)})
+	drawGroupBar(win)
+	wantVisibleGroupMember(t, win, ids[0])
+}

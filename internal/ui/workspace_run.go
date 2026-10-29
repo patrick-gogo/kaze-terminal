@@ -27,6 +27,7 @@ type wsRun struct {
 	members    []*wsMember
 	ctx        context.Context
 	cancel     context.CancelFunc
+	probes     map[string]context.CancelFunc // one context per dependency with waiting consumers
 	summarized bool
 }
 
@@ -241,7 +242,12 @@ func (win *window) startProbes(run *wsRun) {
 		}
 		started[key] = true
 		wait, port := r.Wait, r.Port
-		probes, ctx, results, w := win.wsr.probes, run.ctx, win.wsr.results, win.w
+		ctx, cancel := context.WithCancel(run.ctx)
+		if run.probes == nil {
+			run.probes = map[string]context.CancelFunc{}
+		}
+		run.probes[key] = cancel
+		probes, results, w := win.wsr.probes, win.wsr.results, win.w
 		go func() {
 			var err error
 			if wait == workspaces.WaitPort {
@@ -279,6 +285,10 @@ func (win *window) wsDrain() {
 			run := win.runs[res.run]
 			if run == nil || errors.Is(res.err, context.Canceled) {
 				continue
+			}
+			if cancel := run.probes[res.dep]; cancel != nil {
+				cancel()
+				delete(run.probes, res.dep)
 			}
 			for _, m := range run.members {
 				if m.run.Settled() || depKey(&m.run) != res.dep {
@@ -360,6 +370,22 @@ func (win *window) wsTick(now time.Time) (wake time.Time, ok bool) {
 			}
 			if !m.run.Settled() && !m.run.TimedOut && (!ok || due.Before(wake)) {
 				wake, ok = due, true
+			}
+		}
+		// A run can still be waiting for a different tab's prompt after every
+		// consumer of a dependency closes or takes over. Stop that dependency
+		// immediately rather than polling until the entire run settles.
+		for dep, cancel := range run.probes {
+			needed := false
+			for _, m := range run.members {
+				if !m.run.Settled() && !m.run.DepReady && depKey(&m.run) == dep {
+					needed = true
+					break
+				}
+			}
+			if !needed {
+				cancel()
+				delete(run.probes, dep)
 			}
 		}
 		if !run.summarized && run.settled() {

@@ -17,7 +17,7 @@
 - A launch line is submitted at most once per tab per run and is never retried.
 - `workspaces.toml` lives next to `config.toml`; kaze owns its format (header says so). Strict load: invalid file → readable error, nothing launches from it, its bytes are never replaced. Writes: temp file in the same dir + sync + rename, symlinks followed, stale-revision writes refused.
 - Readiness: first OSC 7 or OSC 133 `A` after the shell starts; none within 3s → "Waiting for shell prompt" with **Run commands** / **Use shell**. Never send on a timer alone.
-- Joined line: PowerShell `a; if ($?) { b }`; zsh/bash/sh `a && b`; one Enter. Other shells: command-bearing tabs fail preflight.
+- Joined line: PowerShell `a; if ($?) { b }`; zsh/bash/sh `{ a; } && { b; }`; one Enter. Other shells: command-bearing tabs fail preflight.
 - Probes: Docker `docker info` immediately then every 2s, 2s per-probe deadline, start Docker Desktop at most once per run; port 127.0.0.1 then ::1, 500ms per probe, every 1s; overall 3 minutes. Probes for the same dependency in one run are shared.
 - Bounds: name/title 80 runes, 20 tabs/workspace, 20 commands/tab, 8 KiB/command, 1 MiB/file; titles/names non-empty, no control chars; workspace names unique ignoring case; commands reject CR, LF, NUL and other control chars; folder: leading `~` expanded, must be absolute after expansion, no other expansion.
 - Colors: cyan, magenta, yellow, green, blue, red mapped through the current theme's ANSI colors.
@@ -55,7 +55,7 @@
 
 **Interfaces:** `type ShellKind int` (`ShellUnknown`, `ShellPowerShell`, `ShellPOSIX`); `func KindOf(argv []string) ShellKind` (base name without extension, case-insensitive: `pwsh`, `powershell` → PowerShell; `zsh`, `bash`, `sh` → POSIX); `func JoinLine(k ShellKind, cmds []string) (string, error)` (empty slice → "", nil; unknown kind with commands → error naming the shell; commands copied verbatim, blank ones skipped).
 
-- [ ] Tests: one command unchanged; three commands for each kind (`a; if ($?) { b }; if ($?) { c }`, `a && b && c`); quotes, `$`, backticks and Unicode passed through verbatim; unknown shell errors; `C:\Program Files\PowerShell\7\pwsh.exe` and `/bin/zsh` detected.
+- [ ] Tests: one command unchanged; three commands for each kind (`a; if ($?) { b }; if ($?) { c }`, `{ a; } && { b; } && { c; }`); quotes, `$`, backticks and Unicode passed through verbatim; unknown shell errors; `C:\Program Files\PowerShell\7\pwsh.exe` and `/bin/zsh` detected.
 - [ ] Commit `feat(workspaces): Join a tab's commands into one shell line`.
 
 ### Task 3: Per-tab start options, prompt readiness and submit

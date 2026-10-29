@@ -459,7 +459,7 @@ func TestJoinedLinePreview(t *testing.T) {
 	f.wantText(`docker compose up -d; if ($?) { .\venv\Scripts\Activate.ps1 }`)
 	f.win.opt.Shell = []string{"/bin/zsh"}
 	f.draw()
-	f.wantText(`docker compose up -d && .\venv\Scripts\Activate.ps1`)
+	f.wantText(`{ docker compose up -d; } && { .\venv\Scripts\Activate.ps1; }`)
 	f.win.opt.Shell = []string{`C:\Windows\System32\cmd.exe`}
 	f.draw()
 	f.wantText("cmd: commands can't run in this shell")

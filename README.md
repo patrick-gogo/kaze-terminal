@@ -210,7 +210,7 @@ While one member is shown it reads `samurai › admin`.
 ### How commands are sent
 
 A tab's commands are typed as one line, then Enter. In PowerShell the lines are joined as
-`a; if ($?) { b }; if ($?) { c }`, and in zsh, bash and sh as `a && b && c`, so a line runs only
+`a; if ($?) { b }; if ($?) { c }`, and in zsh, bash and sh as `{ a; } && { b; } && { c; }`, so a line runs only
 if the one before it worked. It runs in the tab's own shell, so a venv activation or `cd` stays in
 effect, the shell stays open afterwards, and the exact line shows in the shell's history. If your
 shell isn't pwsh, powershell, zsh, bash or sh and any tab of the workspace has commands, kaze

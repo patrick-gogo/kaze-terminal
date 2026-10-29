@@ -36,13 +36,15 @@ type groupHit struct {
 
 // groupMenu is the open dropdown of a tab group; run 0 means closed. UI goroutine only.
 type groupMenu struct {
-	run    uint64
-	kb     int // the row the arrow keys are on
-	tag    int // the card: its clicks and, while open, the keyboard
-	outTag int // everywhere else: a click there closes the menu
-	rows   []menuRow
-	card   image.Rectangle
-	bg     color.NRGBA // the card color the last frame painted; the theme-switch test reads it
+	run               uint64
+	kb                int // the row the arrow keys are on
+	tag               int // the card: its clicks and, while open, the keyboard
+	outTag            int // everywhere else: a click there closes the menu
+	rows              []menuRow
+	card              image.Rectangle
+	bg                color.NRGBA // the card color the last frame painted; the theme-switch test reads it
+	scroll, scrollMax int         // row scroll offset; the header stays fixed
+	reveal            bool        // reveal the keyboard row on open or after arrow navigation
 }
 
 type menuRow struct {
@@ -255,6 +257,7 @@ func (c *chrome) groupChip(gtx layout.Context, list []*tabs.Tab, first int, acti
 func (win *window) openGroupMenu(run uint64) {
 	g := &win.grp
 	g.run, g.kb = run, 0
+	g.scroll, g.reveal = 0, true
 	if t := win.shownTab(); t != nil && inRun(t, run) {
 		i := 0
 		for _, o := range win.mgr.Tabs() {
@@ -334,7 +337,7 @@ func (win *window) groupEvents(gtx layout.Context) {
 			key.FocusFilter{Target: tag},
 			key.Filter{Focus: tag, Optional: allMods},
 			key.Filter{Focus: tag, Name: key.NameTab, Optional: allMods},
-			pointer.Filter{Target: tag, Kinds: pointer.Press},
+			pointer.Filter{Target: tag, Kinds: pointer.Press | pointer.Scroll, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}},
 		)
 		if !ok {
 			break
@@ -393,8 +396,10 @@ func (win *window) groupKey(gtx layout.Context, e key.Event) {
 		win.closeGroupMenu()
 	case key.NameUpArrow:
 		g.kb = (g.kb - 1 + n) % n
+		g.reveal = true
 	case key.NameDownArrow:
 		g.kb = (g.kb + 1) % n
+		g.reveal = true
 	case key.NameReturn, key.NameEnter:
 		win.pickMember(ids[min(g.kb, n-1)])
 	default:
@@ -408,6 +413,13 @@ func (win *window) groupKey(gtx layout.Context, e key.Event) {
 
 // groupPress handles a click on the card: a row shows its member, its × closes it.
 func (win *window) groupPress(e pointer.Event) {
+	if e.Kind == pointer.Scroll && win.grp.run != 0 {
+		g := &win.grp
+		g.scroll = min(max(g.scroll+int(e.Scroll.Y), 0), g.scrollMax)
+		g.reveal = false
+		win.w.Invalidate()
+		return
+	}
 	if e.Kind != pointer.Press || !e.Buttons.Contain(pointer.ButtonPrimary) || win.grp.run == 0 {
 		return
 	}
@@ -502,15 +514,30 @@ func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) 
 	place(ops, stCall, image.Pt(card.Max.X-pad-gtx.Dp(10)-stSize.X, hmid-stSize.Y/2))
 	line := card.Min.Y + pad + hdH
 	paint.FillShape(ops, th.Border, clip.Rect(image.Rect(card.Min.X+pad, line-1, card.Max.X-pad, line)).Op())
+	viewport := image.Rect(card.Min.X+pad, line, card.Max.X-pad, max(line, card.Max.Y-pad))
+	g.scrollMax = max(0, n*rowH-viewport.Dy())
+	g.scroll = min(max(g.scroll, 0), g.scrollMax)
+	if g.reveal {
+		g.scroll = min(g.scroll, g.kb*rowH)
+		g.scroll = max(g.scroll, (g.kb+1)*rowH-viewport.Dy())
+		g.scroll = min(max(g.scroll, 0), g.scrollMax)
+		g.reveal = false
+	}
+	rowsClip := clip.Rect(viewport).Push(ops)
 
 	closeCall, closeSize := c.label(gtx, "×", 12, th.Muted)
 	dot, gap, hitPad := gtx.Dp(7), gtx.Dp(8), gtx.Dp(4)
-	y, i := line, 0
+	y, i := line-g.scroll, 0
 	for _, t := range list {
 		if !inRun(t, g.run) {
 			continue
 		}
 		r := image.Rect(card.Min.X+pad, y, card.Max.X-pad, y+rowH)
+		if !r.Overlaps(viewport) {
+			y += rowH
+			i++
+			continue
+		}
 		switch {
 		case t.ID == shown:
 			paint.FillShape(ops, pillTint(th.Accent), clip.UniformRRect(r, gtx.Dp(7)).Op(ops))
@@ -552,10 +579,11 @@ func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) 
 			place(ops, fCall, image.Pt(cx+tSize.X+gap, mid-fSize.Y/2))
 		}
 		text.Pop()
-		g.rows = append(g.rows, menuRow{id: t.ID, rect: r, close: closeRect})
+		g.rows = append(g.rows, menuRow{id: t.ID, rect: r.Intersect(viewport), close: closeRect.Intersect(viewport)})
 		y += rowH
 		i++
 	}
+	rowsClip.Pop()
 	cl.Pop()
 
 	// Outside the card a click closes the menu. On the tab strip it also does what

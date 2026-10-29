@@ -37,10 +37,11 @@ func TestJoinLine(t *testing.T) {
 		{"single ps", ShellPowerShell, []string{"claude"}, "claude"},
 		{"single posix", ShellPOSIX, []string{"claude"}, "claude"},
 		{"three ps", ShellPowerShell, three, "a; if ($?) { b }; if ($?) { c }"},
-		{"three posix", ShellPOSIX, three, "a && b && c"},
-		{"blank skipped", ShellPOSIX, []string{"a", "  ", "", "b"}, "a && b"},
+		{"three posix", ShellPOSIX, three, "{ a; } && { b; } && { c; }"},
+		{"escaped separator", ShellPOSIX, []string{`printf \;`, "b"}, `{ printf \;; } && { b; }`},
+		{"blank skipped", ShellPOSIX, []string{"a", "  ", "", "b"}, "{ a; } && { b; }"},
 		{"verbatim ps", ShellPowerShell, []string{`echo "hi $x` + "`n" + `" 'é日本'`, "b"}, `echo "hi $x` + "`n" + `" 'é日本'; if ($?) { b }`},
-		{"verbatim posix", ShellPOSIX, []string{`echo "$HOME" 'x' ` + "`date`" + ` 日本`, "b"}, `echo "$HOME" 'x' ` + "`date`" + ` 日本 && b`},
+		{"verbatim posix", ShellPOSIX, []string{`echo "$HOME" 'x' ` + "`date`" + ` 日本`, "b"}, `{ echo "$HOME" 'x' ` + "`date`" + ` 日本; } && { b; }`},
 		{"empty", ShellUnknown, nil, ""},
 	}
 	for _, tc := range tests {
@@ -84,7 +85,7 @@ func TestCheckCommandsRejectsLinesTheJoinWouldBreak(t *testing.T) {
 		{"hash inside quotes", ShellPowerShell, []string{`echo "#1"`, `echo '#2'`}},
 		{"hash inside a word", ShellPOSIX, []string{"echo a#b", "git log --format=%h#x"}},
 		{"ps closed block comment", ShellPowerShell, []string{"a <# x #> ", "b"}},
-		{"posix and", ShellPOSIX, []string{"a && b", "c"}},
+		{"posix and", ShellPOSIX, []string{"{ a; } && { b; }", "c"}},
 		{"posix escaped hash", ShellPOSIX, []string{`echo \#x`, "b"}},
 		{"ps hash in a variable", ShellPowerShell, []string{"$a#b", "c"}},
 	}

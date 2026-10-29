@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"io"
 	"os"
@@ -748,5 +749,86 @@ func TestAppDragTakesOverButHoverDoesNot(t *testing.T) {
 	f.win.onPointer(layout.Context{}, tab, pointer.Event{Kind: pointer.Move, Buttons: pointer.ButtonPrimary, Position: cellPos(3, 2)}, modes(tab.Session), testCW, testCH)
 	if f.state(0) != workspaces.Cancelled {
 		t.Fatalf("api is %v after a drag report to the app, want Cancelled", f.state(0))
+	}
+}
+
+// Once no tab needs Docker, a sibling waiting for its prompt must not keep
+// Docker polling. Both closing and taking over release the last consumer.
+func TestUnusedWorkspaceDependencyIsCancelled(t *testing.T) {
+	for _, closeTab := range []bool{false, true} {
+		t.Run(fmt.Sprint("close=", closeTab), func(t *testing.T) {
+			f := newRunFixture(t)
+			doc, _, err := workspaces.Load(workspaces.Path(f.win.cfgPath))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ws := doc.Workspaces[0]
+			ws.Tabs = ws.Tabs[:2]
+			ws.Tabs[1].Wait = workspaces.WaitNone
+			f.save(ws)
+			f.win.runWorkspace(ws.ID)
+			f.until("Docker probe started", func() bool {
+				f.deps.mu.Lock()
+				defer f.deps.mu.Unlock()
+				return len(f.deps.ctxs) > 0
+			})
+			f.deps.mu.Lock()
+			ctx := f.deps.ctxs[0]
+			f.deps.mu.Unlock()
+			tab := f.win.mgr.Tabs()[0]
+			if closeTab {
+				f.win.mgr.Close(tab.ID)
+			} else {
+				f.win.takeOver(tab)
+			}
+			f.now = f.now.Add(4 * time.Second)
+			f.win.wsTick(f.now)
+			select {
+			case <-ctx.Done():
+			case <-time.After(time.Second):
+				t.Fatal("unused Docker dependency kept polling")
+			}
+			if f.theRun().ctx.Err() != nil {
+				t.Fatal("whole run cancelled while sibling awaits prompt")
+			}
+			if f.state(1) != workspaces.NeedsConfirmation {
+				t.Fatalf("sibling state %v", f.state(1))
+			}
+		})
+	}
+}
+
+func TestSharedWorkspaceDependencyRetainsRemainingConsumers(t *testing.T) {
+	f := newRunFixture(t)
+	doc, _, err := workspaces.Load(workspaces.Path(f.win.cfgPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := doc.Workspaces[0]
+	ws.Tabs = ws.Tabs[:2]
+	f.save(ws)
+	f.win.runWorkspace(ws.ID)
+	f.until("Docker probe started", func() bool {
+		f.deps.mu.Lock()
+		defer f.deps.mu.Unlock()
+		return len(f.deps.ctxs) > 0
+	})
+	f.deps.mu.Lock()
+	ctx := f.deps.ctxs[0]
+	f.deps.mu.Unlock()
+	f.win.takeOver(f.win.mgr.Tabs()[0])
+	f.win.wsTick(f.now)
+	if ctx.Err() != nil {
+		t.Fatal("shared dependency cancelled with a consumer still waiting")
+	}
+	f.prompt(1)
+	close(f.deps.dockerUp)
+	f.until("remaining tab launched", func() bool { return f.state(1) == workspaces.Launched })
+	if f.state(0) != workspaces.Cancelled {
+		t.Fatal("cancelled member was revived by shared result")
+	}
+	waitSent(t, f.st.pty(1), ws.Tabs[1].Commands[0]+"\r")
+	if f.st.pty(0).sent() != "" {
+		t.Fatal("cancelled member received commands")
 	}
 }

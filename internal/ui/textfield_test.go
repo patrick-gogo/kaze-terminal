@@ -225,11 +225,13 @@ func TestTextFieldPasteAndCopy(t *testing.T) {
 		}})
 	}
 	paste(key.ModCtrl|key.ModShift, "api")
-	paste(key.ModCtrl, "-dev")
+	// The fixture's Kaze keymap is Windows-style, but the editor's standard
+	// shortcuts follow the host platform (Command on macOS, Control elsewhere).
+	paste(key.ModShortcut, "-dev")
 	if d.name != "api-dev" {
 		t.Fatalf("draft %q after two pastes, want api-dev", d.name)
 	}
-	f.send(modPress("A", key.ModCtrl))
+	f.send(modPress("A", key.ModShortcut))
 	f.send(modPress("C", key.ModCtrl|key.ModShift))
 	if _, b, ok := f.r.WriteClipboard(); !ok || string(b) != "api-dev" {
 		t.Fatalf("Ctrl+Shift+C copied %q %v", b, ok)
@@ -368,12 +370,12 @@ func TestTextFieldEditSurvivesAShortcutInTheSameBatch(t *testing.T) {
 	}
 }
 
-func TestTextFieldCtrlCCopiesTheSelection(t *testing.T) {
+func TestTextFieldNativeShortcutCopiesTheSelection(t *testing.T) {
 	f, _ := fieldWin(t)
 	f.clickField("dir")
-	f.send(modPress("A", key.ModCtrl))
-	f.send(modPress("C", key.ModCtrl))
+	f.send(modPress("A", key.ModShortcut))
+	f.send(modPress("C", key.ModShortcut))
 	if _, b, ok := f.r.WriteClipboard(); !ok || string(b) != "~/code" {
-		t.Fatalf("Ctrl+C copied %q %v, want the field's selection", b, ok)
+		t.Fatalf("%v+C copied %q %v, want the field's selection", key.ModShortcut, b, ok)
 	}
 }
