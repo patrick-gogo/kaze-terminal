@@ -63,7 +63,7 @@ type settingsSection struct {
 // defaultSections are the page's menu; the Appearance and Claude sections fill in rows and act.
 func defaultSections() []settingsSection {
 	return []settingsSection{
-		{title: "Appearance", hint: "Changes show at once in every tab."},
+		appearanceSection(),
 		{title: "Workspaces", later: true},
 		{title: "Claude", hint: "Alerts come from Claude Code hooks; usage comes from its status line."},
 	}

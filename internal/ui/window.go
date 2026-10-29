@@ -139,7 +139,8 @@ type window struct {
 	acct    notify.Usage            // plan limits (no Ctx); UI goroutine only
 	ctx     map[tabs.TabID]ctxEntry // per-tab context use; UI goroutine only
 
-	set settingsState // the Settings page; UI goroutine only
+	set     settingsState // the Settings page; UI goroutine only
+	cfgPath string        // where the page saves; "" applies changes without saving
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -161,6 +162,7 @@ func Run(w *app.Window, opt Options) error {
 		capTag: new(int),
 
 		toastTag: new(int),
+		cfgPath:  config.Path(),
 	}
 	win.applyTheme(startTheme(opt.Config))
 	win.snapFocused.Store(true)

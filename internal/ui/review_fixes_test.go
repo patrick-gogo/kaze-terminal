@@ -23,6 +23,7 @@ type recPTY struct {
 	w    *io.PipeWriter
 	mu   sync.Mutex
 	got  strings.Builder
+	size [2]int // the last Resize, cols and rows
 	done chan struct{}
 	once sync.Once
 }
@@ -38,7 +39,17 @@ func (p *recPTY) Write(b []byte) (int, error) {
 	p.got.Write(b)
 	return len(b), nil
 }
-func (p *recPTY) Resize(int, int) error { return nil }
+func (p *recPTY) Resize(cols, rows int) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.size = [2]int{cols, rows}
+	return nil
+}
+func (p *recPTY) lastSize() [2]int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.size
+}
 func (p *recPTY) Close() error {
 	p.once.Do(func() { p.w.Close(); close(p.done) })
 	return nil
