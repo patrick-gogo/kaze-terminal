@@ -82,7 +82,8 @@ type Renderer struct {
 	holdUntil time.Time
 
 	fixed map[uint64]color.NRGBA // readable text colors by packed (fg, bg)
-	defFG color.NRGBA            // readable(pal.FG, pal.BG): most cells, skips the map
+	defFG color.NRGBA            // readable(pal.FG, pal.BG, ink): most cells, skips the map
+	ink   color.NRGBA            // inkOf(pal), the dark end readable pulls toward
 
 	now   func() time.Time // replaceable so tests can drive the sync timeout
 	stats Stats
@@ -100,7 +101,8 @@ func NewRenderer(fontSize float32, palette Palette) *Renderer {
 		cellH:   g.fs.cellH,
 		focused: true,
 		now:     time.Now,
-		defFG:   readable(palette.FG, palette.BG),
+		ink:     inkOf(palette),
+		defFG:   readable(palette.FG, palette.BG, inkOf(palette)),
 	}
 	for i := range r.curImgs {
 		r.curImgs[i][0] = image.NewRGBA(image.Rect(0, 0, r.cellW, r.cellH))

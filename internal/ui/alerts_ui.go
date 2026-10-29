@@ -241,8 +241,8 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	dot, radius, line := gtx.Dp(7), gtx.Dp(10), max(gtx.Dp(1), 1)
 	maxW := max(min(gtx.Dp(460), width-2*margin), 0)
 
-	goCall, goSz := c.label(gtx, "Go ›", 12, colToastGo)
-	xCall, xSz := c.label(gtx, "×", 12, colMuted)
+	goCall, goSz := c.label(gtx, "Go ›", 12, c.th.ToastGo)
+	xCall, xSz := c.label(gtx, "×", 12, c.th.Muted)
 	lead := padX + dot + inner
 	tail := inner + goSz.X + inner + xSz.X + padX
 	textRoom := maxW - lead - tail
@@ -262,7 +262,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	total := 0
 	for _, t := range list {
 		k := card{id: t.Tab, kind: t.Kind}
-		k.title, k.titleSz = c.fitLabel(gtx, titles[t.Tab], textRoom, colToastTitle)
+		k.title, k.titleSz = c.fitLabel(gtx, titles[t.Tab], textRoom, c.th.ToastTitle)
 		rest := " is done"
 		if t.Kind == notify.KindNeeds {
 			rest = " needs you"
@@ -270,7 +270,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 				rest += " · " + t.Text
 			}
 		}
-		k.rest, k.restSz = c.fitLabel(gtx, rest, textRoom-k.titleSz.X, colToastFG)
+		k.rest, k.restSz = c.fitLabel(gtx, rest, textRoom-k.titleSz.X, c.th.ToastFG)
 		k.w = lead + k.titleSz.X + k.restSz.X + tail
 		k.h = max(k.titleSz.Y, k.restSz.Y, goSz.Y) + 2*padY
 		if total+k.h > bottom-top {
@@ -282,13 +282,13 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	y := bottom - (total - gap)
 	for _, k := range cards {
 		r := image.Rect(width-margin-k.w, y, width-margin, y+k.h)
-		paint.FillShape(ops, colToastLine, clip.UniformRRect(r, radius).Op(ops))
-		paint.FillShape(ops, colToastBG, clip.UniformRRect(r.Inset(line), max(radius-line, 0)).Op(ops))
+		paint.FillShape(ops, c.th.ToastLine, clip.UniformRRect(r, radius).Op(ops))
+		paint.FillShape(ops, c.th.ToastBG, clip.UniformRRect(r.Inset(line), max(radius-line, 0)).Op(ops))
 		mid := r.Min.Y + k.h/2
 		x := r.Min.X + padX
-		dc := colDone
+		dc := c.th.Done
 		if k.kind == notify.KindNeeds {
-			dc = colNeeds
+			dc = c.th.Needs
 		}
 		paint.FillShape(ops, dc, clip.Ellipse(image.Rect(x, mid-dot/2, x+dot, mid-dot/2+dot)).Op(ops))
 		x += dot + inner

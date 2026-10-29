@@ -111,6 +111,14 @@ func luminance(c color.NRGBA) float64 {
 	return 0.2126*linear[c.R] + 0.7152*linear[c.G] + 0.0722*linear[c.B]
 }
 
+// inkOf is the darker of a palette's FG and BG, so a light theme pulls dim text to its own ink.
+func inkOf(p Palette) color.NRGBA {
+	if luminance(p.FG) < luminance(p.BG) {
+		return p.FG
+	}
+	return p.BG
+}
+
 // contrast is the WCAG 2 contrast ratio of two opaque colors, 1 to 21.
 func contrast(a, b color.NRGBA) float64 {
 	la, lb := luminance(a), luminance(b)
@@ -126,16 +134,16 @@ func blend(a, b color.NRGBA, t int) color.NRGBA {
 	return color.NRGBA{R: m(a.R, b.R), G: m(a.G, b.G), B: m(a.B, b.B), A: 0xff}
 }
 
-// readable moves fg toward the Midnight background or white, whichever contrasts more
+// readable moves fg toward the theme's ink or white, whichever contrasts more
 // with bg, only as far as needed to reach minContrast, so dim and colored text keep
 // their tint. fg == bg is left alone: that is hidden text on purpose.
-func readable(fg, bg color.NRGBA) color.NRGBA {
+func readable(fg, bg, ink color.NRGBA) color.NRGBA {
 	if fg == bg || contrast(fg, bg) >= minContrast {
 		return fg
 	}
 	to := hex(0xffffff)
-	if dark := hex(0x0f1117); contrast(dark, bg) > contrast(to, bg) {
-		to = dark
+	if contrast(ink, bg) > contrast(to, bg) {
+		to = ink
 	}
 	lo, hi := 0, 256 // blend(fg, to, 256) is to itself, the best available
 	for lo+1 < hi {
@@ -161,7 +169,7 @@ func (r *Renderer) readableCached(fg, bg color.NRGBA) color.NRGBA {
 	if r.fixed == nil || len(r.fixed) >= fixCap {
 		r.fixed = make(map[uint64]color.NRGBA, 64)
 	}
-	v := readable(fg, bg)
+	v := readable(fg, bg, r.ink)
 	r.fixed[k] = v
 	return v
 }

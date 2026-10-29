@@ -138,26 +138,15 @@ func cleanReason(s string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// Alert colors (design spec 6.7).
-var (
-	colNeeds      = rgb(0xf2b84b)
-	colDone       = rgb(0x62d39a)
-	colToastBG    = rgb(0x1a1f2c)
-	colToastLine  = rgb(0x2a3142)
-	colToastFG    = rgb(0xe7e9f0)
-	colToastGo    = rgb(0xb9a6ff)
-	colToastTitle = rgb(0xffffff)
-)
-
 // dotColor is the dot a tab shows: an alert mark wins over the active accent.
-func dotColor(active bool, m mark) (color.NRGBA, bool) {
+func (c *chrome) dotColor(active bool, m mark) (color.NRGBA, bool) {
 	switch {
 	case m == markNeeds:
-		return colNeeds, true
+		return c.th.Needs, true
 	case m == markDone:
-		return colDone, true
+		return c.th.Done, true
 	case active:
-		return colAccent, true
+		return c.th.Accent, true
 	}
 	return color.NRGBA{}, false
 }

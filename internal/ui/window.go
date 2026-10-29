@@ -36,6 +36,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/sound"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/term"
+	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
 
@@ -141,7 +142,6 @@ func Run(w *app.Window, opt Options) error {
 	opt.Warnings = append(opt.Warnings, warns...)
 	win := &window{
 		w: w, opt: opt, km: km,
-		pal:      applyColors(render.DefaultPalette(), opt.Config.Colors),
 		ui:       newChrome(),
 		termTag:  new(int),
 		barTag:   new(int),
@@ -155,6 +155,7 @@ func Run(w *app.Window, opt Options) error {
 
 		toastTag: new(int),
 	}
+	win.applyTheme(theme.Default())
 	win.snapFocused.Store(true)
 	win.flash = func() { flashTaskbar(win.hwnd.Load()) }
 	if c := opt.Config; c.ChimeNeeds || c.ChimeDone {
@@ -313,6 +314,14 @@ func (win *window) newTab() {
 		win.noticeUntil = time.Now().Add(noticeFor)
 		win.w.Invalidate()
 	}
+}
+
+// applyTheme repaints the terminal and chrome; [colors] overrides still win over the theme.
+func (win *window) applyTheme(t theme.Theme) {
+	win.pal = applyColors(t.Term, win.opt.Config.Colors)
+	win.ui.setTheme(t)
+	win.rend = nil // rebuilt next frame with the new palette
+	win.w.Invalidate()
 }
 
 func (win *window) frame(gtx layout.Context) error {
