@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/workspaces"
 )
@@ -42,12 +43,12 @@ const (
 )
 
 // wsDraft is a copy of one workspace being edited. Each tab and command has a
-// key from next, so field ids follow the item when others move or go.
+// key from wsKeys, so field ids follow the item when others move or go.
 type wsDraft struct {
 	id, name string
+	nameID   string // the name field's id, unique to this draft
 	isNew    bool
 	tabs     []*wsDraftTab
-	next     int
 	base     workspaces.Workspace // the draft as opened, to tell unsaved changes
 	doc      workspaces.Document  // the file the draft was opened from, which Save replaces
 	rev      workspaces.Revision
@@ -292,10 +293,11 @@ func (d *wsDraft) workspace() workspaces.Workspace {
 
 func (d *wsDraft) dirty() bool { return !reflect.DeepEqual(d.workspace(), d.base) }
 
-func (d *wsDraft) key() int {
-	d.next++
-	return d.next
-}
+// wsKeys numbers draft items across every draft, so no field id names an
+// item of an earlier draft and its editor's undo history.
+var wsKeys atomic.Int64
+
+func (d *wsDraft) key() int { return int(wsKeys.Add(1)) }
 
 func (d *wsDraft) addTab(t workspaces.Tab) *wsDraftTab {
 	dt := &wsDraftTab{key: d.key(), id: t.ID, title: t.Title, folder: t.Folder, color: t.Color, wait: t.Wait}
@@ -338,6 +340,7 @@ func (d *wsDraft) cmdByKey(k int) (*wsDraftTab, int) {
 // newDraft opens ws (or a new workspace when ws is nil) from doc, read at rev.
 func newDraft(ws *workspaces.Workspace, doc workspaces.Document, rev workspaces.Revision) *wsDraft {
 	d := &wsDraft{doc: doc, rev: rev}
+	d.nameID = fmt.Sprintf("ws.name.%d", d.key())
 	if ws == nil {
 		d.id, d.isNew = workspaces.NewID(), true
 		d.addTab(workspaces.Tab{ID: workspaces.NewTabID(), Color: wsColors[0]})
@@ -359,7 +362,7 @@ func (win *window) editorRows(d *wsDraft) []settingRow {
 	}
 	rows := []settingRow{
 		{label: title, hint: "Changes are a draft until you press Save. Saving never runs anything."},
-		{label: "Name", ctrls: []ctrl{{kind: ctlText, id: "ws.name", val: d.name, placeholder: "my-project", err: errs.name, width: 260,
+		{label: "Name", ctrls: []ctrl{{kind: ctlText, id: d.nameID, val: d.name, placeholder: "my-project", err: errs.name, width: 260,
 			set: func(s string) { d.name = s }}}},
 	}
 	kind := workspaces.KindOf(win.opt.Shell)
@@ -558,11 +561,25 @@ func (win *window) openDraft(ws *workspaces.Workspace) {
 		ws = &cur
 	}
 	d := newDraft(ws, doc, rev)
-	win.wsp.draft = d
+	win.setDraft(d)
 	win.set.scroll = 0
 	if d.isNew {
-		win.editField("ws.name")
+		win.editField(d.nameID)
 	}
+}
+
+// setDraft opens d and drops the editors of the draft before it, so nothing
+// typed there can come back through undo.
+func (win *window) setDraft(d *wsDraft) {
+	for id := range win.set.fields {
+		if strings.HasPrefix(id, "ws.") {
+			delete(win.set.fields, id)
+		}
+	}
+	if strings.HasPrefix(win.set.editing, "ws.") {
+		win.editField("")
+	}
+	win.wsp.draft = d
 }
 
 // draftAct runs the editor's own controls; false means id is not one of them.
@@ -678,7 +695,7 @@ func (win *window) reloadDraft() {
 	}
 	win.loadWorkspaces()
 	if ws, ok := doc.ByID(d.id); ok {
-		win.wsp.draft = newDraft(&ws, doc, rev)
+		win.setDraft(newDraft(&ws, doc, rev))
 		return
 	}
 	d.doc, d.rev = doc, rev

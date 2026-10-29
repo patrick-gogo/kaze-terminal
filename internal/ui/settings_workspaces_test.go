@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"gioui.org/io/input"
+	"gioui.org/io/key"
+
 	"github.com/patrick-gogo/kaze-terminal/internal/config"
 	"github.com/patrick-gogo/kaze-terminal/internal/workspaces"
 )
@@ -107,7 +110,7 @@ func (f *runFixture) nameID() string {
 	if f.win.wsp.draft == nil {
 		f.t.Fatal("no draft open")
 	}
-	return "ws.name"
+	return f.win.wsp.draft.nameID
 }
 
 func TestWorkspacesIsASection(t *testing.T) {
@@ -584,3 +587,49 @@ func TestFoldersAreCheckedOnlyWhenTheyChange(t *testing.T) {
 	}
 }
 
+// Undo in a newly opened draft never brings back text from the draft before it.
+func TestUndoInANewDraftKeepsItsOwnText(t *testing.T) {
+	f := newWSPage(t)
+	if _, err := f.win.mgr.New(); err != nil { // the frame draws nothing without a tab
+		t.Fatal(err)
+	}
+	f.win.openSettings()
+	var r input.Router
+	frame := func() { sizedFrame(t, f.win, &r, 900, 1600) }
+	frame()
+	f.win.activate("ws.edit", 0)
+	frame()
+	a := f.nameID()
+	f.win.editField(a)
+	frame()
+	frame()
+	ed := &f.win.set.fields[a].ed
+	if !r.Source().Focused(ed) {
+		t.Fatal("draft A's name field does not have the keyboard")
+	}
+	r.Queue(key.EditEvent{Range: key.Range{Start: ed.Len(), End: ed.Len()}, Text: "XYZ"})
+	frame()
+	frame()
+	if got := f.win.wsp.draft.name; got != "samuraiXYZ" {
+		t.Fatalf("draft A name %q after typing", got)
+	}
+	f.win.activate("ws.new", 0) // asks about A's changes
+	frame()
+	f.win.activate("ws.leave.discard", 0) // drops A and opens B in the same call
+	frame()
+	frame()
+	d := f.win.wsp.draft
+	if d == nil || !d.isNew {
+		t.Fatalf("draft B did not open: %+v", d)
+	}
+	b := f.nameID()
+	if f.win.set.editing != b || !r.Source().Focused(&f.win.set.fields[b].ed) {
+		t.Fatalf("editing %q, want draft B's name field", f.win.set.editing)
+	}
+	r.Queue(key.Event{Name: "Z", Modifiers: key.ModShortcut, State: key.Press})
+	frame()
+	frame()
+	if d.name != "" || f.win.fieldText(b) != "" {
+		t.Fatalf("Ctrl+Z in draft B brought back %q (field %q)", d.name, f.win.fieldText(b))
+	}
+}
