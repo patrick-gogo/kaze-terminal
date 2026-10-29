@@ -16,6 +16,9 @@ import (
 // wsColors are the recipe colors in swatch order.
 var wsColors = []string{"cyan", "magenta", "yellow", "green", "blue", "red"}
 
+// statFolder looks a draft folder up on disk; tests count the lookups.
+var statFolder = os.Stat
+
 var wsWaits = []workspaces.Wait{workspaces.WaitNone, workspaces.WaitDocker, workspaces.WaitPort}
 
 // wsPage is the Workspaces section: the list as read when it showed, and the
@@ -58,6 +61,10 @@ type wsDraftTab struct {
 	color         string
 	wait          workspaces.Wait
 	port          string // as typed; checked on Save
+	// The folder last looked up on disk and whether it was missing; the page
+	// is drawn every frame, so the disk is asked only when the folder changes.
+	checkedDir       string
+	checked, missing bool
 }
 
 type wsDraftCmd struct {
@@ -251,7 +258,11 @@ func (win *window) draftErrors(d *wsDraft) wsErrors {
 		}
 		if e.of(t.key, "folder") == "" {
 			if dir, err := workspaces.ExpandFolder(t.folder, win.home); err == nil {
-				if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+				if !t.checked || t.checkedDir != dir {
+					st, err := statFolder(dir)
+					t.checked, t.checkedDir, t.missing = true, dir, err != nil || !st.IsDir()
+				}
+				if t.missing {
 					e.missing[t.key] = true
 				}
 			}
@@ -622,7 +633,13 @@ func (win *window) draftAct(d *wsDraft, id string, arg int) bool {
 func (win *window) saveDraft() bool {
 	p := &win.wsp
 	d := p.draft
-	if d == nil || win.draftErrors(d).any {
+	if d == nil {
+		return false
+	}
+	for _, t := range d.tabs {
+		t.checked = false // a folder made or removed since it was typed shows now
+	}
+	if win.draftErrors(d).any {
 		return false
 	}
 	ws := d.workspace()

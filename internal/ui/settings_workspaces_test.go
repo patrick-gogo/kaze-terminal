@@ -101,6 +101,15 @@ func (f *runFixture) tabKey(i int) int {
 
 func tabID(k int, what string) string { return fmt.Sprintf("ws.tab.%d.%s", k, what) }
 
+// nameID is the open draft's name field.
+func (f *runFixture) nameID() string {
+	f.t.Helper()
+	if f.win.wsp.draft == nil {
+		f.t.Fatal("no draft open")
+	}
+	return "ws.name"
+}
+
 func TestWorkspacesIsASection(t *testing.T) {
 	f := newWSPage(t)
 	if defaultSections()[wsIndex(t)].later {
@@ -176,7 +185,7 @@ func TestEditThenCancelLeavesTheFileUntouched(t *testing.T) {
 	before := f.file()
 	f.press("ws.edit", 0)
 	f.wantText("Edit workspace")
-	f.typeInto("ws.name", "renamed")
+	f.typeInto(f.nameID(), "renamed")
 	f.typeInto(tabID(f.tabKey(0), "title"), "backend")
 	f.press("ws.cancel", 0)
 	if f.win.wsp.draft != nil || f.file() != before {
@@ -218,7 +227,7 @@ func TestInvalidFieldBlocksSave(t *testing.T) {
 	f := newWSPage(t)
 	before := f.file()
 	f.press("ws.edit", 0)
-	f.typeInto("ws.name", "  ")
+	f.typeInto(f.nameID(), "  ")
 	f.wantText("Workspace name cannot be empty")
 	if c, ok := f.ctl("ws.save", 0); !ok || !c.dead {
 		t.Fatalf("Save is live while the name is empty: %+v", c)
@@ -227,7 +236,7 @@ func TestInvalidFieldBlocksSave(t *testing.T) {
 	if f.file() != before || f.win.wsp.draft == nil {
 		t.Fatal("an invalid draft was saved")
 	}
-	f.typeInto("ws.name", "samurai")
+	f.typeInto(f.nameID(), "samurai")
 	k := f.tabKey(1)
 	f.typeInto(tabID(k, "folder"), "relative")
 	f.wantText("Folder must be a full path")
@@ -269,7 +278,7 @@ func TestPortFieldOnlyForPortWait(t *testing.T) {
 func TestStaleSaveIsRefusedAndTheDraftKept(t *testing.T) {
 	f := newWSPage(t)
 	f.press("ws.edit", 0)
-	f.typeInto("ws.name", "mine")
+	f.typeInto(f.nameID(), "mine")
 	doc, _, _ := workspaces.Load(workspaces.Path(f.win.cfgPath))
 	ws := doc.Workspaces[0]
 	ws.Name = "theirs"
@@ -289,7 +298,7 @@ func TestStaleSaveIsRefusedAndTheDraftKept(t *testing.T) {
 	if d := f.win.wsp.draft; d == nil || d.name != "theirs" {
 		t.Fatalf("Reload did not load the file into the draft: %+v", d)
 	}
-	f.typeInto("ws.name", "mine again")
+	f.typeInto(f.nameID(), "mine again")
 	f.press("ws.save", 0)
 	if !strings.Contains(f.file(), "mine again") {
 		t.Fatal("a save after Reload did not write")
@@ -299,7 +308,7 @@ func TestStaleSaveIsRefusedAndTheDraftKept(t *testing.T) {
 func TestSaveOverAnInvalidFileKeepsTheDraft(t *testing.T) {
 	f := newWSPage(t)
 	f.press("ws.edit", 0)
-	f.typeInto("ws.name", "mine")
+	f.typeInto(f.nameID(), "mine")
 	path := workspaces.Path(f.win.cfgPath)
 	if err := os.WriteFile(path, []byte("not = [valid"), 0o644); err != nil {
 		t.Fatal(err)
@@ -369,10 +378,10 @@ func TestNewWorkspace(t *testing.T) {
 	f.press("ws.new", 0)
 	f.wantText("New workspace")
 	k := f.tabKey(0)
-	if f.win.set.editing != "ws.name" {
+	if f.win.set.editing != f.nameID() {
 		t.Fatalf("editing %q, want the name field", f.win.set.editing)
 	}
-	f.typeInto("ws.name", "notes")
+	f.typeInto(f.nameID(), "notes")
 	f.typeInto(tabID(k, "title"), "shell")
 	f.typeInto(tabID(k, "folder"), f.dirs[0])
 	f.press("ws.save", 0)
@@ -389,7 +398,7 @@ func TestNewWorkspace(t *testing.T) {
 func TestDuplicateNameBlocksSave(t *testing.T) {
 	f := newWSPage(t)
 	f.press("ws.new", 0)
-	f.typeInto("ws.name", "SAMURAI")
+	f.typeInto(f.nameID(), "SAMURAI")
 	f.wantText(`Another workspace is already named "SAMURAI"`)
 	if c, _ := f.ctl("ws.save", 0); !c.dead {
 		t.Fatal("Save is live with a duplicate name")
@@ -468,7 +477,7 @@ func TestLeavingAnUnsavedDraftAsks(t *testing.T) {
 	f.win.selectSection(ws)
 	f.draw()
 	f.press("ws.edit", 0)
-	f.typeInto("ws.name", "changed")
+	f.typeInto(f.nameID(), "changed")
 	f.win.selectSection(0)
 	f.draw()
 	if f.win.set.section != ws {
@@ -492,7 +501,7 @@ func TestLeavingAnUnsavedDraftAsks(t *testing.T) {
 	f.win.selectSection(ws)
 	f.draw()
 	f.press("ws.edit", 0)
-	f.typeInto("ws.name", "saved on close")
+	f.typeInto(f.nameID(), "saved on close")
 	f.win.closeSettings()
 	if !f.win.set.open {
 		t.Fatal("settings closed over unsaved changes")
@@ -507,7 +516,7 @@ func TestLeavingAnUnsavedDraftAsks(t *testing.T) {
 func TestOpeningAnotherWorkspaceAsks(t *testing.T) {
 	f := newWSPage(t)
 	f.press("ws.edit", 0)
-	f.typeInto("ws.name", "changed")
+	f.typeInto(f.nameID(), "changed")
 	f.win.activate("ws.new", 0)
 	f.draw()
 	if d := f.win.wsp.draft; d == nil || d.name != "changed" {
@@ -523,10 +532,55 @@ func TestOpeningAnotherWorkspaceAsks(t *testing.T) {
 func TestThemeSwitchKeepsTheDraft(t *testing.T) {
 	f := newWSPage(t)
 	f.press("ws.edit", 0)
-	f.typeInto("ws.name", "mine")
+	f.typeInto(f.nameID(), "mine")
 	f.win.applyTheme(mustTheme(t, "washi"))
 	f.draw()
-	if f.win.wsp.draft == nil || f.win.fieldText("ws.name") != "mine" {
+	if f.win.wsp.draft == nil || f.win.fieldText(f.nameID()) != "mine" {
 		t.Fatal("a theme switch lost the draft")
 	}
 }
+
+// Each folder is looked up on disk when its text changes, not on every frame.
+func TestFoldersAreCheckedOnlyWhenTheyChange(t *testing.T) {
+	f := newWSPage(t)
+	n := 0
+	real := statFolder
+	statFolder = func(p string) (os.FileInfo, error) { n++; return real(p) }
+	t.Cleanup(func() { statFolder = real })
+	f.press("ws.edit", 0)
+	f.draw()
+	if n != len(samuraiTabs) {
+		t.Fatalf("%d folder checks for an opened draft, want one per tab (%d)", n, len(samuraiTabs))
+	}
+	k := f.tabKey(0)
+	f.typeInto(f.nameID(), "renamed")
+	f.typeInto(tabID(k, "title"), "backend")
+	f.typeInto(fmt.Sprintf("ws.cmd.%d", f.win.wsp.draft.tabs[0].cmds[0].key), "echo hi")
+	f.draw()
+	if n != len(samuraiTabs) {
+		t.Fatalf("%d folder checks after typing in other fields, want %d", n, len(samuraiTabs))
+	}
+	f.typeInto(tabID(k, "folder"), f.dirs[0]+"-gone")
+	f.draw()
+	if n != len(samuraiTabs)+1 {
+		t.Fatalf("%d folder checks after changing one folder, want %d", n, len(samuraiTabs)+1)
+	}
+	f.wantText("This folder does not exist yet; Run stops here until it does.")
+	// The unsaved-changes dialog lays the draft's checks out every frame too.
+	f.win.selectSection(0)
+	f.draw()
+	f.draw()
+	if n != len(samuraiTabs)+1 {
+		t.Fatalf("%d folder checks under the leave dialog, want %d", n, len(samuraiTabs)+1)
+	}
+	f.press("ws.leave.keep", 0)
+	if err := os.MkdirAll(f.dirs[0]+"-gone", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	before := n
+	f.press("ws.save", 0) // Save looks again, once per folder
+	if n != before+len(samuraiTabs) || f.win.wsp.draft != nil {
+		t.Fatalf("%d folder checks on Save, want %d; draft kept %v", n-before, len(samuraiTabs), f.win.wsp.draft != nil)
+	}
+}
+
