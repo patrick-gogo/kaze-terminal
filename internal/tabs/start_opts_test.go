@@ -1,7 +1,9 @@
 package tabs_test
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 )
@@ -72,4 +74,35 @@ func TestFixedTitleSurvivesOSCTitle(t *testing.T) {
 	if got := m.Active().Title; got != "api" {
 		t.Fatalf("active title %q, want the fixed one", got)
 	}
+}
+
+// A watched background tab asks for a frame on output, so a workspace tab's
+// first prompt is noticed without waiting for some other wake.
+func TestWatchedBackgroundTabRequestsFrames(t *testing.T) {
+	st := &starter{}
+	var frames atomic.Int64
+	m := tabs.NewManager(st.start, 80, 24, func() { frames.Add(1) })
+	t.Cleanup(st.closeAll)
+	bg := mustNew(t, m)
+	mustNew(t, m) // active
+	m.Watch(bg.ID, true)
+	before := frames.Load()
+	st.fakes[0].outW.Write([]byte("prompt> "))
+	waitFor(t, "a frame for watched output", func() bool { return frames.Load() > before })
+
+	m.Watch(bg.ID, false)
+	st.fakes[0].outW.Write([]byte("x"))
+	waitFor(t, "output applied", func() bool {
+		bg.Session.Lock()
+		defer bg.Session.Unlock()
+		return bg.Session.Screen().Cell(8, 0).Rune == 'x'
+	})
+	time.Sleep(20 * time.Millisecond) // let any stray notifications land
+	settled := frames.Load()
+	st.fakes[0].outW.Write([]byte("y"))
+	time.Sleep(20 * time.Millisecond)
+	if frames.Load() != settled {
+		t.Fatal("an unwatched background tab still asks for frames")
+	}
+	m.Watch(9999, true) // unknown tabs are ignored
 }

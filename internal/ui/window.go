@@ -149,6 +149,9 @@ type window struct {
 	claudePath string      // Claude Code's settings.json; "" checks nothing
 	exePath    string      // this kaze, which a Claude setup fix points the entries at
 	claude     claudeState // the Claude section's setup check and dialog
+
+	runs map[uint64]*wsRun // workspace runs with a tab still open; UI goroutine only
+	wsr  wsRunner
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -255,7 +258,7 @@ func (win *window) loop() error {
 					win.w.Perform(system.ActionClose)
 				}
 			}
-			if win.mgr != nil && win.mgr.Empty() {
+			if win.shouldClose() {
 				win.w.Perform(system.ActionClose)
 			}
 		default:
@@ -278,6 +281,7 @@ func (win *window) frameOrShutdown(gtx layout.Context) error {
 // shutdown closes the alert listener and every shell, together within shutdownWait.
 func (win *window) shutdown() {
 	start := time.Now()
+	win.cancelRuns()
 	var done chan struct{}
 	if win.srv != nil {
 		done = make(chan struct{})
@@ -475,6 +479,7 @@ func (win *window) frame(gtx layout.Context) error {
 
 	win.barEvents(gtx)
 	win.toastEvents(gtx)
+	win.bannerEvents(gtx)
 	active := win.mgr.Active()
 	if win.set.shown {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
@@ -497,6 +502,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.drainUsage()
 	win.visit(win.shownTab())
 	win.autoScroll(gtx, active, cw, ch)
+	if at, ok := win.wsTick(win.wsNow()); ok {
+		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
+	}
 	sel := win.checkSel(active)
 	// After input, so a key typed this frame shows the cursor in it.
 	if next, ok := win.blink(gtx.Now); ok {
@@ -533,8 +541,10 @@ func (win *window) frame(gtx layout.Context) error {
 
 	if win.set.shown {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
+		win.wsr.hits = win.wsr.hits[:0]
 	} else {
 		win.drawTerminal(gtx, active, termRect, grid, &sel)
+		win.drawWsBanner(gtx, active, termRect) // after the terminal, so it takes the clicks it covers
 	}
 
 	// Status bar.
@@ -838,6 +848,7 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 			edited = true
 			win.blinkFrom = time.Time{}
 			if win.gate.allow() && editCommits(batch, i, win.composing) && e.Text != "" {
+				win.takeOver(t)
 				win.benchKey(t)
 				t.Session.Write(input.EncodeText(e.Text))
 				win.snapToBottom(t.Session)
@@ -879,6 +890,7 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 		win.copySel(gtx, t)
 	default:
 		if out.data != nil {
+			win.takeOver(t)
 			win.benchKey(t)
 			t.Session.Write(out.data)
 			win.snapToBottom(t.Session)
@@ -893,6 +905,7 @@ func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 	if err != nil || len(b) == 0 {
 		return
 	}
+	win.takeOver(t)
 	t.Session.Write(input.EncodePaste(string(b), m))
 	win.snapToBottom(t.Session)
 }
@@ -917,6 +930,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 		}
 		win.gestureCol, win.gestureRow = col, row
 		if win.toApp {
+			win.takeOver(t) // the app sees the click: the owner is using this shell
 			t.Session.Write(input.EncodeMouse(btn, true, e.Modifiers, col, row, false, m))
 			return
 		}
@@ -931,6 +945,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 		}
 		if win.toApp {
 			if mouseOn(m) {
+				win.takeOver(t)
 				t.Session.Write(input.EncodeMouse(btn, false, e.Modifiers, col, row, false, m))
 			}
 			return

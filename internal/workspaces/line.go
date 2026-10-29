@@ -3,6 +3,7 @@ package workspaces
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // ShellKind says how a shell chains commands, so a tab's startup commands can
@@ -74,4 +75,71 @@ func JoinLine(k ShellKind, cmds []string) (string, error) {
 		b.WriteString(sep(c))
 	}
 	return b.String(), nil
+}
+
+// CheckCommands rejects commands that type fine alone but break the joined
+// line: a # comment swallows whatever is joined after it, and a POSIX command
+// ending in & cannot be followed by &&.
+func CheckCommands(k ShellKind, cmds []string) error {
+	var parts []string
+	for _, c := range cmds {
+		if strings.TrimSpace(c) != "" {
+			parts = append(parts, c)
+		}
+	}
+	if len(parts) < 2 || k == ShellUnknown {
+		return nil // nothing is joined
+	}
+	for i, c := range parts {
+		if hasComment(k, c) {
+			return fmt.Errorf("command %d has a # comment, which would hide the commands joined after it; remove the comment", i+1)
+		}
+		t := strings.TrimRightFunc(c, unicode.IsSpace)
+		if k == ShellPOSIX && strings.HasSuffix(t, "&") && !strings.HasSuffix(t, `\&`) {
+			return fmt.Errorf("command %d ends with &, which can't be joined to the next command with &&; run it as the last command of its own tab, or drop the &", i+1)
+		}
+	}
+	return nil
+}
+
+// hasComment finds a # that starts a comment: outside quotes, not escaped, at
+// the start of a word. PowerShell's closed <# #> block comments are fine.
+func hasComment(k ShellKind, c string) bool {
+	esc := '\\'
+	if k == ShellPowerShell {
+		esc = '`'
+	}
+	rs := []rune(c)
+	var quote rune
+	for i := 0; i < len(rs); i++ {
+		r := rs[i]
+		switch {
+		case quote == '\'':
+			if r == '\'' {
+				quote = 0
+			}
+		case quote == '"':
+			if r == esc {
+				i++
+			} else if r == '"' {
+				quote = 0
+			}
+		case r == esc:
+			i++
+		case r == '\'' || r == '"':
+			quote = r
+		case k == ShellPowerShell && r == '<' && i+1 < len(rs) && rs[i+1] == '#':
+			j := i + 2
+			for j+1 < len(rs) && (rs[j] != '#' || rs[j+1] != '>') {
+				j++
+			}
+			if j+1 >= len(rs) {
+				return true // an open block comment swallows the rest too
+			}
+			i = j + 1
+		case r == '#' && (i == 0 || unicode.IsSpace(rs[i-1]) || strings.ContainsRune(";|&(){}", rs[i-1])):
+			return true
+		}
+	}
+	return false
 }

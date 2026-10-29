@@ -50,6 +50,7 @@ type entry struct {
 	tab     *Tab
 	sess    atomic.Pointer[term.Session]
 	removed atomic.Bool
+	watched atomic.Bool // a background tab that asks for frames on output too
 	// Touched only by this session's single notifier goroutine.
 	seenTitle  string
 	seenExited bool
@@ -160,7 +161,7 @@ func (m *Manager) notify(e *entry) {
 	if e.removed.Load() {
 		return
 	}
-	if TabID(m.active.Load()) == e.tab.ID {
+	if TabID(m.active.Load()) == e.tab.ID || e.watched.Load() {
 		m.onChange()
 		return
 	}
@@ -242,6 +243,16 @@ func (m *Manager) Lookup(id TabID) *Tab {
 		return m.entries[i].tab
 	}
 	return nil
+}
+
+// Watch makes a background tab ask for a frame on every output while on, for
+// a caller waiting on something the shell prints; an unknown id is ignored.
+func (m *Manager) Watch(id TabID, on bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if i := m.indexLocked(id); i >= 0 {
+		m.entries[i].watched.Store(on)
+	}
 }
 
 // SetActive switches to id; an unknown id is ignored.
