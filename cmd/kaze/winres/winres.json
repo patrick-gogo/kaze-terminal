@@ -8,16 +8,16 @@
     "#1": {
       "0000": {
         "fixed": {
-          "file_version": "0.5.0.0",
-          "product_version": "0.5.0.0"
+          "file_version": "0.6.0.0",
+          "product_version": "0.6.0.0"
         },
         "info": {
           "0409": {
             "FileDescription": "kaze terminal",
-            "FileVersion": "0.5",
+            "FileVersion": "0.6",
             "LegalCopyright": "MIT License",
             "ProductName": "kaze",
-            "ProductVersion": "0.5"
+            "ProductVersion": "0.6"
           }
         }
       }

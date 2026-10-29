@@ -320,7 +320,7 @@ func TestVersionBlockShowsBuild(t *testing.T) {
 	win.openSettings()
 	win.drawSettings(pageContext(800, 600), pageRect)
 	texts := win.set.texts
-	if !slices.Contains(texts, "kaze 0.5") {
+	if !slices.Contains(texts, "kaze 0.6") {
 		t.Fatalf("texts %q lack the version", texts)
 	}
 	all := strings.Join(texts, " ")
