@@ -78,6 +78,7 @@ func (win *window) setupRow() settingRow {
 	row.lines = []string{
 		"Alerts when Claude needs you: " + entryText(r.Needs),
 		"Alerts when Claude is done: " + entryText(r.Stop),
+		"Command each session runs: " + entryText(r.Prompt),
 		"Usage in the status bar: " + entryText(r.StatusLine),
 	}
 	if win.exePath == "" {
@@ -86,7 +87,7 @@ func (win *window) setupRow() settingRow {
 	fixable := func(e claudesetup.Entry) bool {
 		return e.State == claudesetup.Missing || e.State == claudesetup.Broken
 	}
-	if fixable(r.Stop) || fixable(r.Needs) || fixable(r.StatusLine) {
+	if fixable(r.Stop) || fixable(r.Needs) || fixable(r.Prompt) || fixable(r.StatusLine) {
 		row.ctrls = append(row.ctrls, ctrl{kind: ctlButton, id: "claude_fix", text: "Fix", strong: true})
 	}
 	if r.StatusLine.State == claudesetup.Taken {

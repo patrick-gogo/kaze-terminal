@@ -42,9 +42,10 @@ func newClaudeFixture(t *testing.T, statusCmd string, dropStop bool) claudeFixtu
 	m := map[string]any{
 		"permissions": map[string]any{"allow": []any{"Bash(git status:*)"}},
 		"hooks": map[string]any{
-			"SessionStart": []any{map[string]any{"hooks": []any{node}}},
-			"Stop":         stop,
-			"Notification": []any{map[string]any{"matcher": claudesetup.NeedsMatcher, "hooks": []any{map[string]any{"type": "command", "command": q + "notify needs", "timeout": 3}}}},
+			"SessionStart":     []any{map[string]any{"hooks": []any{node}}},
+			"Stop":             stop,
+			"UserPromptSubmit": []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify prompt", "timeout": 3}}}},
+			"Notification":     []any{map[string]any{"matcher": claudesetup.NeedsMatcher, "hooks": []any{map[string]any{"type": "command", "command": q + "notify needs", "timeout": 3}}}},
 		},
 		"statusLine": map[string]any{"type": "command", "command": statusCmd},
 	}
@@ -424,5 +425,33 @@ func TestFixDialogQuietForClaudeLayout(t *testing.T) {
 	pressAny(t, win, "claude_fix", 0)
 	if win.claude.dialog == nil || slices.Contains(win.claude.dialog.summary, relayoutLine) {
 		t.Fatalf("2-space file: dialog %+v", win.claude.dialog)
+	}
+}
+
+func TestClaudeSectionShowsThePromptHook(t *testing.T) {
+	f := newClaudeFixture(t, "", false)
+	win := claudeWindow(t, f, 800, 600)
+	if !pageHas(win, "Command each session runs: OK · "+filepath.Join("kaze-app", "kaze.exe")) {
+		t.Fatalf("no prompt line in %q", win.set.texts)
+	}
+	if len(controlsOf(win, "claude_fix")) != 0 {
+		t.Fatal("Fix shown with the prompt hook OK")
+	}
+	// Drop only the prompt hook from the temp settings file.
+	var m map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, f.settings)), &m); err != nil {
+		t.Fatal(err)
+	}
+	delete(m["hooks"].(map[string]any), "UserPromptSubmit")
+	b, _ := json.MarshalIndent(m, "", "  ")
+	if err := os.WriteFile(f.settings, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	win = claudeWindow(t, f, 800, 600)
+	if !pageHas(win, "Command each session runs: missing") {
+		t.Fatalf("no missing prompt line in %q", win.set.texts)
+	}
+	if len(controlsOf(win, "claude_fix")) != 1 {
+		t.Fatal("Fix not shown when only the prompt hook is missing")
 	}
 }
