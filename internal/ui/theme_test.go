@@ -20,8 +20,8 @@ func mustTheme(t *testing.T, k string) theme.Theme {
 
 func TestNewChromeIsMidnight(t *testing.T) {
 	c := newChrome()
-	if c.th != theme.Default().UI || c.shape != theme.Rounded {
-		t.Fatal("a new chrome is not Midnight with rounded tabs")
+	if c.th != theme.Default().UI {
+		t.Fatal("a new chrome is not Midnight")
 	}
 }
 
@@ -30,8 +30,8 @@ func TestApplyThemeRepaintsChrome(t *testing.T) {
 	win.ui = newChrome()
 	win.rend = render.NewRenderer(14, win.pal, render.Options{})
 	win.applyTheme(mustTheme(t, "sumi"))
-	if win.ui.th.Accent != rgb(0xe2553d) || win.ui.shape != theme.Underline {
-		t.Fatalf("chrome accent %v shape %v, want Sumi", win.ui.th.Accent, win.ui.shape)
+	if win.ui.th.Accent != rgb(0xe2553d) {
+		t.Fatalf("chrome accent %v, want Sumi", win.ui.th.Accent)
 	}
 	if win.pal.BG != rgb(0x111111) {
 		t.Fatalf("terminal bg %v, want #111111", win.pal.BG)
@@ -60,37 +60,6 @@ func TestToastAndUsageUseTheme(t *testing.T) {
 	}
 	if got, _ := c.captionBG(capMinimize, captionState{hover: capMinimize}); got != rgb(0xcfc7b7) {
 		t.Fatalf("caption hover %v, want #cfc7b7", got)
-	}
-}
-
-func TestPillTintIsFaintAccent(t *testing.T) {
-	a := rgb(0x40e0d0)
-	got := pillTint(a)
-	if got.R != a.R || got.G != a.G || got.B != a.B || got.A != 0x21 {
-		t.Fatalf("pill tint %v, want the accent at 13%%", got)
-	}
-}
-
-// Every tab shape draws over the same layout, so clicks land the same way.
-func TestTabShapesKeepTheLayout(t *testing.T) {
-	var want []tabHit
-	for _, k := range []string{"midnight", "sumi", "tide"} {
-		win, _ := alertWindow(t, 3)
-		win.ui.setTheme(mustTheme(t, k))
-		win.ui.layoutTabBar(barContext(1000), win.mgr.Tabs(), win.mgr.Active().ID, nil, "pwsh", 38, 900, settingsChip{})
-		got := append([]tabHit(nil), win.ui.hits.tabs...)
-		if len(got) != 3 {
-			t.Fatalf("%s: %d tabs drawn, want 3", k, len(got))
-		}
-		if want == nil {
-			want = got
-			continue
-		}
-		for i := range got {
-			if got[i].rect != want[i].rect || got[i].close != want[i].close {
-				t.Fatalf("%s: tab %d at %v, want %v", k, i, got[i], want[i])
-			}
-		}
 	}
 }
 

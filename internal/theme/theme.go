@@ -7,16 +7,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
 )
 
-// TabShape is how a theme draws its tabs.
-type TabShape int
-
-const (
-	Rounded TabShape = iota
-	Underline
-	Pill
-)
-
-// Chrome is every color the window chrome (tab bar, status bar, toasts) draws with.
+// Chrome is every color the window chrome (title bar, sidebar, status bar, toasts) draws with.
 type Chrome struct {
 	Chrome, Active, ActiveFG, Muted, Border, Accent, StatusFG, Folder, Branch color.NRGBA
 	CapGlyph, CapHover, CapPress, CloseHover, ClosePress                      color.NRGBA
@@ -28,7 +19,6 @@ type Theme struct {
 	Key, Name string
 	Term      render.Palette
 	UI        Chrome
-	Tabs      TabShape
 }
 
 func hex(v uint32) color.NRGBA {
@@ -68,7 +58,7 @@ var (
 
 func midnight() Theme {
 	return Theme{
-		Key: "midnight", Name: "Midnight", Term: render.DefaultPalette(), Tabs: Rounded,
+		Key: "midnight", Name: "Midnight", Term: render.DefaultPalette(),
 		UI: Chrome{
 			Chrome: hex(0x0b0d12), Active: hex(0x0f1117), ActiveFG: hex(0xffffff), Muted: hex(0x8a90a2),
 			Border: hex(0x1d2230), Accent: hex(0x8b7bff), StatusFG: hex(0x7d8394), Folder: hex(0xc9cdd8),
@@ -82,7 +72,7 @@ func midnight() Theme {
 
 func sumi() Theme {
 	return Theme{
-		Key: "sumi", Name: "Sumi", Tabs: Underline,
+		Key: "sumi", Name: "Sumi",
 		Term: render.Palette{
 			FG: hex(0xe4e1da), BG: hex(0x111111), Cursor: hex(0xe2553d), Selection: hex(0x3a2420),
 			ANSI: ansi(0x1c1c1c, 0xe2553d, 0x9fbf8f, 0xd9b56a, 0x7f9fbf, 0xc08fa8, 0x8fbfb5, 0xe4e1da,
@@ -101,7 +91,7 @@ func sumi() Theme {
 
 func tide() Theme {
 	return Theme{
-		Key: "tide", Name: "Tide", Tabs: Pill,
+		Key: "tide", Name: "Tide",
 		Term: render.Palette{
 			FG: hex(0xcfe3ef), BG: hex(0x0b1626), Cursor: hex(0x40e0d0), Selection: hex(0x123a48),
 			ANSI: ansi(0x132235, 0xff7b8a, 0x5fe0a8, 0xffd27a, 0x7cc8ff, 0xc3a6ff, 0x5fe0d0, 0xcfe3ef,
@@ -121,7 +111,7 @@ func tide() Theme {
 // Washi is the light theme, so its caption hover/press go darker, not lighter.
 func washi() Theme {
 	return Theme{
-		Key: "washi", Name: "Washi", Tabs: Rounded,
+		Key: "washi", Name: "Washi",
 		Term: render.Palette{
 			FG: hex(0x2b2a33), BG: hex(0xf6f2ea), Cursor: hex(0x3f51b5), Selection: hex(0xd6dcf5),
 			ANSI: ansi(0x2b2a33, 0xc0392b, 0x2e7d4f, 0x9a6a00, 0x2f5fb3, 0x8e44ad, 0x1f7f8a, 0xbdb6a8,
@@ -140,7 +130,7 @@ func washi() Theme {
 
 func sakura() Theme {
 	return Theme{
-		Key: "sakura", Name: "Sakura", Tabs: Rounded,
+		Key: "sakura", Name: "Sakura",
 		Term: render.Palette{
 			FG: hex(0xeedde6), BG: hex(0x1a1218), Cursor: hex(0xff8fb8), Selection: hex(0x4a2a3c),
 			ANSI: ansi(0x2b1f28, 0xff6f8e, 0x9fd8a8, 0xf3c98b, 0x9fb6ff, 0xff8fb8, 0x8fd8d0, 0xeedde6,

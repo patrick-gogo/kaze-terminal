@@ -609,13 +609,14 @@ func TestWindowStaysOpenAfterAStartupWorkspace(t *testing.T) {
 func TestFrameDrawsTheBannerOverTheTerminal(t *testing.T) {
 	f := newRunFixture(t)
 	f.win.opt.Config = config.Default()
+	f.win.custom = true // the terminal area below a 38dp bar, right of the sidebar
 	f.win.runWorkspace("ws_samurai")
 	var r input.Router
 	sizedFrame(t, f.win, &r, 800, 600)
 	if len(f.win.wsr.hits) == 0 {
 		t.Fatal("the frame drew no banner for a waiting tab")
 	}
-	if b := f.win.wsr.hits[0].rect; b.Min.Y < 38 || b.Max.Y > 576 {
+	if b := f.win.wsr.hits[0].rect; b.Min.Y < 38 || b.Max.Y > 576 || b.Min.X < sidebarW {
 		t.Fatalf("banner %v is outside the terminal area", b)
 	}
 	f.win.openSettings()
@@ -944,4 +945,100 @@ func TestMemberStatusOnePromptWithBothMarksIsNotAFinish(t *testing.T) {
 		return tab.Session.Applier().PromptSeq() > 0
 	})
 	f.wantStatus(1, "Running")
+}
+
+func TestRunningAWorkspaceKeepsTheShownSession(t *testing.T) {
+	f := newRunFixture(t)
+	a, err := f.win.mgr.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.win.runWorkspace("ws_samurai")
+	if got := f.win.mgr.Active(); got == nil || got.ID != a.ID {
+		t.Fatalf("shown is %+v after the run, want the session %d", got, a.ID)
+	}
+	runs := f.win.sideRuns()
+	if len(runs) != 1 || len(runs[0].Members) != len(samuraiTabs) {
+		t.Fatalf("sideRuns %+v, want one run of %d members", runs, len(samuraiTabs))
+	}
+}
+
+func TestStartupWorkspaceShowsItsFirstMember(t *testing.T) {
+	f := newRunFixture(t)
+	f.win.opt.Config.StartupWorkspace = "ws_samurai"
+	if err := f.win.openStartup(nil); err != nil {
+		t.Fatal(err)
+	}
+	first := f.theRun().members[0].tab
+	if got := f.win.mgr.Active(); got == nil || got.ID != first {
+		t.Fatalf("shown is %+v, want the first member %d", got, first)
+	}
+}
+
+func TestServerDotsColors(t *testing.T) {
+	f := newRunFixture(t)
+	f.win.runWorkspace("ws_samurai")
+	run := f.theRun()
+	run.members[0].run.State = workspaces.Launched // Running
+	f.st.pty(1).Close()                            // shell exited: stopped
+	f.until("admin exited", func() bool { f.win.mgr.Tabs(); return f.win.mgr.Lookup(run.members[1].tab).Exited })
+	got := f.win.statusParts().Servers
+	if len(got) != len(samuraiTabs) {
+		t.Fatalf("%d dots, want %d", len(got), len(samuraiTabs))
+	}
+	if !got[0].Up || got[0].Down {
+		t.Errorf("running dot %+v, want Up", got[0])
+	}
+	if !got[1].Down || got[1].Up {
+		t.Errorf("stopped dot %+v, want Down", got[1])
+	}
+	if got[2].Up || got[2].Down {
+		t.Errorf("starting dot %+v, want neither", got[2])
+	}
+}
+
+func TestServerDotsClickShowsTheDownMember(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	a := openIn(t, win, "")
+	m1 := openMember(t, win, "api")
+	m2 := openMember(t, win, "web")
+	run := win.runs[1]
+	run.ctx, run.cancel = context.WithCancel(context.Background())
+	run.members[0].run = workspaces.TabRun{Line: "x", State: workspaces.Launched}
+	run.members[1].run = workspaces.TabRun{Line: "x", State: workspaces.Failed}
+	win.mgr.SetActive(a.ID)
+	var r input.Router
+	sideFrame(t, win, &r)
+	if win.serverDots.Empty() {
+		t.Fatal("no server dots rect")
+	}
+	click := func() {
+		at := f32.Pt(float32(centre(win.serverDots).X), float32(centre(win.serverDots).Y))
+		r.Queue(
+			pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: at},
+			pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Position: at},
+		)
+		sideFrame(t, win, &r)
+		sideFrame(t, win, &r)
+	}
+	click()
+	if win.mgr.Active().ID != m2.ID {
+		t.Fatalf("click showed %d, want the down member %d", win.mgr.Active().ID, m2.ID)
+	}
+	win.mgr.SetActive(a.ID)
+	run.members[1].run = workspaces.TabRun{Line: "x", State: workspaces.Launched}
+	click()
+	if win.mgr.Active().ID != m1.ID {
+		t.Fatalf("click showed %d, want the first member %d when none is down", win.mgr.Active().ID, m1.ID)
+	}
+}
+
+func TestNoServerDotsWithoutARun(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	openIn(t, win, "")
+	var r input.Router
+	sideFrame(t, win, &r)
+	if got := win.statusParts().Servers; len(got) != 0 || !win.serverDots.Empty() {
+		t.Fatalf("dots %v rect %v without a run", got, win.serverDots)
+	}
 }

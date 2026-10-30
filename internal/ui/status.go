@@ -19,17 +19,28 @@ import (
 type statusParts struct {
 	Folder, Branch, Right string
 	Usage                 []usage.Segment // Claude usage, drawn right-aligned before Right
+	Servers               []serverDot     // one per workspace run member, drawn before Usage
 }
 
-// locEntry is the branch found for one tab at one folder report.
+// serverDot is one run member's status dot: red when Down, green when Up, muted otherwise.
+type serverDot struct{ Down, Up bool }
+
+// locEntry is the branch and repo found for one tab at one folder report.
 type locEntry struct {
-	cwd    string
-	seq    uint64
-	branch string
+	cwd      string
+	seq      uint64
+	branch   string
+	repo     string // common git folder, "" outside a repo
+	repoName string
 }
 
 func (win *window) statusParts() statusParts {
 	p := statusParts{Right: win.statusText(len(win.mgr.Tabs()))}
+	for _, r := range win.sideRuns() {
+		for _, m := range r.Members {
+			p.Servers = append(p.Servers, serverDot{Down: m.Down, Up: !m.Down && m.Status == "Running"})
+		}
+	}
 	t := win.mgr.Active()
 	if win.opt.Config.ShowUsage {
 		p.Usage = win.usageSegments(t, time.Now())
@@ -37,30 +48,45 @@ func (win *window) statusParts() statusParts {
 	if t == nil {
 		return p
 	}
+	e := win.locOf(t)
+	if e.cwd == "" {
+		return p
+	}
+	p.Folder = cleanText(tildeHome(e.cwd, win.home))
+	p.Branch = cleanText(e.branch)
+	return p
+}
+
+// locOf returns t's folder, branch and repo. A new report (even for the same
+// folder) or a new folder re-reads them; every other call reuses the cache, so
+// no file I/O per frame. A tab with no reported folder yields a zero entry.
+func (win *window) locOf(t *tabs.Tab) locEntry {
 	s := t.Session
 	s.Lock()
 	cwd, seq := s.Applier().Cwd(), s.Applier().CwdSeq()
 	s.Unlock()
 	if cwd == "" {
-		return p
+		return locEntry{}
 	}
-	// A new report (even for the same folder) or a new folder re-reads the
-	// branch; every other frame reuses it, so no file I/O per frame.
 	e, ok := win.locs[t.ID]
-	if !ok || e.cwd != cwd || e.seq != seq {
-		lookup := win.branchFn
-		if lookup == nil {
-			lookup = gitinfo.Branch
-		}
-		e = locEntry{cwd: cwd, seq: seq, branch: lookup(cwd)}
-		if win.locs == nil {
-			win.locs = map[tabs.TabID]locEntry{}
-		}
-		win.locs[t.ID] = e
+	if ok && e.cwd == cwd && e.seq == seq {
+		return e
 	}
-	p.Folder = cleanText(tildeHome(cwd, win.home))
-	p.Branch = cleanText(e.branch)
-	return p
+	branch := win.branchFn
+	if branch == nil {
+		branch = gitinfo.Branch
+	}
+	repo := win.repoFn
+	if repo == nil {
+		repo = gitinfo.Repo
+	}
+	e = locEntry{cwd: cwd, seq: seq, branch: branch(cwd)}
+	e.repo, e.repoName = repo(cwd)
+	if win.locs == nil {
+		win.locs = map[tabs.TabID]locEntry{}
+	}
+	win.locs[t.ID] = e
+	return e
 }
 
 // staleBranch makes the next frame re-read t's branch. Claude Code can switch
@@ -141,4 +167,29 @@ func truncateLeft(s string, max int) string {
 // leftover space is trimmed so the name stays flush.
 func (c *chrome) branchLabel(branch string) string {
 	return strings.TrimLeft(c.fit("⎇ "+branch), " ")
+}
+
+// showServer shows the first down run member, or the first member when none is down.
+func (win *window) showServer() {
+	var first, down tabs.TabID
+	for _, r := range win.sideRuns() {
+		for _, m := range r.Members {
+			if m.ID == 0 || !win.mgr.Has(m.ID) {
+				continue
+			}
+			if first == 0 {
+				first = m.ID
+			}
+			if m.Down && down == 0 {
+				down = m.ID
+			}
+		}
+	}
+	if down == 0 {
+		down = first
+	}
+	if down != 0 {
+		win.selectTab(down)
+		win.w.Invalidate()
+	}
 }

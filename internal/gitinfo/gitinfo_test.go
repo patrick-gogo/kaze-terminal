@@ -135,3 +135,74 @@ func TestBranchStripsControlChars(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestRepoOfAPlainCheckout(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "proj")
+	write(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
+	key, name := Repo(root)
+	if key != filepath.Join(root, ".git") || name != "proj" {
+		t.Fatalf("got %q, %q", key, name)
+	}
+}
+
+func TestRepoOfASubfolder(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "proj")
+	write(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
+	sub := filepath.Join(root, "sub")
+	write(t, filepath.Join(sub, "f.txt"), "x")
+	wantK, wantN := Repo(root)
+	key, name := Repo(sub)
+	if key != wantK || name != wantN || name != "proj" {
+		t.Fatalf("got %q, %q", key, name)
+	}
+}
+
+func TestRepoOfAWorktreeIsTheMainRepo(t *testing.T) {
+	base := t.TempDir()
+	main := filepath.Join(base, "main")
+	wtGit := filepath.Join(main, ".git", "worktrees", "wt")
+	write(t, filepath.Join(main, ".git", "HEAD"), "ref: refs/heads/main\n")
+	write(t, filepath.Join(wtGit, "HEAD"), "ref: refs/heads/wt\n")
+	write(t, filepath.Join(wtGit, "commondir"), "../..\n")
+	wt := filepath.Join(base, "wt")
+	write(t, filepath.Join(wt, ".git"), "gitdir: "+filepath.ToSlash(wtGit)+"\n")
+	key, name := Repo(wt)
+	if key != filepath.Join(main, ".git") || name != "main" {
+		t.Fatalf("got %q, %q", key, name)
+	}
+}
+
+func TestRepoOfASubmodule(t *testing.T) {
+	base := t.TempDir()
+	modGit := filepath.Join(base, "super", ".git", "modules", "sub")
+	write(t, filepath.Join(modGit, "HEAD"), "ref: refs/heads/main\n")
+	sub := filepath.Join(base, "super", "sub")
+	write(t, filepath.Join(sub, ".git"), "gitdir: ../.git/modules/sub\n")
+	key, name := Repo(sub)
+	if key != modGit || name != "sub" {
+		t.Fatalf("got %q, %q", key, name)
+	}
+}
+
+func TestRepoOutsideARepo(t *testing.T) {
+	// Not in a repo only if no ancestor of the temp dir has .git; plant the
+	// boundary with an unreadable .git file so the walk stops inside it.
+	root := t.TempDir()
+	write(t, filepath.Join(root, ".git"), "not a gitdir line\n")
+	if key, name := Repo(root); key != "" || name != "" {
+		t.Fatalf("got %q, %q", key, name)
+	}
+	if key, name := Repo(""); key != "" || name != "" {
+		t.Fatalf("empty dir: got %q, %q", key, name)
+	}
+}
+
+func TestRepoSelfPointingGitFile(t *testing.T) {
+	root := t.TempDir()
+	git := filepath.Join(root, ".git")
+	write(t, git, "gitdir: "+filepath.ToSlash(git)+"\n")
+	key, name := Repo(root)
+	if key != "" || name != "" {
+		t.Fatalf("got %q, %q", key, name)
+	}
+}

@@ -355,6 +355,9 @@ func (win *window) fieldText(id string) string {
 // editField gives field id the keyboard, from the end of the frame.
 func (win *window) editField(id string) {
 	win.set.editing = id
+	if id != "" {
+		win.side.filtering = false
+	}
 	win.wantFocus = true
 	win.w.Invalidate()
 }

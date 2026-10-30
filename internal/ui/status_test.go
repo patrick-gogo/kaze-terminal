@@ -243,3 +243,25 @@ func TestBranchLabelHasNoLeadingSpaceWhenGlyphIsDropped(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestLocOfCachesPerFolderReport(t *testing.T) {
+	win, tab, branchCalls := statusWindow(t)
+	var repoCalls []string
+	win.repoFn = func(dir string) (string, string) { repoCalls = append(repoCalls, dir); return "/r/.git", "r" }
+	report(t, tab, tmp(t))
+	var e locEntry
+	for range 3 {
+		e = win.locOf(tab)
+	}
+	if len(*branchCalls) != 1 || len(repoCalls) != 1 {
+		t.Fatalf("branch %d, repo %d lookups, want 1 each", len(*branchCalls), len(repoCalls))
+	}
+	if e.repo != "/r/.git" || e.repoName != "r" || e.branch != "main" {
+		t.Fatalf("entry %+v", e)
+	}
+	report(t, tab, e.cwd)
+	win.locOf(tab)
+	if len(*branchCalls) != 2 || len(repoCalls) != 2 {
+		t.Fatalf("new CwdSeq: branch %d, repo %d, want 2 each", len(*branchCalls), len(repoCalls))
+	}
+}

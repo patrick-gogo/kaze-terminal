@@ -1,5 +1,5 @@
-// Package ui is kaze's main window: the tab bar, the active tab's terminal and
-// the status bar, plus keyboard, mouse, clipboard and focus handling.
+// Package ui is kaze's main window: the title bar, the sidebar, the active tab's
+// terminal and the status bar, plus keyboard, mouse, clipboard and focus handling.
 package ui
 
 import (
@@ -79,7 +79,6 @@ type window struct {
 	rendStale bool // a setting changed: rebuild before the next layout, never mid-frame
 	ui        *chrome
 	termTag   *int
-	barTag    *int
 	defTitle  string
 	winTitle  string
 	lastTab   *tabs.Tab
@@ -94,8 +93,9 @@ type window struct {
 	composing bool
 	gridMin   image.Point // top-left of the grid in window pixels
 
-	home     string                  // for "~" in the status bar
-	branchFn func(dir string) string // gitinfo.Branch unless a test replaces it
+	home     string                              // for "~" in the status bar
+	branchFn func(dir string) string             // gitinfo.Branch unless a test replaces it
+	repoFn   func(dir string) (key, name string) // gitinfo.Repo unless a test replaces it
 	locs     map[tabs.TabID]locEntry
 
 	memMB   float64
@@ -120,12 +120,14 @@ type window struct {
 	bf    benchFrame
 
 	// Title bar: kaze draws its own caption buttons where custom is set (Windows).
-	custom    bool
-	bar       barLayout // where the last frame put the tabs, drag area and buttons
-	caption   captionState
-	capTag    *int
-	maximized bool                // from the last ConfigEvent, so the button shows the real state
-	performFn func(system.Action) // replaces win.w.Perform in tests
+	custom     bool
+	bar        barLayout // where the last frame put the toggle, drag area and buttons
+	caption    captionState
+	capTag     *int
+	dotsTag    *int
+	serverDots image.Rectangle     // the status bar's dots in window pixels; empty when none
+	maximized  bool                // from the last ConfigEvent, so the button shows the real state
+	performFn  func(system.Action) // replaces win.w.Perform in tests
 
 	// Alerts from Claude Code hooks (kaze notify).
 	srv         *notify.Server  // nil when the listener could not start
@@ -154,8 +156,8 @@ type window struct {
 
 	runs map[uint64]*wsRun // workspace runs with a tab still open; UI goroutine only
 	wsr  wsRunner
-	grp  groupMenu // the tab group dropdown; UI goroutine only
-	wsp  wsPage    // the Workspaces section: its list and the open draft; UI goroutine only
+	side sideUI // the sidebar; UI goroutine only
+	wsp  wsPage // the Workspaces section: its list and the open draft; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -167,7 +169,6 @@ func Run(w *app.Window, opt Options) error {
 		w: w, opt: opt, km: km,
 		ui:       newChrome(),
 		termTag:  new(int),
-		barTag:   new(int),
 		defTitle: shellName(opt.Shell),
 		focused:  true, wantFocus: true,
 		home:   userHome(),
@@ -328,6 +329,7 @@ func (win *window) setFocused(f bool) {
 	if !f {
 		// Windows may never send Leave once another window takes the pointer.
 		win.caption.hover = capNone
+		win.side.st.hover = 0
 	}
 	if win.rend != nil {
 		win.rend.SetFocused(f)
@@ -365,6 +367,7 @@ func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 }
 
 func (win *window) newTab() {
+	win.dropFilter()
 	win.hideSettings() // the new tab is shown
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
@@ -441,6 +444,9 @@ func (win *window) setCursorHidden(h bool) {
 
 func (win *window) frame(gtx layout.Context) error {
 	barH, statusH, pad := gtx.Dp(38), gtx.Dp(24), gtx.Dp(8)
+	if !win.custom {
+		barH = 0 // the native title bar; the toggle and gear are in the sidebar
+	}
 	px := gtx.Metric.PxPerSp * win.opt.Config.FontSize
 	if win.rend == nil || win.rendStale || px != win.rendPx {
 		// A DPI change (another monitor) needs glyphs at the new size.
@@ -450,7 +456,9 @@ func (win *window) frame(gtx layout.Context) error {
 	}
 	cw, ch := win.rend.CellSize()
 	size := gtx.Constraints.Max
-	termRect := image.Rect(0, barH, size.X, max(size.Y-statusH, barH))
+	bottom := max(size.Y-statusH, barH)
+	sideRect := image.Rect(0, barH, win.sideWidth(gtx, size.X), bottom)
+	termRect := image.Rect(sideRect.Max.X, barH, size.X, bottom)
 	grid := image.Rect(termRect.Min.X+pad, termRect.Min.Y+pad/2, termRect.Max.X-pad, termRect.Max.Y-pad/2)
 	win.gridMin = grid.Min
 	cols, rows := gridSize(grid.Dx(), grid.Dy(), cw, ch)
@@ -484,7 +492,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.mgr.ResizeAll(cols, rows)
 
 	win.barEvents(gtx)
-	win.groupEvents(gtx) // after the strip, so a chip click is not also a click outside
+	win.dotsEvents(gtx)
+	win.sideEvents(gtx)
+	win.filterEvents(gtx)
 	win.toastEvents(gtx)
 	win.bannerEvents(gtx)
 	active := win.mgr.Active()
@@ -499,7 +509,6 @@ func (win *window) frame(gtx layout.Context) error {
 	active = win.mgr.Active()
 	win.switchedTo(active)
 	list := win.mgr.Tabs()
-	win.pruneGroupMenu(list)
 	win.pruneSels(list)
 	win.pruneLocs(list)
 	win.alerts.prune(func(id tabs.TabID) bool {
@@ -521,32 +530,26 @@ func (win *window) frame(gtx layout.Context) error {
 
 	ops := gtx.Ops
 
-	// Tab bar, plus the caption buttons and the empty space that moves the window.
+	// Title bar (kaze's own only): toggle, mark, the empty space that moves the window, gear and caption buttons.
 	bar := gtx
 	bar.Constraints = layout.Exact(image.Pt(size.X, barH))
-	var shown tabs.TabID // none while settings is shown
-	if t := win.shownTab(); t != nil {
-		shown = t.ID
-	}
-	win.drawBar(bar, list, shown, barH)
-	area := clip.Rect(win.bar.Tabs).Push(ops)
-	event.Op(ops, win.barTag)
-	area.Pop()
-	for _, r := range []image.Rectangle{win.bar.Drag, win.bar.Band} {
-		if r.Empty() {
-			continue
-		}
+	win.drawBar(bar, barH)
+	if r := win.bar.Drag; !r.Empty() {
 		// Windows answers hit tests here with HTCAPTION: drag, double-click and snap are native.
-		area = clip.Rect(r).Push(ops)
+		area := clip.Rect(r).Push(ops)
 		system.ActionInputOp(system.ActionMove).Add(ops)
 		area.Pop()
 	}
-	// The gear is here on every OS; the window buttons only with kaze's own title bar.
-	if r := win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2]); !r.Empty() {
-		area = clip.Rect(r).Push(ops)
+	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
+		if r.Empty() {
+			continue
+		}
+		area := clip.Rect(r).Push(ops)
 		event.Op(ops, win.capTag)
 		area.Pop()
 	}
+
+	win.drawSide(gtx, sideRect)
 
 	if win.set.shown {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
@@ -560,7 +563,8 @@ func (win *window) frame(gtx layout.Context) error {
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
-	win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	dots := win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	win.serverDots = dots.Add(image.Pt(0, size.Y-statusH))
 	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
 	}
@@ -569,6 +573,12 @@ func (win *window) frame(gtx layout.Context) error {
 	}
 	st.Pop()
 
+	if !win.serverDots.Empty() {
+		area := clip.Rect(win.serverDots).Push(ops)
+		event.Op(ops, win.dotsTag)
+		area.Pop()
+	}
+
 	// Toasts float over the terminal, above the status bar; drawn last so they take clicks first.
 	if next, _ := win.alerts.expire(gtx.Now); !next.IsZero() {
 		gtx.Execute(op.InvalidateCmd{At: next}) // one wake for the next done toast, no ticker
@@ -576,14 +586,13 @@ func (win *window) frame(gtx layout.Context) error {
 	if win.dialogShown() {
 		win.ui.toastHits = win.ui.toastHits[:0] // the confirm dialog answers every click; toasts wait
 	} else {
-		win.drawToasts(gtx, size.Y, statusH, barH)
+		win.drawToasts(gtx, termRect)
 	}
 	for _, h := range win.ui.toastHits {
-		area = clip.Rect(h.rect).Push(ops)
+		area := clip.Rect(h.rect).Push(ops)
 		event.Op(ops, win.toastTag)
 		area.Pop()
 	}
-	win.drawGroupMenu(gtx, list, barH) // last, so it is on top and sees clicks first
 
 	if win.wantFocus {
 		gtx.Execute(key.FocusCmd{Tag: win.focusTarget()})
@@ -693,15 +702,30 @@ func (win *window) statusText(n int) string {
 	return s
 }
 
-// drawBar lays out and draws the top bar: the tab strip gets the room left of the
-// caption buttons less a minimum drag area, and whatever it doesn't use is added to it.
-func (win *window) drawBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, barH int) {
+// drawBar draws kaze's own top bar: the sidebar toggle, the K mark, the move area,
+// the gear and the caption buttons. With the native title bar there is none.
+func (win *window) drawBar(gtx layout.Context, barH int) {
+	if !win.custom {
+		win.bar = barLayout{}
+		return
+	}
+	ops, th := gtx.Ops, win.ui.th
 	size := image.Pt(gtx.Constraints.Max.X, barH)
-	d := barDims{buttonW: gtx.Dp(46), gearW: gtx.Dp(46), minDrag: gtx.Dp(48), band: gtx.Dp(tabTop)}
-	room := layoutBar(size, size.X, d, win.custom).Tabs.Max.X
-	chip := settingsChip{open: win.set.open, shown: win.set.shown}
-	used := win.ui.layoutTabBar(gtx, list, active, win.alerts.markOf, win.defTitle, barH, room, chip)
-	win.bar = layoutBar(size, used, d, win.custom)
+	d := barDims{buttonW: gtx.Dp(46), gearW: gtx.Dp(46), toggleW: gtx.Dp(46), markW: gtx.Dp(30)}
+	win.bar = layoutBar(size, d, true)
+	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
+	paint.FillShape(ops, th.Border, clip.Rect(image.Rect(0, size.Y-1, size.X, size.Y)).Op())
+	if m := win.bar.Mark; !m.Empty() {
+		px := gtx.Dp(18)
+		if mop, img := markImage(px); img != nil {
+			cl := clip.Rect(m).Push(ops)
+			t := op.Offset(image.Pt(m.Min.X+(m.Dx()-px)/2, m.Min.Y+(m.Dy()-px)/2)).Push(ops)
+			mop.Add(ops)
+			paint.PaintOp{}.Add(ops)
+			t.Pop()
+			cl.Pop()
+		}
+	}
 	win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized) // empty buttons are skipped
 }
 
@@ -720,6 +744,8 @@ func (win *window) captionEvent(e pointer.Event) {
 	case capNone:
 	case capGear:
 		win.openSettings()
+	case capToggle:
+		win.toggleSidebar()
 	default:
 		win.perform(actionFor(c, win.maximized))
 	}
@@ -733,57 +759,42 @@ func (win *window) barEvents(gtx layout.Context) {
 	for {
 		ev, ok := gtx.Event(pointer.Filter{Target: win.capTag, Kinds: kinds})
 		if !ok {
-			break
+			return
 		}
 		if e, ok := ev.(pointer.Event); ok {
 			win.captionEvent(e)
 		}
 	}
+}
+
+// focusTarget is who gets the keyboard: the sidebar's filter field, a settings
+// text field, the settings page or the terminal.
+func (win *window) focusTarget() event.Tag {
+	if win.side.filtering && !win.side.hidden {
+		return &win.side.ed
+	}
+	if win.set.shown {
+		if f := win.set.fields[win.set.editing]; f != nil && win.set.editing != "" {
+			return &f.ed
+		}
+		return &win.set.tag
+	}
+	return win.termTag
+}
+
+// dotsEvents shows a run member when the status bar's server dots are clicked.
+func (win *window) dotsEvents(gtx layout.Context) {
+	if win.dotsTag == nil {
+		win.dotsTag = new(int) // before the first draw, so its filter is up when the first click comes
+	}
 	for {
-		ev, ok := gtx.Event(pointer.Filter{Target: win.barTag, Kinds: pointer.Press})
+		ev, ok := gtx.Event(pointer.Filter{Target: win.dotsTag, Kinds: pointer.Press})
 		if !ok {
 			return
 		}
-		if e, ok := ev.(pointer.Event); ok {
-			win.barPress(e)
+		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
+			win.showServer()
 		}
-	}
-}
-
-// barPress handles a press on the tab strip.
-func (win *window) barPress(e pointer.Event) {
-	if e.Kind != pointer.Press || win.bench.IgnoreInput() {
-		return
-	}
-	win.wantFocus = true
-	p := e.Position.Round()
-	primary, middle := e.Buttons.Contain(pointer.ButtonPrimary), e.Buttons.Contain(pointer.ButtonTertiary)
-	if run, on := win.ui.hits.groupAt(p); on {
-		if primary && win.grp.run == run {
-			win.closeGroupMenu()
-		} else if primary {
-			win.openGroupMenu(run)
-		}
-		return // the chip has no ×: a run's tabs close one at a time
-	}
-	if on, onClose := win.ui.hits.settingsAt(p); on {
-		switch {
-		case onClose && primary, middle:
-			win.closeSettings()
-		case primary:
-			win.openSettings()
-		}
-		return
-	}
-	id, onClose, onPlus := win.ui.hits.at(p)
-	switch {
-	case onPlus && primary:
-		win.newTab()
-	case id == 0:
-	case onClose && primary, middle:
-		win.mgr.Close(id)
-	case primary:
-		win.selectTab(id)
 	}
 }
 
@@ -894,8 +905,8 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	}
 }
 
-// runShortcut does one of kaze's own actions. The terminal, the settings page and
-// the group menu all use it, so a shortcut does the same wherever the keyboard is.
+// runShortcut does one of kaze's own actions. The terminal and the settings page
+// both use it, so a shortcut does the same wherever the keyboard is.
 func (win *window) runShortcut(gtx layout.Context, a action) {
 	switch a {
 	case actNewTab:
@@ -904,7 +915,7 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		if win.set.shown {
 			win.closeSettings()
 		} else if t := win.mgr.Active(); t != nil {
-			win.mgr.Close(t.ID)
+			win.closeTab(t.ID)
 		}
 	case actNextTab:
 		win.cycleTab(1)
@@ -912,6 +923,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.cycleTab(-1)
 	case actOpenSettings:
 		win.openSettings()
+	case actToggleSidebar:
+		win.toggleSidebar()
 	case actPaste:
 		if win.shownTab() != nil {
 			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
@@ -944,6 +957,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 	switch e.Kind {
 	case pointer.Press:
 		win.wantFocus = true
+		win.side.filtering = false // the filter keeps its text and gives the keyboard back
 		win.w.Invalidate()
 		btn := pressedButton(win.held, e.Buttons)
 		first := win.held == 0

@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"image"
 	"image/color"
 	"testing"
 
@@ -218,33 +217,6 @@ func TestIMEPreeditIsNotSentOnlyCommits(t *testing.T) {
 	}
 }
 
-func TestBarHitTest(t *testing.T) {
-	b := barHits{
-		tabs: []tabHit{
-			{id: 1, rect: image.Rect(0, 0, 100, 30), close: image.Rect(80, 5, 95, 25)},
-			{id: 2, rect: image.Rect(100, 0, 200, 30), close: image.Rect(180, 5, 195, 25)},
-		},
-		plus: image.Rect(200, 0, 230, 30),
-	}
-	for _, tc := range []struct {
-		p       image.Point
-		id      tabs.TabID
-		onClose bool
-		onPlus  bool
-	}{
-		{image.Pt(10, 10), 1, false, false},
-		{image.Pt(85, 10), 1, true, false},
-		{image.Pt(150, 10), 2, false, false},
-		{image.Pt(210, 10), 0, false, true},
-		{image.Pt(400, 10), 0, false, false},
-	} {
-		id, c, p := b.at(tc.p)
-		if id != tc.id || c != tc.onClose || p != tc.onPlus {
-			t.Errorf("at(%v) = %d,%v,%v want %d,%v,%v", tc.p, id, c, p, tc.id, tc.onClose, tc.onPlus)
-		}
-	}
-}
-
 func TestConfigColorsOverridePalette(t *testing.T) {
 	p := applyColors(render.DefaultPalette(), map[string]string{"bg": "#000000", "color1": "#FF0010", "cursor": "bad"})
 	if p.BG != (color.NRGBA{A: 0xff}) {
@@ -273,5 +245,20 @@ func TestTabLabel(t *testing.T) {
 	}
 	if got := tabLabel(&tabs.Tab{Title: "claude", Exited: true}, "pwsh"); got != "claude · exited" {
 		t.Fatalf("exited = %q", got)
+	}
+}
+
+func TestToggleSidebarDefaults(t *testing.T) {
+	if got := defaultBindings("windows")["toggle_sidebar"]; got != (input.Shortcut{Name: "B", Mods: key.ModCtrl | key.ModShift}) {
+		t.Errorf("windows toggle_sidebar = %+v, want ctrl+shift+B", got)
+	}
+	if got := defaultBindings("darwin")["toggle_sidebar"]; got != (input.Shortcut{Name: "B", Mods: key.ModCommand}) {
+		t.Errorf("darwin toggle_sidebar = %+v, want cmd+B", got)
+	}
+	if !config.KnownActions["toggle_sidebar"] {
+		t.Error("toggle_sidebar is not a known action")
+	}
+	if actionByName["toggle_sidebar"] != actToggleSidebar || actToggleSidebar == actNone {
+		t.Error("toggle_sidebar does not map to actToggleSidebar")
 	}
 }

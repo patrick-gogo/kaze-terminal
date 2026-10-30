@@ -56,12 +56,6 @@ func TestAllThemes(t *testing.T) {
 			t.Errorf("%s FG/BG contrast %.2f < 7", th.Key, r)
 		}
 	}
-	if s, ok := ByKey("sumi"); !ok || s.Tabs != Underline {
-		t.Error("sumi should use Underline tabs")
-	}
-	if s, ok := ByKey("tide"); !ok || s.Tabs != Pill {
-		t.Error("tide should use Pill tabs")
-	}
 	if _, ok := ByKey("nope"); ok {
 		t.Error("ByKey(nope) should be false")
 	}

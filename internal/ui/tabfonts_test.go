@@ -3,7 +3,6 @@ package ui
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gioui.org/font"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/patrick-gogo/kaze-terminal/assets/fonts"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
-	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 )
 
 // missingGlyphs counts glyphs the shaper drew as .notdef (ID 0) for s.
@@ -123,14 +121,6 @@ func TestFitDropsFormatAndLineSeparators(t *testing.T) {
 	c := newChrome()
 	in := "a\u202Eb\u2066c\u2069d\u200Be\u2028f\u2029g"
 	if got := c.fit(in); got != "abcdefg" {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestTabLabelTruncatesAfterFit(t *testing.T) {
-	c := newChrome()
-	title := strings.Repeat("\u200B", 40) + "short"
-	if got := c.tabLabelFit(&tabs.Tab{Title: title}, "x"); got != "short" {
 		t.Fatalf("got %q", got)
 	}
 }

@@ -49,7 +49,14 @@ checklist and what's next. The authority for behaviour is the spec
 - Go version: see `go.mod` (1.27). macOS also needs the Xcode Command Line Tools (`xcode-select --install`), because Gio uses cgo on darwin.
 - macOS: `go build -o kaze ./cmd/kaze && ./kaze`
 - Windows: `go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze`
+- Release build (the one the owner runs daily, in `~\Desktop\kaze-app`): build from `main`, never a feature branch:
+  `go build -trimpath -ldflags "-s -w -H=windowsgui" -o kaze.exe ./cmd/kaze` (about 14 MB; without `-s -w` it is about 19 MB).
+  macOS: `go build -trimpath -ldflags "-s -w" -o kaze ./cmd/kaze`.
+  Kaze is usually running, so first rename the old `kaze.exe` to `kaze-old.exe` (a running exe can be renamed),
+  then build. Watch out: when `go build` overwrites an exe on Windows, it renames the old one to `kaze.exe~`
+  and deletes it, so it removes any `kaze.exe~` already in that folder.
 - Tests: `go test ./...` and `go vet ./...`. Run one package at a time when chasing a failure.
 - Windows only: Smart App Control can block freshly built test binaries or `kaze.exe`
   ("An Application Control policy has blocked this file"). Rebuild with a changed build id,
-  e.g. `go test -ldflags "-s -w -X main.r=<random>" ./internal/<pkg>/`. Don't turn Smart App Control off.
+  e.g. `go test -ldflags "-B 0x<random hex>" ./internal/<pkg>/` or `-ldflags "-X main.r=<random>"` (both change
+  the test binary's hash). Retry with a new value if it is blocked again. Don't turn Smart App Control off.

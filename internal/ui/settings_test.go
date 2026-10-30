@@ -20,6 +20,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/config"
 	kinput "github.com/patrick-gogo/kaze-terminal/internal/input"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
+	"github.com/patrick-gogo/kaze-terminal/internal/version"
 )
 
 // pageContext is a 1x-scale context for a whole window.
@@ -31,7 +32,7 @@ func pageContext(w, h int) layout.Context {
 	}
 }
 
-// pageRect is where frame puts the page in an 800x600 window.
+// pageRect is a page box like the one frame gives an 800x600 window with the sidebar off.
 var pageRect = image.Rect(0, 38, 800, 576)
 
 type activation struct {
@@ -117,57 +118,7 @@ func TestCtrlCommaOpensSettings(t *testing.T) {
 	}
 }
 
-func TestSettingsChipAndTabSwitch(t *testing.T) {
-	win, _ := alertWindow(t, 2)
-	bar := func() { win.drawBar(barContext(1000), win.mgr.Tabs(), win.mgr.Active().ID, 38) }
-	bar()
-	if !win.ui.hits.settings.Empty() {
-		t.Fatal("a Settings chip with settings closed")
-	}
-	win.openSettings()
-	bar()
-	chip := win.ui.hits.settings
-	if chip.Empty() || !win.set.shown {
-		t.Fatalf("after open: chip %v shown %v", chip, win.set.shown)
-	}
-	for _, h := range win.ui.hits.tabs {
-		if h.rect.Overlaps(chip) {
-			t.Fatalf("chip %v overlaps tab %v", chip, h.rect)
-		}
-	}
-
-	second := win.ui.hits.tabs[1]
-	win.barPress(pressAt(f32.Pt(float32(second.rect.Min.X+2), float32(second.rect.Min.Y+5)))) // left of its ×
-	if !win.set.open || win.set.shown || win.mgr.Active().ID != second.id {
-		t.Fatalf("tab click: open %v shown %v active %d", win.set.open, win.set.shown, win.mgr.Active().ID)
-	}
-
-	bar()
-	win.barPress(pressAt(center(win.ui.hits.settings)))
-	if !win.set.shown {
-		t.Fatal("clicking the chip did not show settings")
-	}
-
-	bar()
-	win.barPress(pressAt(center(win.ui.hits.settingsClose)))
-	if win.set.open || win.set.shown {
-		t.Fatal("the chip's × did not close settings")
-	}
-	bar()
-	if !win.ui.hits.settings.Empty() {
-		t.Fatal("the chip stayed after close")
-	}
-}
-
-func TestGearOpensSettingsAndKeepsTheDragZone(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), 2000, barDims{buttonW: 46, gearW: 46, minDrag: 48}, true)
-	if b.Gear != image.Rect(816, 0, 862, 38) {
-		t.Fatalf("gear %v, want just left of minimize", b.Gear)
-	}
-	if b.Drag != image.Rect(768, 0, 816, 38) || b.Tabs.Max.X != 768 {
-		t.Fatalf("drag %v tabs %v: the gear ate the minimum drag zone", b.Drag, b.Tabs)
-	}
-
+func TestGearOpensSettings(t *testing.T) {
 	win, got := captionWindow(t, 1000)
 	if win.bar.Gear.Empty() {
 		t.Fatal("no gear in the custom title bar")
@@ -321,7 +272,7 @@ func TestVersionBlockShowsVersionWithoutBuild(t *testing.T) {
 	win.openSettings()
 	win.drawSettings(pageContext(800, 600), pageRect)
 	texts := win.set.texts
-	if !slices.Contains(texts, "kaze 0.6") {
+	if !slices.Contains(texts, "kaze "+version.Number) {
 		t.Fatalf("texts %q lack the version", texts)
 	}
 	all := strings.Join(texts, " ")
@@ -363,27 +314,5 @@ func TestKeyboardCanReachClaudeSection(t *testing.T) {
 	win.settingsKey(layout.Context{}, key.Event{Name: key.NameSpace, State: key.Press})
 	if win.sections()[win.set.section].title != "Appearance" {
 		t.Fatal("could not return to Appearance with keyboard")
-	}
-}
-
-// macOS keeps the system title bar, so the gear sits at the right end of the tab strip.
-func TestGearOnTheNativeTitleBar(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), 300, barDims{buttonW: 46, gearW: 46, minDrag: 48}, false)
-	if b.Gear != image.Rect(954, 0, 1000, 38) {
-		t.Fatalf("gear %v, want at the right end of the strip", b.Gear)
-	}
-	if b.Tabs.Max.X != 954 || !b.Drag.Empty() || !b.Buttons[0].Empty() {
-		t.Fatalf("tabs %v drag %v buttons %v", b.Tabs, b.Drag, b.Buttons)
-	}
-
-	win, got := captionWindow(t, 1000)
-	win.custom = false
-	win.drawBar(barContext(1000), win.mgr.Tabs(), win.mgr.Active().ID, 38)
-	if win.bar.Gear.Empty() {
-		t.Fatal("no gear on the native title bar")
-	}
-	click(win, win.bar.Gear)
-	if !win.set.shown || len(*got) != 0 {
-		t.Fatalf("gear click: shown %v, window actions %v", win.set.shown, *got)
 	}
 }

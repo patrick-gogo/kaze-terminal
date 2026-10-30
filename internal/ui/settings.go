@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"gioui.org/io/event"
@@ -16,11 +17,12 @@ import (
 	"gioui.org/unit"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/input"
+	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/version"
 )
 
 // settingsState is the Settings page: a special tab with no shell behind it.
-// open means its chip is in the tab strip; shown means it is in front instead of the terminal.
+// open means its row is in the sidebar; shown means it is in front instead of the terminal.
 type settingsState struct {
 	aboutCopy string // pending clipboard content, consumed by the About layout
 
@@ -47,9 +49,6 @@ type settingsState struct {
 	fields  map[string]*textField // text field editors by control id, kept across frames
 	editing string                // the field that has the keyboard; "" when the page has it
 }
-
-// settingsChip is what the tab strip needs to draw the Settings chip.
-type settingsChip struct{ open, shown bool }
 
 type navHit struct {
 	rect    image.Rectangle
@@ -118,6 +117,7 @@ func (win *window) sections() []settingsSection {
 
 // openSettings opens the Settings tab, or shows it when it is already open.
 func (win *window) openSettings() {
+	win.dropFilter()
 	s := &win.set
 	if !s.open {
 		s.open, s.focus = true, -1
@@ -188,30 +188,35 @@ func (win *window) closeSettings() {
 	win.w.Invalidate()
 }
 
-// cycleTab steps through the tabs as the strip shows them, the Settings tab last.
+// cycleTab steps through the sessions in sidebar order, wrapping, with the open
+// Settings row at the start. Workspace members are skipped; from a shown member
+// next goes to the first session and prev to the last.
 func (win *window) cycleTab(d int) {
-	list := win.mgr.Tabs()
-	if len(list) == 0 {
+	order := win.sessionIDs()
+	if len(order) == 0 {
 		return
+	}
+	edge := func() tabs.TabID {
+		if d < 0 {
+			return order[len(order)-1]
+		}
+		return order[0]
 	}
 	if win.set.shown {
-		i := 0
-		if d < 0 {
-			i = len(list) - 1
-		}
-		win.selectTab(list[i].ID)
+		win.selectSession(edge())
 		return
 	}
-	if win.set.open {
-		if a := win.mgr.Active(); a != nil && (d > 0 && a == list[len(list)-1] || d < 0 && a == list[0]) {
-			win.openSettings()
-			return
-		}
+	i := -1
+	if a := win.mgr.Active(); a != nil {
+		i = slices.Index(order, a.ID)
 	}
-	if d > 0 {
-		win.mgr.Next()
-	} else {
-		win.mgr.Prev()
+	switch {
+	case i < 0:
+		win.selectSession(edge())
+	case win.set.open && (d > 0 && i == len(order)-1 || d < 0 && i == 0):
+		win.openSettings()
+	default:
+		win.selectSession(order[(i+d+len(order))%len(order)])
 	}
 }
 
@@ -298,6 +303,7 @@ func (win *window) settingsPointer(e pointer.Event) {
 		return
 	}
 	win.wantFocus = true
+	win.side.filtering = false
 	win.set.editing = "" // a press the page gets is off every field's editor
 	p := e.Position.Round()
 	for i, n := range win.set.nav {

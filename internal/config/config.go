@@ -43,13 +43,14 @@ type Config struct {
 	TaskbarFlash     bool              `toml:"taskbar_flash"`     // flash the taskbar button on alerts; default true
 	DoneToast        string            `toml:"done_toast"`        // 3s|6s|10s|until_seen
 	ShowUsage        bool              `toml:"show_usage"`        // usage readout in the status bar; default true
+	Sidebar          bool              `toml:"sidebar"`           // agent sidebar beside the terminal; default true
 	StartupWorkspace string            `toml:"startup_workspace"` // workspace ID to run at startup; "" opens a home tab
 }
 
 // KnownActions are the action names accepted under [keys]; the window binds each one.
 var KnownActions = map[string]bool{
 	"new_tab": true, "close_tab": true, "next_tab": true, "prev_tab": true,
-	"copy": true, "paste": true, "open_settings": true,
+	"copy": true, "paste": true, "open_settings": true, "toggle_sidebar": true,
 }
 
 var (
@@ -74,6 +75,7 @@ func Default() Config {
 		TaskbarFlash:    true,
 		DoneToast:       "6s",
 		ShowUsage:       true,
+		Sidebar:         true,
 		Colors:          map[string]string{},
 		Keys:            map[string]string{},
 	}
@@ -201,6 +203,8 @@ func Load(path string) (Config, []string, error) {
 			loadBool(v, k, &cfg.TaskbarFlash, warn)
 		case "show_usage":
 			loadBool(v, k, &cfg.ShowUsage, warn)
+		case "sidebar":
+			loadBool(v, k, &cfg.Sidebar, warn)
 		case "startup_workspace":
 			s, ok := v.(string)
 			if !ok {

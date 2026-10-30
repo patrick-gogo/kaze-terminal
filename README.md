@@ -10,9 +10,9 @@
   <em>Light, fast, and out of the way.</em>
 </p>
 
-kaze is my personal terminal: a small, fast terminal with tabs, written in Go with
+kaze is my personal terminal: a small, fast terminal with a session sidebar, written in Go with
 [Gio](https://gioui.org). I built it for working in [Claude Code](https://claude.com/claude-code)
-all day, so it does a few things well (tabs, fast redraws, Japanese text, Claude Code's
+all day, so it does a few things well (a sidebar of sessions, fast redraws, Japanese text, Claude Code's
 symbols) and leaves out most of what a full terminal suite has. It has a small settings page for
 the everyday choices, and everything it changes lives in one config file you can also edit by hand.
 
@@ -25,7 +25,7 @@ never in the way.
   four tabs open) and its memory stays flat.
 - **Fast:** only the rows that changed are redrawn. Replaying a Claude Code reply as it streams,
   99% of frames took 5.1ms or less to draw, well inside the 16.7ms a 60Hz screen allows.
-- **Out of the way:** tabs, a nudge when a Claude Code session needs you or is done, and not
+- **Out of the way:** a sidebar of sessions, a nudge when a Claude Code session needs you or is done, and not
   much else.
 
 These numbers were measured on Windows; the details are in
@@ -103,7 +103,7 @@ it to stderr) and exits.
 On Windows the kaze icon (exe file, taskbar, title bar, Alt+Tab) and the version details come
 from `cmd/kaze/rsrc_windows_*.syso`, which `go build` picks up by itself. They are generated
 from `cmd/kaze/winres/winres.json` and `assets/branding/kaze-icon-512.png`. After changing the
-icon or the version, regenerate them from `cmd/kaze`:
+icon or the version, regenerate them from `cmd/kaze` (the files still say 0.6 until I rerun this):
 
 ```
 go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out rsrc --arch amd64,arm64
@@ -125,18 +125,19 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 
 | Action | Windows | macOS |
 |---|---|---|
-| New tab | Ctrl+Shift+T | Cmd+T |
-| Close tab | Ctrl+Shift+W | Cmd+W |
-| Next tab | Ctrl+Tab | Ctrl+Tab |
-| Previous tab | Ctrl+Shift+Tab | Ctrl+Shift+Tab |
+| New session | Ctrl+Shift+T | Cmd+T |
+| Close session | Ctrl+Shift+W | Cmd+W |
+| Next session | Ctrl+Tab | Ctrl+Tab |
+| Previous session | Ctrl+Shift+Tab | Ctrl+Shift+Tab |
+| Hide or show the sidebar | Ctrl+Shift+B | Cmd+B |
 | Copy the selection | Ctrl+Shift+C | Cmd+C |
 | Paste | Ctrl+Shift+V | Cmd+V |
 | Open settings | Ctrl+, | Cmd+, |
 | New line in Claude Code (without sending) | Alt+Enter | Option+Enter |
 
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
-submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The tab, copy
-paste and settings shortcuts can be changed under `[keys]` in the config.
+submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The session, copy,
+paste, sidebar and settings shortcuts can be changed under `[keys]` in the config.
 
 ## Mouse
 
@@ -149,10 +150,34 @@ paste and settings shortcuts can be changed under `[keys]` in the config.
 - **Wheel:** scrolls back through history. Typing jumps back to the bottom. Full-screen apps
   that don't use the mouse have no history to scroll.
 
+## The sidebar
+
+Sessions are listed down the left side, in place of a tab strip.
+
+- **Groups:** sessions in the same git repo sit under one header, and worktrees count as the
+  same repo. Groups start open. Click a header to fold or unfold it. A folded header shows an
+  amber "N waiting" when a session in it needs you.
+- **Rows:** each row shows the title, a shortened folder, the branch (without a `feature/` style
+  prefix) and the word `needs you` or `done` when Claude Code has something to say. Hover a row
+  to get a ×, or middle click it to close it. The `+` button opens a new session.
+- **Filter:** the "Filter sessions…" field at the top. Click it to type. Typing narrows the list
+  by title, folder and branch, and folded groups open while you filter. Enter shows the first
+  match (on an empty field it only gives the keyboard back). Esc clears the field and gives the
+  keyboard back to the terminal. Switching or opening a session, opening Settings or hiding the
+  sidebar also gives the keyboard back and keeps the text.
+- **Workspaces:** a section at the bottom lists each running workspace (see Workspaces below).
+- **Hiding it:** the sidebar toggle (Ctrl+Shift+B, Cmd+B on macOS) hides or shows it, and kaze
+  remembers the choice as `sidebar` in the config. Below 560 dp of window width it also hides
+  by itself, without saving that, and the toggle does nothing until the window is wider.
+- **Title bar:** on Windows the toggle, the K mark, the gear and the window buttons sit in the
+  title bar. On macOS, with the native title bar, the toggle and the gear sit at the top of the
+  sidebar, and a thin rail with them stays when the sidebar is hidden.
+
 ## Settings
 
-Open it with the gear button (in the title bar on Windows, at the right end of the tab strip on macOS) or with Ctrl+, (Cmd+, on macOS). It opens as a
-tab-like chip next to your tabs and closes with its ×. It has three sections in a menu on the left:
+Open it with the gear button (in the title bar on Windows, at the top of the sidebar on macOS)
+or with Ctrl+, (Cmd+, on macOS). While it is open, a pinned Settings row sits at the top of the
+sidebar, and it closes with that row's ×. It has three sections in a menu on the left:
 
 - **Appearance:** theme, font size, line spacing, cursor shape and blinking.
 - **Claude:** the alert and usage choices (chimes, taskbar flash, how long the "done" toast stays,
@@ -223,25 +248,27 @@ what they wait for. Nothing is saved until you press Save, and Cancel drops the 
 the ones you already have. If any of the workspace's tabs is still open, the button reads
 **Go to tabs** and switches to the first one instead of opening copies.
 
-### The tab group
+### Running workspaces in the sidebar
 
-A running workspace shows as one group in the tab strip, not one tab per member. The chip has a
-stack of dots in the members' colors, the workspace's name and a count, like `●●●● samurai 4 ▾`.
-While one member is shown it reads `samurai › admin`.
+A running workspace gets a header in the Workspaces section at the bottom of the sidebar,
+reading "all up" or "N down". Click the header to fold it.
 
-- Click the chip to open a list of the members. Pick one with a click, with the number keys 1 to
-  9, or with the arrows and Enter. Esc or a click outside closes the list.
-- Under each member the list shows what it runs and how far it got: Starting, Waiting for Docker
+- Each member gets one line: its color bar, its title and its status. A member reads `stopped`
+  in red when its commands finished or its shell exited, and `Failed` in red when its run
+  failed. A member's line shows an amber dot when it needs you and a green dot when it is done;
+  a folded header shows the amber one if any member needs you, else the green one. Click a
+  member to show it as the main view.
+- The Workspaces list in Settings shows how far each member got: Starting, Waiting for Docker
   (or a port), Confirm to run, Running, Finished, Failed, Cancelled or No commands. Finished means
   the shell came back to its prompt (it needs the snippet from "Folder and branch in the status
   bar"); kaze can't tell whether the commands worked.
-- A member that needs you rings its dot in amber and turns the chip's count amber, so you see it
-  while the list is closed. "Done" works the same in green. Visiting the member clears it.
-- Ctrl+Tab and Ctrl+Shift+Tab step through the members one by one, like any other tabs.
-- The chip has no × of its own, so you can't close four servers by accident. Close members one at a
-  time with your close-tab shortcut (Ctrl+Shift+W, Cmd+W on macOS) or the × in the list. The group
-  goes away with its last member.
-- Only a workspace run makes a group. You can't drag ordinary tabs into one.
+- Running a workspace keeps your current session in front.
+- The status bar shows one dot per running member (green running, red down, muted otherwise)
+  and the word "servers". Click the dots to show the member that is down, or the first member
+  if none is.
+- Ctrl+Tab and Ctrl+Shift+Tab step through sessions in sidebar order and skip workspace members.
+- Close a member with your close-session shortcut (Ctrl+Shift+W, Cmd+W on macOS), the × that
+  shows when you hover its line, or a middle click on the line. Only a workspace run makes these lines; you can't drag ordinary sessions into one.
 
 ### How commands are sent
 
@@ -312,7 +339,8 @@ error makes kaze use all defaults.
 | `show_usage` | Show the Claude usage readout in the status bar | `true` |
 | `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
-| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `open_settings` | the shortcuts above |
+| `sidebar` | Show the session sidebar (the toggle saves it here) | `true` |
+| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `toggle_sidebar`, `open_settings` | the shortcuts above |
 | `font_family` | **Not supported yet.** Setting it only adds a warning; kaze always uses its bundled font. | |
 
 Shortcuts are written like `"ctrl+shift+t"`. Modifiers: `ctrl`, `shift`, `alt` (or `option`),
@@ -437,8 +465,8 @@ Without this the folder and branch stay hidden. UNC paths (`\\server\share`) are
 
 ## Alerts (Claude Code hooks)
 
-kaze marks a tab and shows a small toast when Claude Code in that tab needs you (a permission
-prompt or a question) or has finished its turn. Click "Go ›" on the toast to switch to the tab.
+kaze marks a tab and shows a small toast, over the terminal to the right of the sidebar, when
+Claude Code in that tab needs you (a permission prompt or a question) or has finished its turn. Click "Go ›" on the toast to switch to the tab.
 "Needs you" plays a chime (unless you're already looking at that tab); "done" is silent
 unless you turn on `chime_done`. While kaze is minimized, its taskbar button flashes (Windows).
 
@@ -528,12 +556,14 @@ Done:
   the current folder and git branch in the status bar.
 - Plan 4: Claude's 5-hour and weekly usage and the tab's context in the status bar.
 - Plan 5a: the settings page (Appearance and Claude), five themes and the Claude Code setup check.
-- Plan 5b: Workspaces (launch a saved set of tabs in one click), shown as a tab group.
+- Plan 5b: Workspaces (launch a saved set of tabs in one click).
+- Plan 6a: the session sidebar, replacing the tab strip, with repo groups, a filter and the running workspaces.
 
 Next:
 
 - A redesign of the alert notification card (GitHub issue #9).
-- Real panes, which would replace tab groups as the way a workspace is shown.
+- Plans 6b to 6e: agent awareness on the rows, `kaze status`, floating panes and a scratch shell, then the command palette.
+- Real panes, which would replace the workspace section of the sidebar as the way a workspace is shown.
 - Plan 2: child tabs for Claude Code subagents.
 - The Mac milestone: run, fix and benchmark kaze on macOS.
 
