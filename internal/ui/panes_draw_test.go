@@ -26,6 +26,14 @@ func paneWindow(t *testing.T) (win *window, st *recStarter, r *input.Router, a, 
 	return
 }
 
+// floatFrames draws twice after panes change: the first frame draws a new
+// pane, the next one registers its input filters, as the window's own wake does.
+func floatFrames(t *testing.T, win *window, r *input.Router) {
+	t.Helper()
+	sideFrame(t, win, r)
+	sideFrame(t, win, r)
+}
+
 func ptyOf(st *recStarter, i int) *recPTY {
 	st.mu.Lock()
 	defer st.mu.Unlock()

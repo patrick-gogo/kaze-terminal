@@ -378,7 +378,7 @@ func (win *window) setFocused(f bool) {
 		win.rend.SetFocused(f)
 	}
 	if win.mgr != nil {
-		if t := win.mgr.Active(); t != nil {
+		if t := win.keyTab(); t != nil {
 			sendFocus(t, f)
 			if f {
 				win.staleBranch(t)
@@ -552,6 +552,7 @@ func (win *window) frame(gtx layout.Context) error {
 	if win.set.shown {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
 	} else if active != nil {
+		win.paneEvents(gtx, cw, ch) // before the session: a pane sits over it
 		win.termEvents(gtx, win.mainView(active), cw, ch)
 	}
 	if win.mgr.Empty() {
@@ -575,6 +576,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.drainUsage()
 	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
 	win.visit(win.shownTab())
+	if v, ok := win.paneKeyView(); ok {
+		win.visit(v.tab) // the pane being typed into is seen too
+	}
 	win.autoScrollView(gtx, win.mainView(active), cw, ch)
 	if at, ok := win.wsTick(win.wsNow()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
@@ -719,7 +723,14 @@ func (win *window) switchedTo(t *tabs.Tab) {
 		win.updateTitle(t)
 		return
 	}
-	if win.lastTab != nil && win.focused {
+	if k := win.fl.keys; k != 0 {
+		// The keyboard was in a pane of the old session: it leaves with it.
+		win.fl.keys = 0
+		if pt := win.mgr.Lookup(k); pt != nil && win.focused {
+			sendFocus(pt, false)
+		}
+		win.wantFocus = true
+	} else if win.lastTab != nil && win.focused {
 		sendFocus(win.lastTab, false) // a no-op once that tab is closed
 	}
 	if win.focused {
@@ -865,6 +876,9 @@ func (win *window) focusTarget() event.Tag {
 		}
 		return &win.set.tag
 	}
+	if v, ok := win.paneKeyView(); ok {
+		return v.tag
+	}
 	return win.termTag
 }
 
@@ -916,6 +930,9 @@ func (win *window) mainView(t *tabs.Tab) termView {
 
 // keyView is the view with the keyboard; ok is false while none is shown.
 func (win *window) keyView() (termView, bool) {
+	if v, ok := win.paneKeyView(); ok {
+		return v, true
+	}
 	t := win.shownTab()
 	if t == nil {
 		return termView{}, false
@@ -954,6 +971,19 @@ func (win *window) termEvents(gtx layout.Context, v termView, cw, ch int) {
 	}
 	if win.bench != nil {
 		batch = win.benchBatch(gtx, t, batch, ch)
+	}
+	for _, ev := range batch {
+		if e, ok := ev.(pointer.Event); ok && e.Kind == pointer.Press && !win.bench.IgnoreInput() {
+			// A press in a pane takes the keyboard there; one in the session takes it back.
+			if v.tag == win.termTag {
+				if win.fl.keys != 0 {
+					win.focusSession()
+				}
+			} else {
+				win.focusPane(t.ID)
+			}
+			break
+		}
 	}
 	win.routeAndWait(gtx, v, batch, cw, ch)
 }

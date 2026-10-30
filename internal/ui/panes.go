@@ -37,11 +37,12 @@ type pane struct {
 	id     tabs.TabID
 	kind   paneKind
 	r      image.Rectangle
-	z      uint64 // draw order: higher is in front
-	opened uint64 // open order: the oldest member is replaced first
-	hidden bool   // the scratch shell only: toggled off, still running
-	body   int    // event tag: keys, paste and the terminal's pointer input
-	frame  int    // event tag: header and edges
+	fit    image.Rectangle // r as fitted last frame, dp; a drag starts from it
+	z      uint64          // draw order: higher is in front
+	opened uint64          // open order: the oldest member is replaced first
+	hidden bool            // the scratch shell only: toggled off, still running
+	body   int             // event tag: keys, paste and the terminal's pointer input
+	frame  int             // event tag: header and edges
 	hits   paneHits
 	grab   paneGrab
 }
@@ -65,11 +66,13 @@ type paneSet struct{ panes []*pane }
 
 // floats is the window's floating panes; UI goroutine only.
 type floats struct {
-	sets  map[tabs.TabID]*paneSet // by owning session
-	seq   uint64                  // z and open-order stamps
-	keys  tabs.TabID              // the pane with the keyboard; 0 = the session
-	rends map[tabs.TabID]*render.Renderer
-	shown []tabs.TabID // tabs marked visible last frame
+	sets    map[tabs.TabID]*paneSet // by owning session
+	seq     uint64                  // z and open-order stamps
+	keys    tabs.TabID              // the pane with the keyboard; 0 = the session
+	rends   map[tabs.TabID]*render.Renderer
+	shown   []tabs.TabID // tabs marked visible last frame
+	views   []paneView   // drawn last frame, front last; input uses them
+	redraws int          // frames pane gestures asked for; tests count them
 }
 
 func (f *floats) set(session tabs.TabID) *paneSet {

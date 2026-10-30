@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -165,6 +166,7 @@ func (win *window) paneViews(gtx layout.Context, termRect image.Rectangle, cw, c
 			continue
 		}
 		f := fitPane(p.r, area, paneMinDp)
+		p.fit = f
 		outer := image.Rect(toPx(f.Min.X), toPx(f.Min.Y), toPx(f.Max.X), toPx(f.Max.Y)).Add(termRect.Min).Intersect(termRect)
 		body := image.Rect(outer.Min.X+line, outer.Min.Y+line+headH, outer.Max.X-line, outer.Max.Y-line)
 		grid := image.Rect(body.Min.X+padX, body.Min.Y+padY, body.Max.X-padX, body.Max.Y-padY)
@@ -231,8 +233,18 @@ func (win *window) drawPanes(gtx layout.Context, views []paneView) {
 		event.Op(ops, &p.body)
 		area.Pop()
 		area = clip.Rect(p.hits.header).Push(ops)
+		pointer.CursorGrab.Add(ops)
 		event.Op(ops, &p.frame)
 		area.Pop()
+		for _, b := range []image.Rectangle{p.hits.close, p.hits.expand} {
+			if !b.Empty() {
+				area = clip.Rect(b).Push(ops)
+				pointer.CursorPointer.Add(ops)
+				event.Op(ops, &p.frame)
+				area.Pop()
+			}
+		}
+		paneEdges(gtx, p)
 	}
 }
 
@@ -266,6 +278,9 @@ func (win *window) syncVisible(views []paneView) {
 	for _, id := range now {
 		if !slices.Contains(win.fl.shown, id) {
 			win.mgr.SetVisible(id, true)
+			// One more frame, so a pane drawn for the first time has its input
+			// filters up before the owner's next click arrives.
+			win.w.Invalidate()
 		}
 	}
 	for id := range win.fl.rends {
@@ -273,7 +288,7 @@ func (win *window) syncVisible(views []paneView) {
 			delete(win.fl.rends, id)
 		}
 	}
-	win.fl.shown = now
+	win.fl.shown, win.fl.views = now, views
 	for _, s := range win.fl.sets {
 		for _, p := range s.panes {
 			if !slices.Contains(now, p.id) {
