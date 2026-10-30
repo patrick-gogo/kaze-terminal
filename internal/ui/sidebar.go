@@ -24,13 +24,14 @@ const maxSideText = 160
 
 // sideState is what the window knows that the model does not.
 type sideState struct {
-	shown      tabs.TabID // highlighted row or member
-	settings   bool       // the pinned "Settings" row is open
-	settingsOn bool       // and shown
-	hover      tabs.TabID // row showing its ×
-	scroll     int        // px the session list is scrolled
-	filter     string     // as typed, for the placeholder/clear state
-	buttons    bool       // macOS: toggle and gear sit in the sidebar's top row
+	shown      tabs.TabID      // highlighted row or member
+	settings   bool            // the pinned "Settings" row is open
+	settingsOn bool            // and shown
+	hover      tabs.TabID      // row showing its ×
+	scroll     int             // px the session list is scrolled
+	filter     string          // as typed, for the placeholder/clear state
+	buttons    bool            // macOS: toggle and gear sit in the sidebar's top row
+	runFolded  map[uint64]bool // workspace runs whose header is folded
 }
 
 type sideRowHit struct {
@@ -59,9 +60,6 @@ type sideHits struct {
 	toggle, gear            image.Rectangle
 	list                    image.Rectangle // the scrollable area, for wheel events
 	scrollMax               int
-
-	// The colors the selected row and the sidebar were painted with; the theme test reads them.
-	selFill, bg color.NRGBA
 }
 
 // fitSide draws s at size within room px, cut with a trailing "…" when it is longer.
@@ -126,7 +124,6 @@ func toggleGlyph(gtx layout.Context, r image.Rectangle) clip.Op {
 func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, size image.Point) sideHits {
 	ops, th := gtx.Ops, c.th
 	var h sideHits
-	h.bg, h.selFill = th.Chrome, th.Active
 	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
 	paint.FillShape(ops, th.Border, clip.Rect(image.Rect(size.X-1, 0, size.X, size.Y)).Op())
 	root := clip.Rect{Max: size}.Push(ops)
@@ -189,7 +186,10 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 	if len(m.Runs) > 0 {
 		secH := gtx.Dp(26)
 		for _, run := range m.Runs {
-			secH += gtx.Dp(26) + len(run.Members)*gtx.Dp(24)
+			secH += gtx.Dp(26)
+			if !st.runFolded[run.Run] {
+				secH += len(run.Members) * gtx.Dp(24)
+			}
 		}
 		secH = min(secH+gtx.Dp(6), max(size.Y/2, 0))
 		secTop = size.Y - secH
@@ -251,6 +251,20 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 		tx := rect.Min.X + gap + dot + gap
 		c.sideDot(gtx, image.Rect(rect.Min.X+gap, rect.Min.Y+gtx.Dp(14)-dot/2, rect.Min.X+gap+dot, rect.Min.Y+gtx.Dp(14)-dot/2+dot), r.Mark)
 		room := rect.Max.X - gap - closeSize.X - gap - tx
+		word, wcol := "", th.Muted
+		switch r.Mark {
+		case markNeeds:
+			word, wcol = "needs you", th.Needs
+		case markDone:
+			word, wcol = "done", th.Done
+		}
+		var wCall op.CallOp
+		var wSize image.Point
+		wordW := 0
+		if word != "" {
+			wCall, wSize = c.label(gtx, word, 11, wcol)
+			wordW = wSize.X
+		}
 		for i, ln := range []struct {
 			s    string
 			size unit.Sp
@@ -268,8 +282,14 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			if i > 0 {
 				rm = rect.Max.X - gap - tx // only the title shares its line with the ×
 			}
+			if i == 2 && word != "" {
+				rm -= wordW + gap
+			}
 			call, sz := c.fitSide(gtx, ln.s, ln.size, rm, ln.col)
 			place(ops, call, image.Pt(tx, rect.Min.Y+gtx.Dp(ln.mid)-sz.Y/2))
+		}
+		if word != "" {
+			place(ops, wCall, image.Pt(rect.Max.X-gap-wordW, rect.Min.Y+gtx.Dp(46)-wSize.Y/2))
 		}
 		hit := sideRowHit{id: r.ID, rect: rect.Intersect(h.list)}
 		if st.hover == r.ID && r.ID != 0 {
@@ -365,7 +385,15 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 	y += hdH
 	whole := func(r image.Rectangle) bool { return r.Max.Y <= size.Y }
 
+	remaining := 0 // members still to place, so a capped section can say how many are left
 	for _, run := range m.Runs {
+		if !st.runFolded[run.Run] {
+			remaining += len(run.Members)
+		}
+	}
+	hidden, moreY := 0, 0
+	for _, run := range m.Runs {
+		folded := st.runFolded[run.Run]
 		hd := image.Rect(pad, y, right-pad, y+hdH)
 		y += hdH
 		if whole(hd) {
@@ -376,14 +404,34 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			sCall, sSize := c.label(gtx, state, 11, scol)
 			sx := hd.Max.X - gap - sSize.X
 			place(ops, sCall, image.Pt(sx, hd.Min.Y+(hdH-sSize.Y)/2))
-			nCall, nSize := c.fitSide(gtx, run.Name, 12, sx-gap-(hd.Min.X+gap), th.ActiveFG)
-			place(ops, nCall, image.Pt(hd.Min.X+gap, hd.Min.Y+(hdH-nSize.Y)/2))
+			chev := "▾"
+			if folded {
+				chev = "›"
+			}
+			cCall, cSize := c.label(gtx, chev, 10, th.Muted)
+			place(ops, cCall, image.Pt(hd.Min.X+gap, hd.Min.Y+(hdH-cSize.Y)/2))
+			nx := hd.Min.X + gap + cSize.X + gap
+			nCall, nSize := c.fitSide(gtx, run.Name, 12, sx-gap-nx, th.ActiveFG)
+			place(ops, nCall, image.Pt(nx, hd.Min.Y+(hdH-nSize.Y)/2))
 			h.runs = append(h.runs, sideRunHit{run: run.Run, rect: hd})
+		}
+		if folded {
+			continue
 		}
 		for _, mem := range run.Members {
 			r := image.Rect(pad, y, right-pad, y+memH)
 			y += memH
-			if !whole(r) {
+			remaining--
+			// Keep the last slot for "+N more" while members remain after this one.
+			limit := size.Y
+			if remaining > 0 {
+				limit -= memH
+			}
+			if r.Max.Y > limit {
+				if hidden == 0 {
+					moreY = r.Min.Y
+				}
+				hidden++
 				continue
 			}
 			on := mem.ID != 0 && mem.ID == st.shown && !st.settingsOn
@@ -408,7 +456,13 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			}
 			tCall, tSize := c.fitSide(gtx, mem.Title, 12, sx-gap-tx, fg)
 			place(ops, tCall, image.Pt(tx, r.Min.Y+(memH-tSize.Y)/2))
-			h.members = append(h.members, sideRowHit{id: mem.ID, rect: r})
+			if mem.ID != 0 {
+				h.members = append(h.members, sideRowHit{id: mem.ID, rect: r})
+			}
 		}
+	}
+	if hidden > 0 {
+		mCall, mSize := c.label(gtx, "+"+strconv.Itoa(hidden)+" more", 11, th.Muted)
+		place(ops, mCall, image.Pt(pad+gap, moreY+(memH-mSize.Y)/2))
 	}
 }

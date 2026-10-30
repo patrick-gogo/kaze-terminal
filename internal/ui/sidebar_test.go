@@ -196,12 +196,52 @@ func TestSidebarDrawsInEveryTheme(t *testing.T) {
 			if len(h.rows) == 0 {
 				t.Fatal("nothing drawn")
 			}
-			if h.selFill == h.bg {
-				t.Fatalf("selected row fill %v equals the sidebar background", h.selFill)
+			if th.UI.Active == th.UI.Chrome {
+				t.Fatalf("selected row fill %v equals the sidebar background", th.UI.Active)
 			}
 			if h.toggle.Empty() || h.gear.Empty() {
 				t.Fatalf("buttons: toggle %v gear %v", h.toggle, h.gear)
 			}
 		})
+	}
+}
+
+func TestSidebarFoldedRunHasNoMembers(t *testing.T) {
+	m := sideModel{Runs: []sideRun{fourMemberRun()}}
+	open, _ := sideDraw(t, m, sideState{}, 600)
+	folded, _ := sideDraw(t, m, sideState{runFolded: map[uint64]bool{7: true}}, 600)
+	if len(open.members) != 4 || len(folded.members) != 0 {
+		t.Fatalf("members open %d folded %d, want 4 and 0", len(open.members), len(folded.members))
+	}
+	if len(folded.runs) != 1 || folded.runs[0].run != 7 {
+		t.Fatalf("folded run header hit %+v", folded.runs)
+	}
+	if folded.list.Max.Y <= open.list.Max.Y {
+		t.Fatalf("folded section did not shrink: list ends %d vs %d", folded.list.Max.Y, open.list.Max.Y)
+	}
+}
+
+func TestSidebarMemberWithoutShellHasNoHit(t *testing.T) {
+	r := fourMemberRun()
+	r.Members[1].ID = 0
+	h, _ := sideDraw(t, sideModel{Runs: []sideRun{r}}, sideState{}, 600)
+	if len(h.members) != 3 {
+		t.Fatalf("%d member hits, want 3", len(h.members))
+	}
+}
+
+func TestSidebarCappedSectionKeepsRoomForMore(t *testing.T) {
+	r := sideRun{Run: 1, Name: "big"}
+	for i := 0; i < 30; i++ {
+		r.Members = append(r.Members, sideMember{ID: tabs.TabID(100 + i), Title: "m", Status: "Running"})
+	}
+	h, size := sideDraw(t, sideModel{Runs: []sideRun{r}}, sideState{}, 400)
+	if len(h.members) == 0 || len(h.members) >= 30 {
+		t.Fatalf("%d member hits in a capped section", len(h.members))
+	}
+	for _, m := range h.members {
+		if m.rect.Max.Y > size.Y-24 {
+			t.Fatalf("member %v leaves no room for the +N more line", m.rect)
+		}
 	}
 }
