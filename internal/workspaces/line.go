@@ -171,8 +171,9 @@ func hasComment(k ShellKind, c string) bool {
 }
 
 // QuoteArg quotes s as one argument for the shell, in single quotes so $,
-// backticks and ; stay literal. POSIX writes ' as '\''; PowerShell doubles '
-// and the curly quotes it also treats as quotes. A control character, which
+// backticks and ; stay literal. POSIX closes the quote around each single
+// quote and escapes it; PowerShell doubles it and the curly quotes it also
+// treats as quotes. A control character, which
 // could press Enter, and any other shell are errors.
 func QuoteArg(k ShellKind, s string) (string, error) {
 	for _, r := range s {
