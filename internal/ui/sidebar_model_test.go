@@ -320,7 +320,7 @@ func TestRowShowsCommandAndRunning(t *testing.T) {
 		return agentState{claude: true, running: true, command: "/ship-ticket", arg: "V3-1"}
 	}
 	r := buildSide(in).Loose[0]
-	if r.Command != "/ship-ticket" || !r.Running || !r.Claude {
+	if r.Command != "/ship-ticket" || !r.Running {
 		t.Fatalf("row %+v", r)
 	}
 	if w := r.stateWord(); w != "running" {

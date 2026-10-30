@@ -250,7 +250,7 @@ func TestSidebarCappedSectionKeepsRoomForMore(t *testing.T) {
 
 // The running ring is drawn still: laying a running row out never asks for another frame.
 func TestRunningMarkIsStill(t *testing.T) {
-	m := sideModel{Loose: []sideRow{{ID: 1, Title: "V3-1", Command: "/ship-ticket", Running: true, Claude: true}}}
+	m := sideModel{Loose: []sideRow{{ID: 1, Title: "V3-1", Command: "/ship-ticket", Running: true}}}
 	c := newChrome()
 	r := new(input.Router)
 	for i := 0; i < 2; i++ {

@@ -516,7 +516,6 @@ func (win *window) frame(gtx layout.Context) error {
 	win.pruneSels(list)
 	win.pruneLocs(list)
 	win.pruneAgents(list)
-	win.leaveAgents(list)
 	win.pruneCounts(list)
 	win.checkCounts(list)
 	win.drainCounts()
@@ -526,6 +525,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.publish(win.shownTab(), win.focused)
 	win.drainAlerts(gtx.Now)
 	win.drainUsage()
+	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
 	win.visit(win.shownTab())
 	win.autoScroll(gtx, active, cw, ch)
 	if at, ok := win.wsTick(win.wsNow()); ok {

@@ -679,7 +679,7 @@ func TestAlertRereadsABackgroundBranch(t *testing.T) {
 	sideFrame(t, win, &r)
 	branch = "two"
 	for _, k := range []notify.Kind{notify.KindDone, notify.KindNeeds} {
-		win.deliver(notify.Msg{Tab: int(b.ID), Kind: k}, time.Unix(1000, 0))
+		deliverNow(win, notify.Msg{Tab: int(b.ID), Kind: k}, time.Unix(1000, 0))
 		var got string
 		for _, row := range buildSide(win.sideIn()).Groups[0].Rows {
 			if row.ID == b.ID {

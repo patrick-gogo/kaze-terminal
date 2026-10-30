@@ -12,7 +12,7 @@ type sideRow struct {
 	ID                    tabs.TabID
 	Title, Folder, Branch string
 	Command               string // the last slash command while Claude runs in the tab
-	Running, Claude       bool
+	Running               bool
 	Add, Del              int // lines added and removed in the folder's repo
 	Mark                  mark
 }
@@ -114,7 +114,6 @@ func buildSide(in sideInput) sideModel {
 			Branch:  shortBranch(loc.branch),
 			Command: a.command,
 			Running: a.running,
-			Claude:  a.claude,
 			Mark:    in.Mark(t.ID),
 		}
 		if in.Lines != nil {

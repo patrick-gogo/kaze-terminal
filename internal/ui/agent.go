@@ -13,20 +13,24 @@ const maxAgentArg = 40
 type agentState struct {
 	claude, running bool
 	command, arg    string // last slash command and its first argument
-	shellAt         uint64 // cwdSeq(t) when the last hook message arrived
+	shellAt         uint64 // shellSeq(t) when the last hook message arrived
 }
 
 // agentOf is the zero value for an unknown tab.
 func (win *window) agentOf(id tabs.TabID) agentState { return win.agents[id] }
 
-// applyAgent folds one hook message into the tab's state; UI goroutine only.
-func (win *window) applyAgent(m notify.Msg, t *tabs.Tab) {
-	if t == nil {
-		return
-	}
-	win.noteAgent(m, t.ID, cwdSeq(t))
+// shellSeq counts the shell's prompt reports, OSC 7 and OSC 133 A alike. A sum,
+// not a max, so a move in either counts even when the other is ahead.
+func shellSeq(t *tabs.Tab) uint64 {
+	s := t.Session
+	s.Lock()
+	defer s.Unlock()
+	a := s.Applier()
+	return a.CwdSeq() + a.PromptSeq()
 }
 
+// noteAgent folds one hook message into the tab's state; UI goroutine only.
+// seq is shellSeq when the message arrived, not when a frame applies it.
 func (win *window) noteAgent(m notify.Msg, id tabs.TabID, seq uint64) {
 	a := win.agents[id]
 	switch m.Kind {
@@ -63,12 +67,12 @@ func firstWord(s string, n int) string {
 	return f[0]
 }
 
-// leaveAgents ends Claude in tabs whose shell reported a folder since the
-// last hook message: the prompt is back. The arg stays as the row's title.
+// leaveAgents ends Claude in tabs whose shell reported a prompt since the last
+// hook message: the prompt is back. The arg stays as the row's title.
 func (win *window) leaveAgents(list []*tabs.Tab) {
 	for _, t := range list {
 		a, ok := win.agents[t.ID]
-		if !ok || !a.claude || cwdSeq(t) <= a.shellAt {
+		if !ok || !a.claude || shellSeq(t) <= a.shellAt {
 			continue
 		}
 		a.claude, a.running, a.command = false, false, ""

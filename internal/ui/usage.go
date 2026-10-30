@@ -25,12 +25,13 @@ type usageReport struct {
 	tab    tabs.TabID
 	u      notify.Usage
 	cwdSeq uint64 // the tab's folder-report count when the report arrived
+	shell  uint64 // shellSeq when the report arrived
 	seq    uint64
 }
 
 // put keeps the tab's newest report, but limits from an earlier, undrained
 // report survive one that has none.
-func (b *usageBox) put(tab tabs.TabID, u notify.Usage, cwdSeq uint64) {
+func (b *usageBox) put(tab tabs.TabID, u notify.Usage, cwdSeq, shell uint64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.seq++
@@ -41,7 +42,7 @@ func (b *usageBox) put(tab tabs.TabID, u notify.Usage, cwdSeq uint64) {
 		u.FiveHour = usage.Merge(old.u.FiveHour, u.FiveHour)
 		u.Week = usage.Merge(old.u.Week, u.Week)
 	}
-	b.byTab[tab] = usageReport{tab, u, cwdSeq, b.seq}
+	b.byTab[tab] = usageReport{tab, u, cwdSeq, shell, b.seq}
 }
 
 // take empties the box, oldest report first.
@@ -74,7 +75,7 @@ func (win *window) drainUsage() {
 		if !win.mgr.Has(r.tab) {
 			continue
 		}
-		win.noteAgent(notify.Msg{Kind: notify.KindUsage}, r.tab, r.cwdSeq)
+		win.noteAgent(notify.Msg{Kind: notify.KindUsage}, r.tab, r.shell)
 		if r.u.Ctx == nil {
 			delete(win.ctx, r.tab)
 			continue

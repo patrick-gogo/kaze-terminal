@@ -110,7 +110,7 @@ func TestDoneToastSetting(t *testing.T) {
 	if win.opt.Config.DoneToast != "3s" || !strings.Contains(readFile(t, f.cfg), `done_toast = "3s"`) {
 		t.Fatalf("done_toast %q, file %q", win.opt.Config.DoneToast, readFile(t, f.cfg))
 	}
-	win.deliver(notify.Msg{Tab: int(other), Kind: notify.KindDone}, t0)
+	deliverNow(win, notify.Msg{Tab: int(other), Kind: notify.KindDone}, t0)
 	if got := win.alerts.list()[0].Until; !got.Equal(t0.Add(3 * time.Second)) {
 		t.Fatalf("3s: until %v", got)
 	}
@@ -118,7 +118,7 @@ func TestDoneToastSetting(t *testing.T) {
 	if win.opt.Config.DoneToast != "until_seen" {
 		t.Fatalf("done_toast %q", win.opt.Config.DoneToast)
 	}
-	win.deliver(notify.Msg{Tab: int(other), Kind: notify.KindDone}, t0)
+	deliverNow(win, notify.Msg{Tab: int(other), Kind: notify.KindDone}, t0)
 	if got := win.alerts.list()[0].Until; !got.IsZero() {
 		t.Fatalf("until_seen: until %v, want zero", got)
 	}

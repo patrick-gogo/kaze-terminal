@@ -150,8 +150,8 @@ func TestMemberLineDoesNotRename(t *testing.T) {
 func TestRenameSurvivesClaudeLeaving(t *testing.T) {
 	win, _, r, tb := filterWindow(t)
 	a, b := tb[0], tb[1]
-	win.deliver(promptMsg(int(a.ID), "/ship-ticket", "V3-3348"), t0)
-	win.deliver(promptMsg(int(b.ID), "/ship-ticket", "V3-1"), t0)
+	deliverNow(win, promptMsg(int(a.ID), "/ship-ticket", "V3-3348"), t0)
+	deliverNow(win, promptMsg(int(b.ID), "/ship-ticket", "V3-1"), t0)
 	sideFrame(t, win, r)
 	startRename(t, win, r, b.ID)
 	retype(t, win, r, "api work")
@@ -161,7 +161,7 @@ func TestRenameSurvivesClaudeLeaving(t *testing.T) {
 	sideFrame(t, win, r)
 	m := buildSide(win.sideIn())
 	rows := m.Groups[0].Rows
-	if rows[0].Title != "V3-3348" || rows[0].Claude || rows[0].Command != "" {
+	if rows[0].Title != "V3-3348" || rows[0].Running || rows[0].Command != "" {
 		t.Fatalf("after Claude left, row %+v, want its title V3-3348 kept", rows[0])
 	}
 	if rows[1].Title != "api work" {
@@ -216,7 +216,7 @@ func TestRenameEndsWhenItsRowScrollsAway(t *testing.T) {
 // A renamed row the filter stops matching ends the rename, so keys reach the terminal.
 func TestRenameEndsWhenItsRowIsFilteredOut(t *testing.T) {
 	win, st, r, tb := filterWindow(t)
-	win.deliver(promptMsg(int(tb[0].ID), "/ship-ticket", ""), t0)
+	deliverNow(win, promptMsg(int(tb[0].ID), "/ship-ticket", ""), t0)
 	focusFilter(t, win, r)
 	typeFilter(t, win, r, "ship") // matches only the command
 	if !hasRow(win, tb[0].ID) || hasRow(win, tb[1].ID) {

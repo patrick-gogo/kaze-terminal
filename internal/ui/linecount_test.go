@@ -59,7 +59,7 @@ func TestCountsRunOnEventsOnly(t *testing.T) {
 		}
 		return 1, 2, nil
 	}
-	win.deliver(notify.Msg{Tab: int(tab.ID), Kind: notify.KindDone}, t0)
+	deliverNow(win, notify.Msg{Tab: int(tab.ID), Kind: notify.KindDone}, t0)
 	deadline := time.Now().Add(3 * time.Second)
 	for calls.Load() != base+1 {
 		if time.Now().After(deadline) {
@@ -67,7 +67,7 @@ func TestCountsRunOnEventsOnly(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	win.deliver(notify.Msg{Tab: int(tab.ID), Kind: notify.KindDone}, t0)
+	deliverNow(win, notify.Msg{Tab: int(tab.ID), Kind: notify.KindDone}, t0)
 	if got := calls.Load(); got != base+1 || len(win.lc.inflight) != 1 {
 		t.Fatalf("calls %d inflight %d, want %d and 1", got, len(win.lc.inflight), base+1)
 	}
