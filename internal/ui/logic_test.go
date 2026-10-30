@@ -275,3 +275,18 @@ func TestTabLabel(t *testing.T) {
 		t.Fatalf("exited = %q", got)
 	}
 }
+
+func TestToggleSidebarDefaults(t *testing.T) {
+	if got := defaultBindings("windows")["toggle_sidebar"]; got != (input.Shortcut{Name: "B", Mods: key.ModCtrl | key.ModShift}) {
+		t.Errorf("windows toggle_sidebar = %+v, want ctrl+shift+B", got)
+	}
+	if got := defaultBindings("darwin")["toggle_sidebar"]; got != (input.Shortcut{Name: "B", Mods: key.ModCommand}) {
+		t.Errorf("darwin toggle_sidebar = %+v, want cmd+B", got)
+	}
+	if !config.KnownActions["toggle_sidebar"] {
+		t.Error("toggle_sidebar is not a known action")
+	}
+	if actionByName["toggle_sidebar"] != actToggleSidebar || actToggleSidebar == actNone {
+		t.Error("toggle_sidebar does not map to actToggleSidebar")
+	}
+}

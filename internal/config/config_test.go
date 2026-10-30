@@ -161,7 +161,7 @@ func TestShellRejectsEmptyProgram(t *testing.T) {
 }
 
 func TestKnownActionsAreTheRealOnes(t *testing.T) {
-	want := []string{"close_tab", "copy", "new_tab", "next_tab", "open_settings", "paste", "prev_tab"}
+	want := []string{"close_tab", "copy", "new_tab", "next_tab", "open_settings", "paste", "prev_tab", "toggle_sidebar"}
 	var got []string
 	for k := range KnownActions {
 		got = append(got, k)
@@ -289,5 +289,34 @@ func TestStartupWorkspace(t *testing.T) {
 	cfg, warns, err = Load(write(t, "startup_workspace = 3\n"))
 	if err != nil || len(warns) != 1 || cfg.StartupWorkspace != "" {
 		t.Fatalf("a number: cfg=%q warns=%v err=%v", cfg.StartupWorkspace, warns, err)
+	}
+}
+
+func TestSidebarDefaultsOnAndReadsFalse(t *testing.T) {
+	cfg, warns, err := Load(filepath.Join(t.TempDir(), "nope.toml"))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	if !cfg.Sidebar {
+		t.Fatal("Sidebar default = false, want true")
+	}
+
+	cfg, warns, err = Load(write(t, "sidebar = false\n"))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	if cfg.Sidebar {
+		t.Fatal("sidebar = false was not read")
+	}
+
+	cfg, warns, err = Load(write(t, "sidebar = \"no\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Sidebar {
+		t.Fatal("wrong type should keep the default true")
+	}
+	if len(warns) != 1 {
+		t.Fatalf("warnings = %v, want 1", warns)
 	}
 }
