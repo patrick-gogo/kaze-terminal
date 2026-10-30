@@ -52,7 +52,7 @@ func TestRegionsScaleWithDp(t *testing.T) {
 
 func TestDecoratedHasNoButtonsOrDrag(t *testing.T) {
 	b := layoutBar(image.Pt(1000, 38), 300, barDims{buttonW: 46}, false)
-	if !b.Buttons[0].Empty() || !b.Drag.Empty() || b.Tabs.Max.X != 1000 {
+	if !b.Buttons[0].Empty() || !b.Drag.Empty() || !b.Gear.Empty() || b.Tabs.Max.X != 1000 {
 		t.Fatalf("%+v", b)
 	}
 }

@@ -39,11 +39,15 @@ type barDims struct {
 }
 
 // layoutBar splits a bar of the given size. Without custom buttons (macOS,
-// decorated) the tabs take the whole bar and there is no drag area.
+// decorated) the tabs take the bar up to the gear and there is no drag area.
 func layoutBar(size image.Point, tabsWidth int, d barDims, custom bool) barLayout {
 	var b barLayout
 	if !custom {
-		b.Tabs = image.Rect(0, 0, size.X, size.Y)
+		gearL := max(size.X-max(d.gearW, 0), 0)
+		if gearL < size.X {
+			b.Gear = image.Rect(gearL, 0, size.X, size.Y)
+		}
+		b.Tabs = image.Rect(0, 0, gearL, size.Y)
 		return b
 	}
 	bar := image.Rect(0, 0, size.X, size.Y)

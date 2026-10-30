@@ -541,8 +541,9 @@ func (win *window) frame(gtx layout.Context) error {
 		system.ActionInputOp(system.ActionMove).Add(ops)
 		area.Pop()
 	}
-	if win.custom {
-		area = clip.Rect(win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])).Push(ops)
+	// The gear is here on every OS; the window buttons only with kaze's own title bar.
+	if r := win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2]); !r.Empty() {
+		area = clip.Rect(r).Push(ops)
 		event.Op(ops, win.capTag)
 		area.Pop()
 	}
@@ -701,9 +702,7 @@ func (win *window) drawBar(gtx layout.Context, list []*tabs.Tab, active tabs.Tab
 	chip := settingsChip{open: win.set.open, shown: win.set.shown}
 	used := win.ui.layoutTabBar(gtx, list, active, win.alerts.markOf, win.defTitle, barH, room, chip)
 	win.bar = layoutBar(size, used, d, win.custom)
-	if win.custom {
-		win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized)
-	}
+	win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized) // empty buttons are skipped
 }
 
 // captionEvent feeds one pointer event on the caption buttons and performs a completed click.
@@ -730,16 +729,14 @@ func (win *window) captionEvent(e pointer.Event) {
 }
 
 func (win *window) barEvents(gtx layout.Context) {
-	if win.custom {
-		kinds := pointer.Press | pointer.Release | pointer.Move | pointer.Drag | pointer.Enter | pointer.Leave | pointer.Cancel
-		for {
-			ev, ok := gtx.Event(pointer.Filter{Target: win.capTag, Kinds: kinds})
-			if !ok {
-				break
-			}
-			if e, ok := ev.(pointer.Event); ok {
-				win.captionEvent(e)
-			}
+	kinds := pointer.Press | pointer.Release | pointer.Move | pointer.Drag | pointer.Enter | pointer.Leave | pointer.Cancel
+	for {
+		ev, ok := gtx.Event(pointer.Filter{Target: win.capTag, Kinds: kinds})
+		if !ok {
+			break
+		}
+		if e, ok := ev.(pointer.Event); ok {
+			win.captionEvent(e)
 		}
 	}
 	for {
