@@ -12,11 +12,6 @@ import (
 
 const maxPrompt = 512 // runes typed for one prompt
 
-// paletteUI is the palette's state; UI goroutine only.
-type paletteUI struct {
-	recent recentPrompts
-}
-
 // cleanPrompt drops control characters, so nothing typed can press Enter,
 // and cuts the prompt to maxPrompt runes.
 func cleanPrompt(s string) string {

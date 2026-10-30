@@ -59,6 +59,3 @@ func formatShortcut(goos string, sc input.Shortcut) string {
 	}
 	return strings.Join(append(parts, name), "+")
 }
-
-// togglePalette opens or closes the palette; filled in by the palette window code.
-func (win *window) togglePalette() {}

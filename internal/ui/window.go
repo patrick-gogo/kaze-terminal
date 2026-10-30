@@ -35,6 +35,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/ptyx"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
 	"github.com/patrick-gogo/kaze-terminal/internal/screen"
+	"github.com/patrick-gogo/kaze-terminal/internal/skills"
 	"github.com/patrick-gogo/kaze-terminal/internal/sound"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/term"
@@ -168,8 +169,11 @@ type window struct {
 	// launches are new sessions waiting for their prompt to type `claude`; UI goroutine only.
 	launches map[tabs.TabID]*wsMember
 	palette  paletteUI // the palette; UI goroutine only
-	side     sideUI    // the sidebar; UI goroutine only
-	wsp      wsPage    // the Workspaces section: its list and the open draft; UI goroutine only
+	// skillCache keeps parsed skill files between palette opens; only the scan goroutine uses it.
+	skillCache *skills.Cache
+	skillsFn   func(skills.Sources) []skills.Skill // nil reads through skillCache; tests fake it
+	side       sideUI                              // the sidebar; UI goroutine only
+	wsp        wsPage                              // the Workspaces section: its list and the open draft; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -533,6 +537,7 @@ func (win *window) frame(gtx layout.Context) error {
 	}
 	win.mgr.ResizeAll(cols, rows)
 
+	win.paletteEvents(gtx) // first: while open it takes every click
 	win.barEvents(gtx)
 	win.dotsEvents(gtx)
 	win.sideEvents(gtx)
@@ -647,6 +652,7 @@ func (win *window) frame(gtx layout.Context) error {
 		event.Op(ops, win.toastTag)
 		area.Pop()
 	}
+	win.drawPalette(gtx, termRect) // last: it sits over everything, toasts included
 
 	if win.wantFocus {
 		gtx.Execute(key.FocusCmd{Tag: win.focusTarget()})
@@ -824,6 +830,9 @@ func (win *window) barEvents(gtx layout.Context) {
 // focusTarget is who gets the keyboard: the sidebar's rename or filter field, a settings
 // text field, the settings page or the terminal.
 func (win *window) focusTarget() event.Tag {
+	if win.palette.open {
+		return &win.palette.ed
+	}
 	if win.side.renaming != 0 && !win.side.hidden {
 		return &win.side.ren
 	}
