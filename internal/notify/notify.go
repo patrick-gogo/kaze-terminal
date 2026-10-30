@@ -186,11 +186,11 @@ func (s *Server) handle(c net.Conn) {
 			return
 		}
 	case KindPrompt:
-		m.Usage = nil
-		if !validCommand(m.Command) {
+		m.Usage, m.Reason = nil, ""
+		if !ValidCommand(m.Command) {
 			m.Command = ""
 		}
-		m.Args = cleanArgs(m.Args)
+		m.Args = CleanArgs(m.Args)
 	default:
 		return
 	}
@@ -202,9 +202,9 @@ func (s *Server) handle(c net.Conn) {
 	s.onMsg(m)
 }
 
-// validCommand reports whether c looks like /name with a safe charset, so a
+// ValidCommand reports whether c looks like /name with a safe charset, so a
 // hostile hook cannot put escape sequences into the UI.
-func validCommand(c string) bool {
+func ValidCommand(c string) bool {
 	if len(c) < 2 || len(c) > 65 || c[0] != '/' {
 		return false
 	}
@@ -218,11 +218,11 @@ func validCommand(c string) bool {
 	return true
 }
 
-// cleanArgs drops control characters and cuts to maxArgsRunes.
-func cleanArgs(s string) string {
+// CleanArgs drops control, format (bidi) and line/paragraph separator characters and cuts to maxArgsRunes.
+func CleanArgs(s string) string {
 	out := make([]rune, 0, maxArgsRunes)
 	for _, r := range s {
-		if unicode.IsControl(r) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == 0x2028 || r == 0x2029 {
 			continue
 		}
 		if out = append(out, r); len(out) == maxArgsRunes {

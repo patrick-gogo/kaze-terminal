@@ -57,7 +57,10 @@ func runNotify(args []string, stdin io.Reader, env func(string) string) (code in
 		if json.Unmarshal(readStdinLimited(stdin, stdinWait), &hook) == nil {
 			if kind == notify.KindPrompt {
 				msg.Command, msg.Args = promptCommand(hook.Prompt)
-				msg.Args = trimRunes(strings.Map(dropControl, msg.Args), reasonMaxRunes)
+				if !notify.ValidCommand(msg.Command) {
+					msg.Command = "" // an oversized word would push the message past the server's cap
+				}
+				msg.Args = notify.CleanArgs(msg.Args)
 			}
 			if kind == notify.KindNeeds && quietNotification[hook.Type] {
 				return 0
@@ -87,13 +90,6 @@ func promptCommand(prompt string) (cmd, args string) {
 		return line[:i], strings.TrimSpace(line[i:])
 	}
 	return line, ""
-}
-
-func dropControl(r rune) rune {
-	if unicode.IsControl(r) {
-		return -1
-	}
-	return r
 }
 
 // kazeTab is where to send from this tab; ok is false outside a kaze tab.

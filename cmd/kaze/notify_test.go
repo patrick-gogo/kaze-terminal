@@ -270,3 +270,30 @@ func TestNotifyPromptHugeInputStaysBounded(t *testing.T) {
 		}
 	}
 }
+
+func TestNotifyPromptOversizedCommandStillSends(t *testing.T) {
+	srv, got := startServer(t)
+	b, _ := json.Marshal(map[string]string{"prompt": "/" + strings.Repeat("a", 5000)})
+	runNotify([]string{"prompt"}, bytes.NewReader(b), envOf(srv, "1"))
+	m := wait(t, got)
+	if m.Kind != notify.KindPrompt || m.Command != "" {
+		t.Fatalf("got kind %q command len %d", m.Kind, len(m.Command))
+	}
+}
+
+func TestNotifyPromptCleansArgsUnder64KB(t *testing.T) {
+	srv, got := startServer(t)
+	p := "/big " + strings.Repeat("a\x1bb\x07c", 1000)
+	b, _ := json.Marshal(map[string]string{"prompt": p})
+	runNotify([]string{"prompt"}, bytes.NewReader(b), envOf(srv, "1"))
+	m := wait(t, got)
+	n := len([]rune(m.Args))
+	if m.Command != "/big" || n == 0 || n > 120 {
+		t.Fatalf("command %q, %d arg runes", m.Command, n)
+	}
+	for _, r := range m.Args {
+		if r < 0x20 || r == 0x7f {
+			t.Fatalf("control char %q survived", r)
+		}
+	}
+}
