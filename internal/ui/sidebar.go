@@ -332,6 +332,20 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			wCall, wSize = c.label(gtx, word, 11, wcol)
 			wordW = wSize.X
 		}
+		var addCall, delCall op.CallOp
+		var addSize, delSize image.Point
+		countsW := 0 // the +N -M block, drawn left of the state word
+		if r.Add > 0 {
+			addCall, addSize = c.label(gtx, "+"+strconv.Itoa(r.Add), 11, th.Done)
+			countsW += addSize.X
+		}
+		if r.Del > 0 {
+			delCall, delSize = c.label(gtx, "-"+strconv.Itoa(r.Del), 11, th.UsageHigh)
+			if countsW > 0 {
+				countsW += gap
+			}
+			countsW += delSize.X
+		}
 		for i, ln := range []struct {
 			s    string
 			size unit.Sp
@@ -353,11 +367,30 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			if i == 2 && word != "" {
 				rm -= wordW + gap
 			}
+			if i == 2 && countsW > 0 {
+				rm -= countsW + gap
+			}
 			call, sz := c.fitSide(gtx, ln.s, ln.size, rm, ln.col)
 			place(ops, call, image.Pt(tx, rect.Min.Y+gtx.Dp(ln.mid)-sz.Y/2))
 		}
 		if word != "" {
 			place(ops, wCall, image.Pt(rect.Max.X-gap-wordW, rect.Min.Y+gtx.Dp(46)-wSize.Y/2))
+		}
+		if countsW > 0 {
+			right := rect.Max.X - gap
+			if word != "" {
+				right -= wordW + gap
+			}
+			if x := right - countsW; x >= tx {
+				mid := rect.Min.Y + gtx.Dp(46)
+				if r.Add > 0 {
+					place(ops, addCall, image.Pt(x, mid-addSize.Y/2))
+					x += addSize.X + gap
+				}
+				if r.Del > 0 {
+					place(ops, delCall, image.Pt(x, mid-delSize.Y/2))
+				}
+			}
 		}
 		hit := sideRowHit{id: r.ID, rect: rect.Intersect(h.list), title: titleBand.Intersect(h.list)}
 		if st.hover == r.ID && r.ID != 0 {

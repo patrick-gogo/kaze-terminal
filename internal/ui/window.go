@@ -148,6 +148,7 @@ type window struct {
 	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
 	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
 	names   map[tabs.TabID]string     // row names the owner gave; UI goroutine only
+	lc      lineCounter               // git lines added and removed per tab; UI goroutine only
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
@@ -516,6 +517,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.pruneLocs(list)
 	win.pruneAgents(list)
 	win.leaveAgents(list)
+	win.pruneCounts(list)
+	win.checkCounts(list)
+	win.drainCounts()
 	win.alerts.prune(func(id tabs.TabID) bool {
 		return slices.ContainsFunc(list, func(t *tabs.Tab) bool { return t.ID == id })
 	})

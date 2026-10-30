@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -83,6 +84,7 @@ func testWindow(t *testing.T, st *recStarter) *window {
 	km, _ := buildKeymap("windows", nil)
 	win := &window{w: new(app.Window), km: km, sels: map[tabs.TabID]*tabSel{}}
 	win.mgr = tabs.NewManager(st.start, 80, 24, nil)
+	win.lc.fn = func(context.Context, string) (int, int, error) { return 0, 0, nil } // never run real git
 	t.Cleanup(win.mgr.CloseAll)
 	return win
 }

@@ -60,9 +60,10 @@ type sideInput struct {
 	Filter   string
 	Home     string
 	DefTitle string
-	Clean    func(string) string         // drops runes the fonts lack before a title is shortened; nil keeps them
-	Agent    func(tabs.TabID) agentState // nil: no tab runs Claude
-	Name     func(tabs.TabID) string     // the owner's name for a row; nil or "" for none
+	Clean    func(string) string             // drops runes the fonts lack before a title is shortened; nil keeps them
+	Agent    func(tabs.TabID) agentState     // nil: no tab runs Claude
+	Name     func(tabs.TabID) string         // the owner's name for a row; nil or "" for none
+	Lines    func(tabs.TabID) (add, del int) // nil: no counts
 }
 
 // branchPrefixes are the leading segments dropped from a branch name.
@@ -115,6 +116,9 @@ func buildSide(in sideInput) sideModel {
 			Running: a.running,
 			Claude:  a.claude,
 			Mark:    in.Mark(t.ID),
+		}
+		if in.Lines != nil {
+			row.Add, row.Del = in.Lines(t.ID)
 		}
 		if loc.cwd == "" || loc.repo == "" {
 			loose = append(loose, row)

@@ -77,6 +77,7 @@ func (win *window) sideIn() sideInput {
 		DefTitle: win.defTitle,
 		Agent:    win.agentOf,
 		Name:     func(id tabs.TabID) string { return win.names[id] },
+		Lines:    win.linesOf,
 	}
 	if win.ui != nil {
 		in.Clean = win.ui.fit

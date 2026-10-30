@@ -175,6 +175,7 @@ func (win *window) deliver(m notify.Msg, now time.Time) {
 	}
 	if t := win.mgr.Lookup(tabs.TabID(m.Tab)); t != nil {
 		win.applyAgent(m, t)
+		win.wantCount(t)
 		win.staleBranch(t) // a background row has no other reason to re-read its branch
 	}
 	win.alerts.doneToast = win.opt.Config.DoneToast
