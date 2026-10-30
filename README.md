@@ -129,7 +129,7 @@ paste and settings shortcuts can be changed under `[keys]` in the config.
 
 ## Settings
 
-Open it with the gear button in the title bar (Windows) or with Ctrl+, (Cmd+, on macOS). It opens as a
+Open it with the gear button (in the title bar on Windows, at the right end of the tab strip on macOS) or with Ctrl+, (Cmd+, on macOS). It opens as a
 tab-like chip next to your tabs and closes with its ×. It has three sections in a menu on the left:
 
 - **Appearance:** theme, font size, line spacing, cursor shape and blinking.

@@ -364,3 +364,25 @@ func TestKeyboardCanReachClaudeSection(t *testing.T) {
 		t.Fatal("could not return to Appearance with keyboard")
 	}
 }
+
+// macOS keeps the system title bar, so the gear sits at the right end of the tab strip.
+func TestGearOnTheNativeTitleBar(t *testing.T) {
+	b := layoutBar(image.Pt(1000, 38), 300, barDims{buttonW: 46, gearW: 46, minDrag: 48}, false)
+	if b.Gear != image.Rect(954, 0, 1000, 38) {
+		t.Fatalf("gear %v, want at the right end of the strip", b.Gear)
+	}
+	if b.Tabs.Max.X != 954 || !b.Drag.Empty() || !b.Buttons[0].Empty() {
+		t.Fatalf("tabs %v drag %v buttons %v", b.Tabs, b.Drag, b.Buttons)
+	}
+
+	win, got := captionWindow(t, 1000)
+	win.custom = false
+	win.drawBar(barContext(1000), win.mgr.Tabs(), win.mgr.Active().ID, 38)
+	if win.bar.Gear.Empty() {
+		t.Fatal("no gear on the native title bar")
+	}
+	click(win, win.bar.Gear)
+	if !win.set.shown || len(*got) != 0 {
+		t.Fatalf("gear click: shown %v, window actions %v", win.set.shown, *got)
+	}
+}
