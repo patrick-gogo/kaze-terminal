@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image"
 	"image/color"
 	"sort"
 	"strconv"
@@ -258,36 +257,6 @@ func editCommits(evs []event.Event, i int, composing bool) bool {
 		}
 	}
 	return !composing
-}
-
-type tabHit struct {
-	id          tabs.TabID
-	rect, close image.Rectangle
-}
-
-// barHits is where the last frame drew each tab, its close button and the + button.
-type barHits struct {
-	tabs                    []tabHit
-	groups                  []groupHit // one chip per workspace run
-	plus                    image.Rectangle
-	settings, settingsClose image.Rectangle // the Settings chip; empty while settings is closed
-}
-
-func (b barHits) at(p image.Point) (id tabs.TabID, onClose, onPlus bool) {
-	if p.In(b.plus) {
-		return 0, false, true
-	}
-	for _, t := range b.tabs {
-		if p.In(t.rect) {
-			return t.id, p.In(t.close), false
-		}
-	}
-	return 0, false, false
-}
-
-// settingsAt reports whether p is on the Settings chip, and on its ×.
-func (b barHits) settingsAt(p image.Point) (on, onClose bool) {
-	return p.In(b.settings), p.In(b.settingsClose)
 }
 
 func parseHex(s string) (color.NRGBA, bool) {

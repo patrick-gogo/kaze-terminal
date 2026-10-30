@@ -56,6 +56,7 @@ type sideInput struct {
 	Filter   string
 	Home     string
 	DefTitle string
+	Clean    func(string) string // drops runes the fonts lack before a title is shortened; nil keeps them
 }
 
 // branchPrefixes are the leading segments dropped from a branch name.
@@ -97,7 +98,7 @@ func buildSide(in sideInput) sideModel {
 		loc := in.Loc(t)
 		row := sideRow{
 			ID:     t.ID,
-			Title:  tabLabel(t, in.DefTitle),
+			Title:  in.label(t),
 			Folder: tildeHome(loc.cwd, in.Home),
 			Branch: shortBranch(loc.branch),
 			Mark:   in.Mark(t.ID),
@@ -192,4 +193,12 @@ func (win *window) sideRuns() []sideRun {
 		}
 	}
 	return out
+}
+
+// label is t's row title, cleaned first so dropped runes never eat the length budget.
+func (in sideInput) label(t *tabs.Tab) string {
+	if in.Clean == nil {
+		return tabLabel(t, in.DefTitle)
+	}
+	return tabLabelWith(t, in.DefTitle, in.Clean)
 }

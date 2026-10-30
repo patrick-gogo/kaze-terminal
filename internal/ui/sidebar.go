@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"image/color"
+	"path/filepath"
 	"strconv"
 	"unicode/utf8"
 
@@ -18,6 +19,9 @@ import (
 
 // sidebarW is the sidebar's width in dp at 100% scale.
 const sidebarW = 260
+
+// sideGroupH and sideRowH are a group header's and a session row's height in dp.
+const sideGroupH, sideRowH = 28, 60
 
 // maxSideText bounds how much of one title is shaped; the rest never fits 260dp anyway.
 const maxSideText = 160
@@ -214,7 +218,7 @@ func fillGlyph(ops *op.Ops, col color.NRGBA, r image.Rectangle, glyph clip.Op) {
 func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideState, closeCall op.CallOp, closeSize image.Point) {
 	ops, th := gtx.Ops, c.th
 	pad, gap, hitPad := gtx.Dp(8), gtx.Dp(8), gtx.Dp(4)
-	groupH, rowH := gtx.Dp(28), gtx.Dp(60)
+	groupH, rowH := gtx.Dp(sideGroupH), gtx.Dp(sideRowH)
 	dot := gtx.Dp(7)
 
 	total := 0
@@ -464,5 +468,77 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 	if hidden > 0 {
 		mCall, mSize := c.label(gtx, "+"+strconv.Itoa(hidden)+" more", 11, th.Muted)
 		place(ops, mCall, image.Pt(pad+gap, moreY+(memH-mSize.Y)/2))
+	}
+}
+
+const (
+	// maxMemberLabel bounds the "› title" a folded group header adds for the shown session.
+	maxMemberLabel = 16
+	// maxStackDots bounds a group header's dot stack, so a big group cannot widen it.
+	maxStackDots = 8
+)
+
+// cutRunes shortens s to n runes with a trailing "…"; short text is not copied.
+func cutRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	if r := []rune(s); len(r) > n {
+		return string(r[:n-1]) + "…"
+	}
+	return s
+}
+
+// shortFolder is the last two parts of a member's folder, enough to tell members apart.
+func shortFolder(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	dir = filepath.Clean(dir)
+	parent := filepath.Dir(dir)
+	if parent == dir || filepath.Base(parent) == parent || parent == filepath.VolumeName(parent)+string(filepath.Separator) {
+		return filepath.Base(dir)
+	}
+	return filepath.Join(filepath.Base(parent), filepath.Base(dir))
+}
+
+// memberColor maps a recipe color through the theme's ANSI colors.
+func (c *chrome) memberColor(name string) color.NRGBA {
+	switch name {
+	case "red":
+		return c.ansi[1]
+	case "green":
+		return c.ansi[2]
+	case "yellow":
+		return c.ansi[3]
+	case "blue":
+		return c.ansi[4]
+	case "magenta":
+		return c.ansi[5]
+	case "cyan":
+		return c.ansi[6]
+	}
+	return c.th.Muted
+}
+
+// badgeColor is an alert mark's color: amber while it needs you, green when done.
+func (c *chrome) badgeColor(m mark) color.NRGBA {
+	switch m {
+	case markNeeds:
+		return c.th.Needs
+	case markDone:
+		return c.th.Done
+	}
+	return c.th.Muted
+}
+
+// memberDot draws a member's color dot, ringed in its alert color.
+func (c *chrome) memberDot(gtx layout.Context, d image.Rectangle, col string, mk mark) {
+	ops := gtx.Ops
+	paint.FillShape(ops, c.memberColor(col), clip.Ellipse(d).Op(ops))
+	if mk != markNone {
+		in := gtx.Dp(2)
+		ring := image.Rect(d.Min.X-in, d.Min.Y-in, d.Max.X+in, d.Max.Y+in)
+		paint.FillShape(ops, c.badgeColor(mk), clip.Stroke{Path: clip.Ellipse(ring).Path(ops), Width: float32(max(gtx.Dp(1), 1))}.Op())
 	}
 }

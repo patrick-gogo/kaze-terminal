@@ -609,13 +609,14 @@ func TestWindowStaysOpenAfterAStartupWorkspace(t *testing.T) {
 func TestFrameDrawsTheBannerOverTheTerminal(t *testing.T) {
 	f := newRunFixture(t)
 	f.win.opt.Config = config.Default()
+	f.win.custom = true // the terminal area below a 38dp bar, right of the sidebar
 	f.win.runWorkspace("ws_samurai")
 	var r input.Router
 	sizedFrame(t, f.win, &r, 800, 600)
 	if len(f.win.wsr.hits) == 0 {
 		t.Fatal("the frame drew no banner for a waiting tab")
 	}
-	if b := f.win.wsr.hits[0].rect; b.Min.Y < 38 || b.Max.Y > 576 {
+	if b := f.win.wsr.hits[0].rect; b.Min.Y < 38 || b.Max.Y > 576 || b.Min.X < sidebarW {
 		t.Fatalf("banner %v is outside the terminal area", b)
 	}
 	f.win.openSettings()

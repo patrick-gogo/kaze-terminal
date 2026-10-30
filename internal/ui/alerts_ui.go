@@ -228,7 +228,7 @@ func (c *chrome) fitLabel(gtx layout.Context, s string, room int, col color.NRGB
 	return call, sz
 }
 
-// drawToasts draws the toasts bottom-right between the tab bar and the status
+// drawToasts draws the toasts bottom-right between the title bar and the status
 // bar, newest on top, and records where they are for clicks. When the room is
 // short the oldest cards are left out; when it is too narrow, all of them.
 func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
@@ -240,7 +240,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	}
 	titles := map[tabs.TabID]string{}
 	for _, t := range win.mgr.Tabs() {
-		titles[t.ID] = c.tabLabelFit(t, win.defTitle)
+		titles[t.ID] = tabLabelWith(t, win.defTitle, c.fit)
 	}
 	ops := gtx.Ops
 	width := gtx.Constraints.Max.X

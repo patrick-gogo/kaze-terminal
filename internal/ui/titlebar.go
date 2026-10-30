@@ -18,14 +18,16 @@ const (
 	capMinimize
 	capMaximize // shows "restore" when maximized
 	capClose
-	capGear // opens settings; sits left of minimize, outside Buttons
+	capGear   // opens settings; sits left of minimize, outside Buttons
+	capToggle // shows or hides the sidebar; at the bar's left end
 )
 
-// barLayout is where things go in the top bar, in pixels.
+// barLayout is where things go in kaze's own top bar, in pixels. Without a custom
+// title bar (macOS) it is empty: the toggle and gear sit in the sidebar instead.
 type barLayout struct {
-	Tabs    image.Rectangle    // where the tab strip may draw (ends before Drag)
+	Toggle  image.Rectangle    // the sidebar toggle at the left end
+	Mark    image.Rectangle    // where the K mark is drawn; inside Drag, so it moves the window too
 	Drag    image.Rectangle    // empty space that moves the window; may be empty
-	Band    image.Rectangle    // the strip above the tabs, also a move area; may be empty
 	Buttons [3]image.Rectangle // indexed capMinimize-1, capMaximize-1, capClose-1
 	Gear    image.Rectangle    // the settings button, left of Buttons; may be empty
 }
@@ -34,20 +36,15 @@ type barLayout struct {
 type barDims struct {
 	buttonW int // one caption button
 	gearW   int // the settings button; 0 leaves it out
-	minDrag int // move area always kept between the tabs and the buttons
-	band    int // height of the move strip above the tabs (the tabs' top margin)
+	toggleW int // the sidebar toggle; 0 leaves it out
+	markW   int // the K mark's box, right of the toggle
 }
 
-// layoutBar splits a bar of the given size. Without custom buttons (macOS,
-// decorated) the tabs take the bar up to the gear and there is no drag area.
-func layoutBar(size image.Point, tabsWidth int, d barDims, custom bool) barLayout {
+// layoutBar splits a bar of the given size, left to right: toggle, mark, drag
+// area, gear, caption buttons. Without custom buttons there is no bar.
+func layoutBar(size image.Point, d barDims, custom bool) barLayout {
 	var b barLayout
 	if !custom {
-		gearL := max(size.X-max(d.gearW, 0), 0)
-		if gearL < size.X {
-			b.Gear = image.Rect(gearL, 0, size.X, size.Y)
-		}
-		b.Tabs = image.Rect(0, 0, gearL, size.Y)
 		return b
 	}
 	bar := image.Rect(0, 0, size.X, size.Y)
@@ -61,15 +58,13 @@ func layoutBar(size image.Point, tabsWidth int, d barDims, custom bool) barLayou
 	if gearL < left {
 		b.Gear = image.Rect(gearL, 0, left, size.Y).Intersect(bar)
 	}
-	// Many tabs must still leave something to grab the window by.
-	tabsEnd := min(max(tabsWidth, 0), max(gearL-d.minDrag, 0))
-	band := min(max(d.band, 0), size.Y)
-	b.Tabs = image.Rect(0, band, tabsEnd, size.Y)
-	if band > 0 && tabsEnd > 0 {
-		b.Band = image.Rect(0, 0, tabsEnd, band)
+	toggleR := min(max(d.toggleW, 0), gearL)
+	if toggleR > 0 {
+		b.Toggle = image.Rect(0, 0, toggleR, size.Y)
 	}
-	if tabsEnd < gearL {
-		b.Drag = image.Rect(tabsEnd, 0, gearL, size.Y)
+	if toggleR < gearL {
+		b.Drag = image.Rect(toggleR, 0, gearL, size.Y)
+		b.Mark = image.Rect(toggleR, 0, min(toggleR+max(d.markW, 0), gearL), size.Y)
 	}
 	return b
 }
@@ -83,6 +78,9 @@ func (b barLayout) captionAt(p image.Point) captionButton {
 	}
 	if p.In(b.Gear) {
 		return capGear
+	}
+	if p.In(b.Toggle) {
+		return capToggle
 	}
 	return capNone
 }
@@ -116,7 +114,7 @@ func (s *captionState) pointer(kind pointer.Kind, p image.Point, b barLayout) ca
 }
 
 // actionFor maps a fired button to the window action, given the real maximized state.
-// It returns 0 (no action) for capNone and capGear, which the window handles itself.
+// It returns 0 (no action) for capNone, capGear and capToggle, which the window handles itself.
 func actionFor(c captionButton, maximized bool) system.Action {
 	switch c {
 	case capMinimize:

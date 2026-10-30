@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"image"
 	"image/color"
 	"testing"
 
@@ -214,33 +213,6 @@ func TestIMEPreeditIsNotSentOnlyCommits(t *testing.T) {
 		got, after := committedText(tc.evs, tc.composing)
 		if got != tc.want || after != tc.after {
 			t.Errorf("%s: got %q composing=%v, want %q composing=%v", tc.name, got, after, tc.want, tc.after)
-		}
-	}
-}
-
-func TestBarHitTest(t *testing.T) {
-	b := barHits{
-		tabs: []tabHit{
-			{id: 1, rect: image.Rect(0, 0, 100, 30), close: image.Rect(80, 5, 95, 25)},
-			{id: 2, rect: image.Rect(100, 0, 200, 30), close: image.Rect(180, 5, 195, 25)},
-		},
-		plus: image.Rect(200, 0, 230, 30),
-	}
-	for _, tc := range []struct {
-		p       image.Point
-		id      tabs.TabID
-		onClose bool
-		onPlus  bool
-	}{
-		{image.Pt(10, 10), 1, false, false},
-		{image.Pt(85, 10), 1, true, false},
-		{image.Pt(150, 10), 2, false, false},
-		{image.Pt(210, 10), 0, false, true},
-		{image.Pt(400, 10), 0, false, false},
-	} {
-		id, c, p := b.at(tc.p)
-		if id != tc.id || c != tc.onClose || p != tc.onPlus {
-			t.Errorf("at(%v) = %d,%v,%v want %d,%v,%v", tc.p, id, c, p, tc.id, tc.onClose, tc.onPlus)
 		}
 	}
 }

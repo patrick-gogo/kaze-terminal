@@ -218,6 +218,7 @@ func TestFontChangeResizesAllTabs(t *testing.T) {
 	win.ui = newChrome()
 	win.focused = true
 	win.opt.Config = config.Default()
+	win.opt.Config.Sidebar, win.custom = false, true // the full-width grid under a 38dp bar the sizes below assume
 	for range 2 {
 		if _, err := win.mgr.New(); err != nil {
 			t.Fatal(err)

@@ -22,7 +22,6 @@ import (
 
 	"github.com/patrick-gogo/kaze-terminal/assets/fonts"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
-	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
@@ -33,14 +32,12 @@ func rgb(v uint32) color.NRGBA {
 
 const chromeFace = "JetBrains Mono"
 
-// chrome draws the tab bar and status bar with Gio's shaper over the bundled fonts.
+// chrome draws the title bar, sidebar and status bar with Gio's shaper over the bundled fonts.
 type chrome struct {
 	shaper    *text.Shaper
-	hits      barHits
 	toastHits []toastHit
 	th        theme.Chrome
-	shape     theme.TabShape
-	ansi      [16]color.NRGBA // the terminal's ANSI colors, for tab group members
+	ansi      [16]color.NRGBA // the terminal's ANSI colors, for workspace members
 
 	faces   []font.FontFace
 	covered map[rune]bool   // rune -> some face has it
@@ -65,14 +62,13 @@ func newChrome() *chrome {
 		covered: map[rune]bool{},
 		loaded:  map[string]bool{},
 		th:      theme.Default().UI,
-		shape:   theme.Default().Tabs,
 		ansi:    theme.Default().Term.ANSI,
 	}
 }
 
-// setTheme switches the colors and tab shape the next frame draws with.
+// setTheme switches the colors the next frame draws with.
 func (c *chrome) setTheme(t theme.Theme) {
-	c.th, c.shape, c.ansi = t.UI, t.Tabs, t.Term.ANSI
+	c.th, c.ansi = t.UI, t.Term.ANSI
 }
 
 // fit makes s drawable: for each rune the bundled fonts lack, it adds the system font
@@ -181,137 +177,11 @@ func place(ops *op.Ops, call op.CallOp, at image.Point) {
 	t.Pop()
 }
 
-// tabTop is the gap above the tabs, in dp; on Windows it also moves the window.
-const tabTop = 7
-
-// layoutTabBar fills the bar's background, draws the tabs, the Settings chip when open
-// and the + button left of limit, records where each one is for clicks, and returns
-// where the strip ends. marks gives each tab's alert mark; nil means none. A workspace
-// run's tabs are drawn as one group chip where its first member is.
-func (c *chrome) layoutTabBar(gtx layout.Context, list []*tabs.Tab, active tabs.TabID, marks func(tabs.TabID) mark, def string, height, limit int, chip settingsChip) int {
-	ops := gtx.Ops
-	width := gtx.Constraints.Max.X
-	paint.FillShape(ops, c.th.Chrome, clip.Rect{Max: image.Pt(width, height)}.Op())
-
-	top := gtx.Dp(tabTop)
-	padX, gap, dot, radius := gtx.Dp(12), gtx.Dp(7), gtx.Dp(7), gtx.Dp(9)
-	x := gtx.Dp(8)
-	c.hits = barHits{tabs: c.hits.tabs[:0], groups: c.hits.groups[:0]}
-
-	closeCall, closeSize := c.label(gtx, "×", 12, c.th.Muted)
-	plusCall, plusSize := c.label(gtx, "+", 13, c.th.Muted)
-	var chipCall op.CallOp
-	var chipSize image.Point
-	chipW := 0 // room kept after the tabs so the chip never overflows away
-	if chip.open {
-		fg := c.th.Muted
-		if chip.shown {
-			fg = c.th.ActiveFG
-		}
-		chipCall, chipSize = c.label(gtx, "Settings", 12, fg)
-		chipW = padX + chipSize.X + gap + closeSize.X + padX + gtx.Dp(4)
-	}
-	for i, t := range list {
-		if t.Group != nil {
-			if !firstOfRun(list, i) {
-				continue // the run's chip already stands for this member
-			}
-			w, ok := c.groupChip(gtx, list, i, active, marks, def, x, limit-plusSize.X-2*padX-chipW)
-			if !ok {
-				break
-			}
-			x += w + gtx.Dp(4)
-			continue
-		}
-		on := t.ID == active
-		fg := c.th.Muted
-		if on {
-			fg = c.th.ActiveFG
-		}
-		call, size := c.label(gtx, c.tabLabelFit(t, def), 12, fg)
-		var mk mark
-		if marks != nil {
-			mk = marks(t.ID)
-		}
-		dc, hasDot := c.dotColor(on, mk)
-		w := padX + size.X + gap + closeSize.X + padX
-		if hasDot {
-			w += dot + gap
-		}
-		if x+w > limit-plusSize.X-2*padX-chipW {
-			break // overflow: the rest stay reachable with next/prev tab
-		}
-		r := image.Rect(x, top, x+w, height)
-		if on {
-			c.activeTab(gtx, r, radius)
-		}
-		cx := x + padX
-		mid := top + (height-top)/2
-		if hasDot {
-			d := image.Rect(cx, mid-dot/2, cx+dot, mid-dot/2+dot)
-			paint.FillShape(ops, dc, clip.Ellipse(d).Op(ops))
-			cx += dot + gap
-		}
-		place(ops, call, image.Pt(cx, mid-size.Y/2))
-		cx += size.X + gap
-		place(ops, closeCall, image.Pt(cx, mid-closeSize.Y/2))
-		hitPad := gtx.Dp(4)
-		closeRect := image.Rect(cx-hitPad, mid-closeSize.Y/2-hitPad, cx+closeSize.X+hitPad, mid+closeSize.Y/2+hitPad)
-		c.hits.tabs = append(c.hits.tabs, tabHit{id: t.ID, rect: r, close: closeRect})
-		x += w + gtx.Dp(4)
-	}
-	if chip.open && x+chipW <= limit {
-		r := image.Rect(x, top, x+chipW-gtx.Dp(4), height)
-		if chip.shown {
-			c.activeTab(gtx, r, radius)
-		}
-		mid := top + (height-top)/2
-		cx := x + padX
-		place(ops, chipCall, image.Pt(cx, mid-chipSize.Y/2))
-		cx += chipSize.X + gap
-		place(ops, closeCall, image.Pt(cx, mid-closeSize.Y/2))
-		hitPad := gtx.Dp(4)
-		c.hits.settings = r
-		c.hits.settingsClose = image.Rect(cx-hitPad, mid-closeSize.Y/2-hitPad, cx+closeSize.X+hitPad, mid+closeSize.Y/2+hitPad)
-		x += chipW
-	}
-	pr := image.Rect(x, top, x+plusSize.X+2*padX, height)
-	if pr.Max.X > limit {
-		return min(x, limit) // too narrow for +; the new-tab shortcut still works
-	}
-	place(ops, plusCall, image.Pt(x+padX, top+(height-top-plusSize.Y)/2))
-	c.hits.plus = pr
-	return pr.Max.X
-}
-
-// activeTab draws the active tab's background in the theme's shape.
-func (c *chrome) activeTab(gtx layout.Context, r image.Rectangle, radius int) {
-	ops := gtx.Ops
-	switch c.shape {
-	case theme.Underline:
-		paint.FillShape(ops, c.th.Accent, clip.Rect(image.Rect(r.Min.X, r.Max.Y-gtx.Dp(2), r.Max.X, r.Max.Y)).Op())
-	case theme.Pill:
-		// Inset top and bottom alike so the label stays centred in the pill.
-		in := gtx.Dp(3)
-		p := image.Rect(r.Min.X, r.Min.Y+in, r.Max.X, r.Max.Y-in)
-		rr := clip.UniformRRect(p, p.Dy()/2)
-		paint.FillShape(ops, pillTint(c.th.Accent), rr.Op(ops))
-		paint.FillShape(ops, c.th.Accent, clip.Stroke{Path: rr.Path(ops), Width: 1}.Op())
-	default:
-		paint.FillShape(ops, c.th.Active, clip.RRect{Rect: r, NW: radius, NE: radius}.Op(ops))
-	}
-}
-
-// pillTint is the accent at 13% alpha, the active pill's fill.
-func pillTint(a color.NRGBA) color.NRGBA {
-	a.A = 0x21
-	return a
-}
-
-// layoutCaptions draws the settings gear and the minimize, maximize/restore and close buttons.
+// layoutCaptions draws the sidebar toggle, the settings gear and the minimize,
+// maximize/restore and close buttons.
 func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState, maximized bool) {
 	ops := gtx.Ops
-	rects := [4]image.Rectangle{b.Buttons[0], b.Buttons[1], b.Buttons[2], b.Gear}
+	rects := [5]image.Rectangle{b.Buttons[0], b.Buttons[1], b.Buttons[2], b.Gear, b.Toggle}
 	for i, r := range rects {
 		if r.Empty() {
 			continue
@@ -322,8 +192,14 @@ func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState
 			paint.FillShape(ops, bg, clip.Rect(r).Op())
 			fg = c.th.ActiveFG
 		}
+		var glyph clip.Op
+		if btn == capToggle {
+			glyph = toggleGlyph(gtx, r)
+		} else {
+			glyph = captionGlyph(gtx, btn, r, maximized)
+		}
 		cl := clip.Rect(r).Push(ops)
-		paint.FillShape(ops, fg, captionGlyph(gtx, btn, r, maximized))
+		paint.FillShape(ops, fg, glyph)
 		cl.Pop()
 	}
 }
@@ -470,9 +346,4 @@ func (c *chrome) layoutUsage(gtx layout.Context, segs []usage.Segment, end, heig
 		x += p.size.X
 	}
 	return start
-}
-
-// tabLabelFit is tabLabel with the title cleaned for the tab bar's fonts before it is shortened.
-func (c *chrome) tabLabelFit(t *tabs.Tab, def string) string {
-	return tabLabelWith(t, def, c.fit)
 }
