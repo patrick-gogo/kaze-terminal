@@ -312,6 +312,11 @@ kaze tab inherit these variables too, the same way they inherit `PATH`.
 
 ## Optional shell setup
 
+History suggestions and Tab completion come from your shell, not from kaze, so kaze leaves your
+shell configuration alone. Here is how to turn them on.
+
+### PowerShell (Windows)
+
 PowerShell's own prediction and menu completion work well in kaze. To turn them on, add this
 to your PowerShell profile (`notepad $PROFILE`):
 
@@ -323,6 +328,47 @@ if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) {
 ```
 
 The guard keeps it quiet in scripts and other non-interactive sessions.
+
+### zsh (macOS)
+
+kaze starts your login shell, which is zsh on macOS (`/bin/zsh -l`). Tab completion is built into
+zsh. Gray suggestions from your history need one plugin,
+[zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions), which you install with
+[Homebrew](https://brew.sh):
+
+```sh
+brew install zsh-autosuggestions
+```
+
+Then add this to the end of `~/.zshrc`:
+
+```zsh
+# Tab completion, with a menu you can move through with the arrow keys
+autoload -Uz compinit && compinit
+zstyle ':completion:*' menu select
+
+# Gray suggestions from your history as you type; Right arrow or End accepts one
+source "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+```
+
+If you use [Oh My Zsh](https://ohmyz.sh), it already runs `compinit`. Skip the `autoload` line,
+keep the `zstyle` line, and either keep the `source` line or install the plugin the Oh My Zsh way:
+
+```sh
+git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+```
+
+then add it to the plugin list in `~/.zshrc`, for example `plugins=(git zsh-autosuggestions)`.
+
+To check it, open a new kaze tab (existing tabs keep the old settings):
+
+1. Type the start of a command you ran before, such as `git st`. The rest (`atus`) appears in
+   gray after the cursor. Press Right arrow to accept it.
+2. Type `ls /Libr` and press Tab. zsh completes it to `/Library/`. Press Tab again to list what is
+   inside, and once more to highlight an entry; move with the arrow keys and press Enter to pick.
+
+The suggestion uses color 8 (bright black) from the active theme, so it stays dim but readable in
+every kaze theme, including the light Washi.
 
 ## Folder and branch in the status bar
 
