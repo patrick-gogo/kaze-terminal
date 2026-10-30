@@ -651,9 +651,7 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 
 	// Version block, kept at the bottom unless the menu needs the room.
 	vc, vs := p.text("kaze "+version.Number, 12, col.fg)
-	lines := p.wrap(p.st.build, 11, textW)
-	_, ls := p.c.label(gtx, "build", 11, col.dim)
-	blockH := gtx.Dp(12) + vs.Y + len(lines)*ls.Y
+	blockH := gtx.Dp(12) + vs.Y
 	top := max(r.Max.Y-gtx.Dp(16)-blockH, y+gtx.Dp(14))
 	paint.FillShape(ops, col.line, clip.Rect(image.Rect(x0, top, x1, top+1)).Op())
 	y = top + gtx.Dp(12)
@@ -666,12 +664,6 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 		tx += vs.Y + gtx.Dp(6)
 	}
 	place(ops, vc, image.Pt(tx, y))
-	y += vs.Y
-	for _, line := range lines {
-		call, _ := p.text(line, 11, col.dim)
-		place(ops, call, image.Pt(x0+inner, y))
-		y += ls.Y
-	}
 }
 
 // pane draws the shown section: title, hint and its rows.
