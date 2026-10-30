@@ -29,8 +29,10 @@ These numbers were measured on Windows; the details are in
 ## Status
 
 - **Windows:** works. This is what I use every day (Windows 11, PowerShell 7).
-- **macOS:** untested. The code is written for macOS too, but the Mac milestone (running and
-  benchmarking it on a real Mac) is still pending, so expect rough edges there.
+- **macOS:** works, and I use it too (Apple Silicon, zsh). Build it as an app with
+  `./tools/package-macos.sh`. Still missing on the Mac: the inset title bar (it keeps the native
+  one), a Dock bounce for alerts, an Option-as-Alt toggle, Japanese file names with dakuten
+  (macOS stores them decomposed and kaze drops the combining mark), and benchmark numbers.
 
 ## Requirements
 
