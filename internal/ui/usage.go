@@ -74,6 +74,7 @@ func (win *window) drainUsage() {
 		if !win.mgr.Has(r.tab) {
 			continue
 		}
+		win.noteAgent(notify.Msg{Kind: notify.KindUsage}, r.tab, r.cwdSeq)
 		if r.u.Ctx == nil {
 			delete(win.ctx, r.tab)
 			continue

@@ -143,9 +143,10 @@ type window struct {
 	hwnd        atomic.Uintptr // native window handle, 0 until known
 
 	// Claude usage from `kaze statusline`.
-	usageIn usageBox                // notify goroutines -> UI goroutine
-	acct    notify.Usage            // plan limits (no Ctx); UI goroutine only
-	ctx     map[tabs.TabID]ctxEntry // per-tab context use; UI goroutine only
+	usageIn usageBox                  // notify goroutines -> UI goroutine
+	acct    notify.Usage              // plan limits (no Ctx); UI goroutine only
+	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
+	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
@@ -511,6 +512,8 @@ func (win *window) frame(gtx layout.Context) error {
 	list := win.mgr.Tabs()
 	win.pruneSels(list)
 	win.pruneLocs(list)
+	win.pruneAgents(list)
+	win.leaveAgents(list)
 	win.alerts.prune(func(id tabs.TabID) bool {
 		return slices.ContainsFunc(list, func(t *tabs.Tab) bool { return t.ID == id })
 	})

@@ -131,6 +131,13 @@ func (win *window) onNotify(m notify.Msg) {
 		}
 		return
 	}
+	if m.Kind == notify.KindPrompt {
+		win.inbox.put(m) // state only: never a chime, flash or toast
+		if win.w != nil {
+			win.w.Invalidate()
+		}
+		return
+	}
 	focused := win.snapFocused.Load()
 	if id != tabs.TabID(win.snapActive.Load()) || !focused {
 		// The settings page changes these on the UI goroutine.
@@ -167,6 +174,7 @@ func (win *window) deliver(m notify.Msg, now time.Time) {
 		active = t.ID
 	}
 	if t := win.mgr.Lookup(tabs.TabID(m.Tab)); t != nil {
+		win.applyAgent(m, t)
 		win.staleBranch(t) // a background row has no other reason to re-read its branch
 	}
 	win.alerts.doneToast = win.opt.Config.DoneToast
