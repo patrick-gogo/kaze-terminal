@@ -1,15 +1,20 @@
 package ui
 
 import (
+	"bytes"
 	"image"
+	"io"
 	"path/filepath"
 	"runtime"
 
 	"gioui.org/io/clipboard"
 	"gioui.org/io/event"
+	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/io/transfer"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/widget"
 
@@ -32,6 +37,9 @@ type paletteUI struct {
 	items    []palItem // as last built, the ones hits refer to
 	tag      int       // pointer events anywhere in the window while open
 	filters  []event.Filter
+	edInput  input.Router // feeds the native editor one ordered event at a time
+	edOps    op.Ops       // the editor's keyboard handler for the private router
+	edReady  bool
 	skills   []skills.Skill // the last list loaded, kept across opens
 	scanning bool
 	loaded   chan []skills.Skill // buffered 1; the scan sends, the frame drains
@@ -71,6 +79,7 @@ func (win *window) openPalette() {
 	win.dropSideEdit()
 	p.open, p.sel, p.scroll, p.hover, p.reveal = true, "", 0, -1, false
 	p.ed.SetText("")
+	p.edInput, p.edReady = input.Router{}, false
 	p.spaces = nil
 	if win.cfgPath != "" {
 		if doc, _, err := workspaces.Load(workspaces.Path(win.cfgPath)); err == nil {
@@ -179,34 +188,27 @@ func (win *window) paletteEvents(gtx layout.Context) {
 	if !p.open {
 		return
 	}
-	p.ed.SingleLine, p.ed.Submit = true, false
-	if p.filters == nil {
-		p.filters = append(win.edKeys(&p.ed),
-			key.Filter{Focus: &p.ed, Name: key.NameUpArrow, Optional: key.ModShift},
-			key.Filter{Focus: &p.ed, Name: key.NameDownArrow, Optional: key.ModShift},
-			key.Filter{Focus: &p.ed, Name: key.NameReturn, Optional: key.ModShift},
-			key.Filter{Focus: &p.ed, Name: key.NameEnter, Optional: key.ModShift},
-		)
-	}
+	win.initPaletteEditor(gtx)
+	// One stream preserves ordering between text, native editing keys and
+	// palette actions. The private router lets the native Editor handle each
+	// edit without reaching ahead past Enter or a palette navigation key.
 	for p.open {
 		ev, ok := gtx.Event(p.filters...)
 		if !ok {
 			break
 		}
-		if e, ok := ev.(key.Event); ok && e.State == key.Press && !win.bench.IgnoreInput() {
-			win.paletteKey(gtx, e)
+		if win.bench.IgnoreInput() {
+			continue
 		}
-	}
-	for p.open {
-		ev, ok := p.ed.Update(gtx)
-		if !ok {
-			break
+		if e, ok := ev.(key.Event); ok && win.isPaletteKey(e) {
+			if e.State == key.Press {
+				win.refreshPalette()
+				win.paletteKey(gtx, e)
+			}
+			continue
 		}
-		if _, ok := ev.(widget.ChangeEvent); ok {
-			win.ui.fit(p.ed.Text()) // loads a fallback font for any rune the bundled ones lack
-			p.sel, p.scroll = "", 0
-			win.w.Invalidate()
-		}
+		p.edInput.Queue(ev)
+		win.updatePaletteEditor(gtx)
 	}
 	kinds := pointer.Press | pointer.Move | pointer.Scroll
 	for p.open {
@@ -218,6 +220,80 @@ func (win *window) paletteEvents(gtx layout.Context) {
 			win.palettePointer(gtx, e)
 		}
 	}
+}
+
+// initPaletteEditor supplies the native widget with its own keyboard source.
+// Its public EditorState and clipboard requests are mirrored to the real window.
+func (win *window) initPaletteEditor(gtx layout.Context) {
+	p := &win.palette
+	if p.filters == nil {
+		p.filters = []event.Filter{
+			key.FocusFilter{Target: &p.ed},
+			key.Filter{Focus: &p.ed, Optional: allMods},
+			key.Filter{Focus: &p.ed, Name: key.NameTab, Optional: allMods},
+			transfer.TargetFilter{Target: &p.ed, Type: "application/text"},
+		}
+	}
+	p.ed.SingleLine, p.ed.Submit = true, false
+	if p.edReady {
+		return
+	}
+	p.edReady = true
+	p.edOps.Reset()
+	event.Op(&p.edOps, &p.ed)
+	win.updatePaletteEditor(gtx)
+	p.edInput.Source().Execute(key.FocusCmd{Tag: &p.ed})
+	win.updatePaletteEditor(gtx)
+}
+
+func (win *window) updatePaletteEditor(gtx layout.Context) {
+	p := &win.palette
+	eg := gtx
+	eg.Source = p.edInput.Source()
+	for {
+		ev, ok := p.ed.Update(eg)
+		if !ok {
+			break
+		}
+		if _, ok := ev.(widget.ChangeEvent); ok {
+			win.ui.fit(p.ed.Text())
+			p.sel, p.scroll = "", 0
+			win.w.Invalidate()
+		}
+	}
+	p.edInput.Frame(&p.edOps)
+	win.syncPaletteEditor(gtx)
+}
+
+func (win *window) syncPaletteEditor(gtx layout.Context) {
+	p := &win.palette
+	s := p.edInput.EditorState()
+	gtx.Execute(key.SelectionCmd{Tag: &p.ed, Range: s.Selection.Range, Caret: s.Selection.Caret, CompositionBounds: s.Selection.CompositionBounds})
+	gtx.Execute(key.SnippetCmd{Tag: &p.ed, Snippet: s.Snippet})
+	if mime, data, ok := p.edInput.WriteClipboard(); ok {
+		gtx.Execute(clipboard.WriteCmd{Type: mime, Data: io.NopCloser(bytes.NewReader(data))})
+	}
+	if p.edInput.ClipboardRequested() {
+		gtx.Execute(clipboard.ReadCmd{Tag: &p.ed})
+	}
+	switch p.edInput.TextInputState() {
+	case input.TextInputOpen:
+		gtx.Execute(key.SoftKeyboardCmd{Show: true})
+	case input.TextInputClose:
+		gtx.Execute(key.SoftKeyboardCmd{Show: false})
+	}
+	if at, ok := p.edInput.WakeupTime(); ok {
+		gtx.Execute(op.InvalidateCmd{At: at})
+	}
+}
+
+func (win *window) isPaletteKey(e key.Event) bool {
+	switch e.Name {
+	case key.NameUpArrow, key.NameDownArrow, key.NameReturn, key.NameEnter, key.NameEscape:
+		return true
+	}
+	_, ok := win.km[kinput.Shortcut{Name: e.Name, Mods: e.Modifiers}]
+	return ok
 }
 
 func (win *window) paletteKey(gtx layout.Context, e key.Event) {
@@ -252,7 +328,8 @@ func (win *window) paletteKey(gtx layout.Context, e key.Event) {
 	}
 	switch a {
 	case actPaste:
-		gtx.Execute(clipboard.ReadCmd{Tag: &p.ed})
+		p.edInput.Source().Execute(clipboard.ReadCmd{Tag: &p.ed})
+		win.syncPaletteEditor(gtx)
 	case actCopy:
 		win.writeClipboard(gtx, p.ed.SelectedText())
 	case actPalette:
@@ -342,7 +419,22 @@ func (win *window) drawPalette(gtx layout.Context, main image.Rectangle) {
 	if sel >= 0 {
 		p.sel = p.items[sel].Key
 	}
-	p.hits = win.ui.layoutPalette(gtx, palState{items: p.items, sel: sel, scroll: p.scroll, hover: p.hover, reveal: p.reveal, ed: &p.ed}, main)
+	// Register and finish handling the window's IME target before its first
+	// focus command. Gio then defers that focus change and replays any input
+	// after the opening shortcut next frame. Subsequent input is consumed
+	// in paletteEvents, not during Layout.
+	if !p.edReady {
+		win.initPaletteEditor(gtx)
+		for {
+			if _, ok := gtx.Event(p.filters...); !ok {
+				break
+			}
+		}
+	}
+	eg := gtx
+	eg.Source = p.edInput.Source()
+	p.hits = win.ui.layoutPalette(eg, palState{items: p.items, sel: sel, scroll: p.scroll, hover: p.hover, reveal: p.reveal, ed: &p.ed}, main)
+	win.syncPaletteEditor(gtx)
 	p.scroll, p.reveal = p.hits.scroll, false
 	area := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 	event.Op(gtx.Ops, &p.tag)

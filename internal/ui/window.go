@@ -908,6 +908,13 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 			break
 		}
 		batch = append(batch, ev)
+		if e, ok := ev.(key.Event); ok && e.State == key.Press &&
+			win.km[input.Shortcut{Name: e.Name, Mods: e.Modifiers}] == actPalette {
+			// Leave subsequent events in Gio's queue. The palette's focus
+			// command replays them to its editor, preserving fast typing and
+			// IME edits that arrived with the opening shortcut.
+			break
+		}
 	}
 	if win.bench != nil {
 		batch = win.benchBatch(gtx, t, batch, ch)
