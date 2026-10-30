@@ -162,11 +162,13 @@ Sessions are listed down the left side, in place of a tab strip.
   to get a ×, or middle click it to close it. The `+` button opens a new session.
 - **Filter:** the "Filter sessions…" field at the top. Click it to type. Typing narrows the list
   by title, folder and branch, and folded groups open while you filter. Enter shows the first
-  match. Esc clears the field and gives the keyboard back to the terminal.
+  match (on an empty field it only gives the keyboard back). Esc clears the field and gives the
+  keyboard back to the terminal. Switching or opening a session, opening Settings or hiding the
+  sidebar also gives the keyboard back and keeps the text.
 - **Workspaces:** a section at the bottom lists each running workspace (see Workspaces below).
 - **Hiding it:** the sidebar toggle (Ctrl+Shift+B, Cmd+B on macOS) hides or shows it, and kaze
   remembers the choice as `sidebar` in the config. Below 560 dp of window width it also hides
-  by itself, without saving that.
+  by itself, without saving that, and the toggle does nothing until the window is wider.
 - **Title bar:** on Windows the toggle, the K mark, the gear and the window buttons sit in the
   title bar. On macOS, with the native title bar, the toggle and the gear sit at the top of the
   sidebar, and a thin rail with them stays when the sidebar is hidden.
@@ -252,8 +254,10 @@ A running workspace gets a header in the Workspaces section at the bottom of the
 reading "all up" or "N down". Click the header to fold it.
 
 - Each member gets one line: its color bar, its title and its status. A member reads `stopped`
-  in red when its commands finished or its shell exited while running, and `Failed` in red when
-  its run failed. Click a member to show it as the main view.
+  in red when its commands finished or its shell exited, and `Failed` in red when its run
+  failed. A member's line shows an amber dot when it needs you and a green dot when it is done;
+  a folded header shows the amber one if any member needs you, else the green one. Click a
+  member to show it as the main view.
 - The Workspaces list in Settings shows how far each member got: Starting, Waiting for Docker
   (or a port), Confirm to run, Running, Finished, Failed, Cancelled or No commands. Finished means
   the shell came back to its prompt (it needs the snippet from "Folder and branch in the status
@@ -263,8 +267,8 @@ reading "all up" or "N down". Click the header to fold it.
   and the word "servers". Click the dots to show the member that is down, or the first member
   if none is.
 - Ctrl+Tab and Ctrl+Shift+Tab step through sessions in sidebar order and skip workspace members.
-- Close a member with your close-session shortcut (Ctrl+Shift+W, Cmd+W on macOS) or the × on its
-  line. Only a workspace run makes these lines; you can't drag ordinary sessions into one.
+- Close a member with your close-session shortcut (Ctrl+Shift+W, Cmd+W on macOS), the × that
+  shows when you hover its line, or a middle click on the line. Only a workspace run makes these lines; you can't drag ordinary sessions into one.
 
 ### How commands are sent
 
@@ -461,8 +465,8 @@ Without this the folder and branch stay hidden. UNC paths (`\\server\share`) are
 
 ## Alerts (Claude Code hooks)
 
-kaze marks a tab and shows a small toast when Claude Code in that tab needs you (a permission
-prompt or a question) or has finished its turn. Click "Go ›" on the toast to switch to the tab.
+kaze marks a tab and shows a small toast, over the terminal to the right of the sidebar, when
+Claude Code in that tab needs you (a permission prompt or a question) or has finished its turn. Click "Go ›" on the toast to switch to the tab.
 "Needs you" plays a chime (unless you're already looking at that tab); "done" is silent
 unless you turn on `chime_done`. While kaze is minimized, its taskbar button flashes (Windows).
 
