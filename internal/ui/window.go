@@ -442,6 +442,11 @@ func (win *window) setCursorHidden(h bool) {
 	}
 }
 
+// echoWait caps how long a frame that sent input waits for the shell's echo.
+// Small next to a 16.7ms frame, and only paid when nothing answers (a password
+// prompt), so idle windows and output-only frames never wait.
+const echoWait = 3 * time.Millisecond
+
 func (win *window) frame(gtx layout.Context) error {
 	barH, statusH, pad := gtx.Dp(38), gtx.Dp(24), gtx.Dp(8)
 	if !win.custom {
@@ -834,7 +839,17 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 	if win.bench != nil {
 		batch = win.benchBatch(gtx, t, batch, ch)
 	}
+	win.routeAndWait(gtx, t, batch, cw, ch)
+}
+
+// routeAndWait routes the frame's input to t and, when that wrote to the shell,
+// waits up to echoWait for its echo. A shell answers a key well under a
+// millisecond later; without the wait this frame is drawn first and the echo
+// waits a whole screen refresh (16.7ms at 60Hz) for the next one.
+func (win *window) routeAndWait(gtx layout.Context, t *tabs.Tab, batch []event.Event, cw, ch int) {
+	mark := t.Session.EchoMark()
 	win.route(gtx, batch, cw, ch)
+	t.Session.WaitEcho(mark, echoWait)
 }
 
 // route delivers one frame's terminal input to the active tab.

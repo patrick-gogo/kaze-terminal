@@ -55,6 +55,11 @@ type Session struct {
 
 	exited   atomic.Bool
 	exitCode atomic.Int64
+
+	// For WaitEcho: writes made through Write, output chunks applied, and a
+	// wake for the one UI goroutine that waits.
+	inSeq, outSeq atomic.Uint64
+	outSig        chan struct{}
 }
 
 // NewSession starts the reader, writer and notifier goroutines for p. onChange is called
@@ -86,6 +91,7 @@ func NewSessionOpts(p ptyx.Session, cols, rows int, o Opts, onChange func()) *Se
 		pty:      p,
 		onChange: onChange,
 		notifyCh: make(chan struct{}, 1),
+		outSig:   make(chan struct{}, 1),
 		writes:   make(chan []byte, writeQueueLen),
 		done:     make(chan struct{}),
 	}
@@ -119,7 +125,41 @@ func (s *Session) Write(p []byte) {
 	if s.exited.Load() || s.closed.Load() || len(p) == 0 {
 		return
 	}
+	s.inSeq.Add(1)
 	s.enqueue(p)
+}
+
+// EchoMark is where a session's input and output stood, taken before a frame's input.
+type EchoMark struct{ in, out uint64 }
+
+// EchoMark records the session's input and output so far, for WaitEcho.
+func (s *Session) EchoMark() EchoMark {
+	return EchoMark{in: s.inSeq.Load(), out: s.outSeq.Load()}
+}
+
+// WaitEcho waits up to max for output after mark, but only when something was
+// written since mark. The frame that sends a key calls it, so the shell's echo,
+// which usually lands well under a millisecond later, shows in that same frame
+// rather than a whole screen refresh later. It reports whether output came.
+func (s *Session) WaitEcho(mark EchoMark, max time.Duration) bool {
+	if s.inSeq.Load() == mark.in {
+		return false
+	}
+	var timer *time.Timer
+	for s.outSeq.Load() == mark.out {
+		if timer == nil {
+			timer = time.NewTimer(max)
+			defer timer.Stop()
+		}
+		select {
+		case <-s.outSig:
+		case <-timer.C:
+			return s.outSeq.Load() != mark.out
+		case <-s.done:
+			return false
+		}
+	}
+	return true
 }
 
 // SubmitResult says what became of a Submit.
@@ -209,6 +249,11 @@ func (s *Session) readLoop(readDone chan struct{}) {
 			s.mu.Lock()
 			s.parser.Feed(buf[:n])
 			s.mu.Unlock()
+			s.outSeq.Add(1)
+			select {
+			case s.outSig <- struct{}{}:
+			default:
+			}
 			s.notify()
 		}
 		if err != nil {
