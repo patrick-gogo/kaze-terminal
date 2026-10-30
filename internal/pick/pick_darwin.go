@@ -9,5 +9,6 @@ func folderCmd(start string) *exec.Cmd {
 	if start != "" {
 		choose = `POSIX path of (choose folder with prompt "Choose the tab's folder" default location (POSIX file (item 1 of argv)))`
 	}
-	return exec.Command("osascript", "-e", "on run argv", "-e", choose, "-e", "end run", "--", start)
+	// activate brings the dialog in front of kaze; osascript does not come forward on its own.
+	return exec.Command("osascript", "-e", "on run argv", "-e", "activate", "-e", choose, "-e", "end run", "--", start)
 }

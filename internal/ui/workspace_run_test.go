@@ -926,3 +926,22 @@ func TestMemberStatusStaysRunningWithoutPrompts(t *testing.T) {
 	})
 	f.wantStatus(1, "Running")
 }
+
+// A shell that sends both OSC 7 and OSC 133;A for one prompt can have its line
+// typed between the two; the second mark of that same prompt is not a finish.
+func TestMemberStatusOnePromptWithBothMarksIsNotAFinish(t *testing.T) {
+	f := newRunFixture(t)
+	f.deps.portOK = true
+	close(f.deps.dockerUp)
+	f.win.runWorkspace("ws_samurai")
+	tab := f.win.mgr.Tabs()[1]
+	go f.st.pty(1).w.Write([]byte("\x1b]7;file://host/tmp\x07"))
+	f.until("admin launched on the OSC 7 alone", func() bool { return f.state(1) == workspaces.Launched })
+	go f.st.pty(1).w.Write([]byte("\x1b]133;A\x07$ "))
+	f.until("the prompt mark applied", func() bool {
+		tab.Session.Lock()
+		defer tab.Session.Unlock()
+		return tab.Session.Applier().PromptSeq() > 0
+	})
+	f.wantStatus(1, "Running")
+}

@@ -32,3 +32,13 @@ func TestFolderCmdWithoutStartHasNoDefaultLocation(t *testing.T) {
 		t.Fatalf("args %q name a default location without a start folder", cmd.Args)
 	}
 }
+
+// osascript does not bring itself forward, so without activate the dialog can
+// open behind kaze's window.
+func TestFolderCmdActivatesBeforeChoosing(t *testing.T) {
+	args := strings.Join(folderCmd("/tmp").Args, "\n")
+	a, c := strings.Index(args, "activate"), strings.Index(args, "choose folder")
+	if a < 0 || a > c {
+		t.Fatalf("args %q: activate must come before choose folder", args)
+	}
+}

@@ -328,11 +328,12 @@ func (win *window) wsEvent(m *wsMember, t *tabs.Tab, e workspaces.Event) {
 	}
 }
 
-// promptCount is how many prompt markers (OSC 7 or OSC 133;A) the shell has sent.
+// promptCount is how many prompts the shell has reported. A shell may mark one
+// prompt with both OSC 7 and OSC 133;A, so the larger count is taken, not the sum.
 func promptCount(s *term.Session) uint64 {
 	s.Lock()
 	defer s.Unlock()
-	return s.Applier().CwdSeq() + s.Applier().PromptSeq()
+	return max(s.Applier().CwdSeq(), s.Applier().PromptSeq())
 }
 
 // promptSeen reports the shell's first prompt marker: an OSC 7 folder report
