@@ -72,6 +72,8 @@ type window struct {
 	opt Options
 	pal render.Palette
 	km  keymap
+	// binds is each [keys] action's shortcut, overrides included, for display.
+	binds map[string]input.Shortcut
 
 	mgr       *tabs.Manager
 	rend      *render.Renderer
@@ -187,6 +189,7 @@ func Run(w *app.Window, opt Options) error {
 		toastTag: new(int),
 		cfgPath:  config.Path(),
 	}
+	win.binds, _ = resolveBindings(runtime.GOOS, opt.Config.Keys)
 	win.applyTheme(startTheme(opt.Config))
 	win.snapFocused.Store(true)
 	win.flash = func() { flashTaskbar(win.hwnd.Load()) }
@@ -985,6 +988,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.toggleSidebar()
 	case actNextWaiting:
 		win.nextWaiting()
+	case actPalette:
+		win.togglePalette()
 	case actPaste:
 		if win.shownTab() != nil {
 			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})

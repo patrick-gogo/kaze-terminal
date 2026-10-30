@@ -82,7 +82,8 @@ func (s *recStarter) start([]string, string) (ptyx.Session, error) {
 func testWindow(t *testing.T, st *recStarter) *window {
 	t.Helper()
 	km, _ := buildKeymap("windows", nil)
-	win := &window{w: new(app.Window), km: km, sels: map[tabs.TabID]*tabSel{}}
+	binds, _ := resolveBindings("windows", nil)
+	win := &window{w: new(app.Window), km: km, binds: binds, sels: map[tabs.TabID]*tabSel{}}
 	win.mgr = tabs.NewManager(st.start, 80, 24, nil)
 	win.lc.fn = func(context.Context, string) (int, int, error) { return 0, 0, nil } // never run real git
 	t.Cleanup(win.mgr.CloseAll)
