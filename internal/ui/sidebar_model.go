@@ -13,7 +13,8 @@ type sideRow struct {
 	Title, Folder, Branch string
 	Command               string // the last slash command while Claude runs in the tab
 	Running               bool
-	Add, Del              int // lines added and removed in the folder's repo
+	Claude                bool // Claude Code has reported from this tab
+	Add, Del              int  // lines added and removed in the folder's repo
 	Mark                  mark
 }
 
@@ -114,6 +115,7 @@ func buildSide(in sideInput) sideModel {
 			Branch:  shortBranch(loc.branch),
 			Command: a.command,
 			Running: a.running,
+			Claude:  a.claude,
 			Mark:    in.Mark(t.ID),
 		}
 		if in.Lines != nil {
@@ -154,6 +156,16 @@ func buildSide(in sideInput) sideModel {
 		}
 	}
 	return m
+}
+
+// sessionRows is every row, groups then loose, ignoring fold; build the model
+// with an empty Filter.
+func sessionRows(m sideModel) []sideRow {
+	var rows []sideRow
+	for _, g := range m.Groups {
+		rows = append(rows, g.Rows...)
+	}
+	return append(rows, m.Loose...)
 }
 
 // sessionOrder is every row, groups then loose, ignoring fold and filter; build
