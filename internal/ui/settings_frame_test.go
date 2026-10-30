@@ -130,3 +130,27 @@ func TestUsageResetWakesOnlyWhenShown(t *testing.T) {
 		t.Fatalf("wake at %v with show_usage off", at)
 	}
 }
+
+// The confirm dialog sits in the middle of the page, so its buttons do too: they
+// end one pad inside the right edge of a box centered in the page.
+func TestConfirmDialogIsCentered(t *testing.T) {
+	f := newClaudeFixture(t, "", true)
+	win := claudeWindow(t, f, 800, 600)
+	pressAny(t, win, "claude_fix", 0)
+	if win.claude.dialog == nil {
+		t.Fatal("Fix did not open the dialog")
+	}
+	write := controlsOf(win, "dialog_write")
+	if len(write) != 1 {
+		t.Fatalf("%d Write buttons, want 1", len(write))
+	}
+	b := write[0].rect
+	const w, pad = 640, 20 // the box width and padding at 1px per dp
+	wantRight := pageRect.Min.X + (pageRect.Dx()+w)/2 - pad
+	if b.Max.X < wantRight-1 || b.Max.X > wantRight+1 {
+		t.Fatalf("Write button ends at x=%d, want %d (box centered in %v)", b.Max.X, wantRight, pageRect)
+	}
+	if mid := (pageRect.Min.Y + pageRect.Max.Y) / 2; b.Min.Y <= mid {
+		t.Fatalf("Write button at y=%d, want below the page middle %d", b.Min.Y, mid)
+	}
+}

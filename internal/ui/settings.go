@@ -554,8 +554,9 @@ func (p *page) dialog(r image.Rectangle, d *dialogBox) {
 	}
 	h += pad + bh + pad
 	h = min(h, r.Dy()-gtx.Dp(16))
-	box := image.Rect(r.Min.X+(r.Dx()-w)/2, r.Min.Y+(r.Dy()-h)/2, 0, 0)
-	box.Max = box.Min.Add(image.Pt(w, h))
+	// Not image.Rect: it swaps corners when min > max, which put the box at the origin.
+	at := image.Pt(r.Min.X+(r.Dx()-w)/2, r.Min.Y+(r.Dy()-h)/2)
+	box := image.Rectangle{Min: at, Max: at.Add(image.Pt(w, h))}
 	paint.FillShape(ops, col.bg, clip.UniformRRect(box, gtx.Dp(10)).Op(ops))
 	stroke(ops, box, gtx.Dp(10), col.line)
 
