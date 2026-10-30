@@ -176,15 +176,16 @@ Sessions are listed down the left side, in place of a tab strip.
   - **Line counts:** inside a git repo, `+N -M` shows the lines added and removed against
     `HEAD` (`git diff --shortstat HEAD`). kaze runs git only when something happens (a hook
     message or the shell reporting its folder), never on a timer, with no console window and a
-    2 second limit. Outside a repo nothing is shown.
+    2 second limit. It never takes git's index lock, so it can't break Claude's own git
+    commands. Outside a repo nothing is shown.
 - **Filter:** the "Filter sessions…" field at the top. Click it to type. Typing narrows the list
   by title, folder, branch and command, and folded groups open while you filter. Enter shows the first
   match (on an empty field it only gives the keyboard back). Esc clears the field and gives the
   keyboard back to the terminal. Switching or opening a session, opening Settings or hiding the
   sidebar also gives the keyboard back and keeps the text.
-- **Next waiting:** the button at the bottom of the sidebar, with its key on the right, jumps to
-  the next session after the one you're on that needs you, in sidebar order, wrapping around. When none is waiting, the status bar
-  says "Nothing is waiting on you."
+- **Next waiting:** the button above the Workspaces section, with its key on the right, jumps
+  to the next session after the one you're on that needs you, in sidebar order, wrapping
+  around. When none is waiting, the status bar says "Nothing is waiting on you."
 - **Workspaces:** a section at the bottom lists each running workspace (see Workspaces below).
 - **Hiding it:** the sidebar toggle (Ctrl+Shift+B, Cmd+B on macOS) hides or shows it, and kaze
   remembers the choice as `sidebar` in the config. Below 560 dp of window width it also hides
@@ -522,7 +523,7 @@ If you already have hooks, add these entries next to them. On macOS the command 
   `kaze.exe notify prompt` (timeout 3). It sends kaze the slash command that starts your prompt
   (like `/work-ticket`) and its first line of arguments, so the sidebar can show the command and
   mark the session as running. A prompt that does not start with a slash command sends only
-  "running". Settings, Claude, Claude Code setup adds it with **Fix**, with the usual
+  "running". **Fix** in Settings > Claude > Claude Code setup adds it, with the usual
   show-the-change, confirm and back-up steps, so you don't need to edit the file by hand. Claude
   Code adds a prompt hook's output to the conversation, so this one prints nothing at all. Its
   text is cleaned of control characters and capped before kaze shows it.
