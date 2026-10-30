@@ -10,8 +10,10 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 type Kind string
@@ -21,7 +23,11 @@ const (
 	KindNeeds Kind = "needs"
 	// KindUsage carries Claude's plan usage from `kaze statusline`; it is not an alert.
 	KindUsage Kind = "usage"
+	// KindPrompt reports a submitted prompt and the slash command it starts with; not an alert.
+	KindPrompt Kind = "prompt"
 )
+
+const maxArgsRunes = 120
 
 const (
 	maxBody      = 4 * 1024
@@ -35,7 +41,10 @@ type Msg struct {
 	Kind   Kind   `json:"kind"`
 	Reason string `json:"reason,omitempty"`
 	Usage  *Usage `json:"usage,omitempty"` // only for KindUsage
-	Token  string `json:"token"`
+	// Command and Args are only for KindPrompt.
+	Command string `json:"command,omitempty"`
+	Args    string `json:"args,omitempty"`
+	Token   string `json:"token"`
 }
 
 // Window is one rate-limit window: percent used and its reset time (Unix seconds, 0 = unknown).
@@ -176,6 +185,12 @@ func (s *Server) handle(c net.Conn) {
 		if m.Usage == nil {
 			return
 		}
+	case KindPrompt:
+		m.Usage = nil
+		if !validCommand(m.Command) {
+			m.Command = ""
+		}
+		m.Args = cleanArgs(m.Args)
 	default:
 		return
 	}
@@ -185,6 +200,36 @@ func (s *Server) handle(c net.Conn) {
 	}
 	defer func() { recover() }() // a bad callback must not kill the server
 	s.onMsg(m)
+}
+
+// validCommand reports whether c looks like /name with a safe charset, so a
+// hostile hook cannot put escape sequences into the UI.
+func validCommand(c string) bool {
+	if len(c) < 2 || len(c) > 65 || c[0] != '/' {
+		return false
+	}
+	for i := 1; i < len(c); i++ {
+		b := c[i]
+		alnum := b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+		if !alnum && (i == 1 || !strings.ContainsRune(":_.-", rune(b))) {
+			return false
+		}
+	}
+	return true
+}
+
+// cleanArgs drops control characters and cuts to maxArgsRunes.
+func cleanArgs(s string) string {
+	out := make([]rune, 0, maxArgsRunes)
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			continue
+		}
+		if out = append(out, r); len(out) == maxArgsRunes {
+			break
+		}
+	}
+	return string(out)
 }
 
 // Send delivers one message; used by `kaze notify`. timeout covers dial and

@@ -361,3 +361,18 @@ func TestAlertsCarryNoUsage(t *testing.T) {
 		t.Fatal("timeout")
 	}
 }
+
+func TestServerCleansPrompt(t *testing.T) {
+	s, ch := start(t)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindPrompt, Command: "/x\x1b[31m", Args: "a\nb\x1bc"}, time.Second)
+	m := <-ch
+	if m.Command != "" || m.Args != "abc" {
+		t.Fatalf("got %+v", m)
+	}
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindPrompt, Command: "/ship-ticket", Args: strings.Repeat("あ", 300),
+		Usage: &Usage{}}, time.Second)
+	m = <-ch
+	if m.Command != "/ship-ticket" || len([]rune(m.Args)) != 120 || m.Usage != nil {
+		t.Fatalf("got %+v", m)
+	}
+}
