@@ -11,11 +11,28 @@ all day, so it does a few things well (tabs, fast redraws, Japanese text, Claude
 symbols) and leaves out most of what a full terminal suite has. It has a small settings page for
 the everyday choices, and everything it changes lives in one config file you can also edit by hand.
 
+## Why "kaze"
+
+Kaze (風) is Japanese for "wind". That is the feel I want from a terminal: light, quick, and
+never in the way.
+
+- **Light:** kaze draws nothing when nothing changes, so an idle window uses no CPU (0.0% with
+  four tabs open) and its memory stays flat.
+- **Fast:** only the rows that changed are redrawn. Replaying a Claude Code reply as it streams,
+  99% of frames took 5.1ms or less to draw, well inside the 16.7ms a 60Hz screen allows.
+- **Out of the way:** tabs, a nudge when a Claude Code session needs you or is done, and not
+  much else.
+
+These numbers were measured on Windows; the details are in
+[`docs/benchmarks/2026-10-28-milestone-1.md`](docs/benchmarks/2026-10-28-milestone-1.md).
+
 ## Status
 
 - **Windows:** works. This is what I use every day (Windows 11, PowerShell 7).
-- **macOS:** untested. The code is written for macOS too, but the Mac milestone (running and
-  benchmarking it on a real Mac) is still pending, so expect rough edges there.
+- **macOS:** works, and I use it too (Apple Silicon, zsh). Build it as an app with
+  `./tools/package-macos.sh`. Still missing on the Mac: the inset title bar (it keeps the native
+  one), a Dock bounce for alerts, an Option-as-Alt toggle, Japanese file names with dakuten
+  (macOS stores them decomposed and kaze drops the combining mark), and benchmark numbers.
 
 ## Requirements
 
