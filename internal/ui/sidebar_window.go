@@ -248,8 +248,8 @@ func revealScroll(gtx layout.Context, m sideModel, st sideState, h sideHits) (in
 	return min(max(sc, 0), h.scrollMax), true
 }
 
-// layoutRail draws the macOS rail: the sidebar toggle and the gear, where the
-// sidebar's top row has them.
+// layoutRail draws the macOS rail: the sidebar toggle, the palette button and
+// the gear, top to bottom.
 func (c *chrome) layoutRail(gtx layout.Context, size image.Point) sideHits {
 	ops, th := gtx.Ops, c.th
 	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
@@ -258,8 +258,10 @@ func (c *chrome) layoutRail(gtx layout.Context, size image.Point) sideHits {
 	x, y := (size.X-btn)/2, (bar-btn)/2
 	var h sideHits
 	h.toggle = image.Rect(x, y, x+btn, y+btn)
-	h.gear = image.Rect(x, bar+y, x+btn, bar+y+btn)
+	h.palette = image.Rect(x, bar+y, x+btn, bar+y+btn)
+	h.gear = image.Rect(x, 2*bar+y, x+btn, 2*bar+y+btn)
 	fillGlyph(ops, th.CapGlyph, h.toggle, toggleGlyph(gtx, h.toggle))
+	fillGlyph(ops, th.CapGlyph, h.palette, searchGlyph(gtx, h.palette))
 	fillGlyph(ops, th.CapGlyph, h.gear, captionGlyph(gtx, capGear, h.gear, false))
 	return h
 }
@@ -517,6 +519,11 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 	case p.In(h.gear):
 		if primary {
 			win.openSettings()
+		}
+		return
+	case p.In(h.palette):
+		if primary {
+			win.openPalette()
 		}
 		return
 	case p.In(h.settings):

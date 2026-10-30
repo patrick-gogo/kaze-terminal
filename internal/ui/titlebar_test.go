@@ -6,6 +6,7 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/f32"
+	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/io/system"
 	"gioui.org/layout"
@@ -227,5 +228,67 @@ func TestLosingFocusClearsCaptionHover(t *testing.T) {
 	win.setFocused(false)
 	if win.caption.hover != capNone || win.side.st.hover != 0 {
 		t.Fatalf("caption hover %v, sidebar hover %d after the window lost focus", win.caption.hover, win.side.st.hover)
+	}
+}
+
+var searchDims = barDims{buttonW: 46, gearW: 46, toggleW: 46, markW: 30, searchMin: 160, searchMax: 460, searchH: 24}
+
+func TestBarHasASearchBoxBetweenTheDragAreas(t *testing.T) {
+	b := layoutBar(image.Pt(1200, 38), searchDims, true)
+	if b.Search.Empty() || b.Search.Dx() > 460 || b.Search.Dx() < 160 {
+		t.Fatalf("search %v", b.Search)
+	}
+	mid := (b.Mark.Max.X + b.Gear.Min.X) / 2
+	if c := (b.Search.Min.X + b.Search.Max.X) / 2; c < mid-1 || c > mid+1 {
+		t.Fatalf("search centred at %d, want %d", c, mid)
+	}
+	rs := []image.Rectangle{b.Drag, b.Search, b.DragR}
+	for i := range rs {
+		for j := i + 1; j < len(rs); j++ {
+			if rs[i].Overlaps(rs[j]) {
+				t.Fatalf("%v overlaps %v", rs[i], rs[j])
+			}
+		}
+	}
+	if b.Drag.Min.X != b.Toggle.Max.X || b.Drag.Max.X != b.Search.Min.X || b.DragR.Min.X != b.Search.Max.X || b.DragR.Max.X != b.Gear.Min.X {
+		t.Fatalf("gaps: drag %v search %v dragR %v gear %v", b.Drag, b.Search, b.DragR, b.Gear)
+	}
+	if !b.Mark.In(b.Drag) {
+		t.Fatalf("mark %v outside drag %v", b.Mark, b.Drag)
+	}
+}
+
+func TestBarDropsSearchWhenNarrow(t *testing.T) {
+	b := layoutBar(image.Pt(400, 38), searchDims, true)
+	plain := layoutBar(image.Pt(400, 38), testDims, true)
+	if !b.Search.Empty() || !b.DragR.Empty() || b.Drag != plain.Drag {
+		t.Fatalf("search %v dragR %v drag %v, want %v", b.Search, b.DragR, b.Drag, plain.Drag)
+	}
+}
+
+func TestCaptionAtSearch(t *testing.T) {
+	b := layoutBar(image.Pt(1200, 38), searchDims, true)
+	if got := b.captionAt(centre(b.Search)); got != capSearch {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestClickingSearchOpensThePalette(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	openIn(t, win, "")
+	var r input.Router
+	sizedFrame(t, win, &r, 1200, 600)
+	if win.bar.Search.Empty() {
+		t.Fatal("no search box in a 1200px bar")
+	}
+	c := centre(win.bar.Search)
+	p := f32.Pt(float32(c.X), float32(c.Y))
+	win.captionEvent(pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: p})
+	if win.palette.open {
+		t.Fatal("opened on press; a click fires on release")
+	}
+	win.captionEvent(pointer.Event{Kind: pointer.Release, Position: p})
+	if !win.palette.open {
+		t.Fatal("clicking the search box did not open the palette")
 	}
 }

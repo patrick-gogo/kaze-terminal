@@ -590,13 +590,16 @@ func (win *window) frame(gtx layout.Context) error {
 	bar := gtx
 	bar.Constraints = layout.Exact(image.Pt(size.X, barH))
 	win.drawBar(bar, barH)
-	if r := win.bar.Drag; !r.Empty() {
+	for _, r := range []image.Rectangle{win.bar.Drag, win.bar.DragR} {
+		if r.Empty() {
+			continue
+		}
 		// Windows answers hit tests here with HTCAPTION: drag, double-click and snap are native.
 		area := clip.Rect(r).Push(ops)
 		system.ActionInputOp(system.ActionMove).Add(ops)
 		area.Pop()
 	}
-	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
+	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Search, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
 		if r.Empty() {
 			continue
 		}
@@ -771,7 +774,10 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 	}
 	ops, th := gtx.Ops, win.ui.th
 	size := image.Pt(gtx.Constraints.Max.X, barH)
-	d := barDims{buttonW: gtx.Dp(46), gearW: gtx.Dp(46), toggleW: gtx.Dp(46), markW: gtx.Dp(30)}
+	d := barDims{
+		buttonW: gtx.Dp(46), gearW: gtx.Dp(46), toggleW: gtx.Dp(46), markW: gtx.Dp(30),
+		searchMin: gtx.Dp(160), searchMax: gtx.Dp(460), searchH: gtx.Dp(24),
+	}
 	win.bar = layoutBar(size, d, true)
 	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
 	paint.FillShape(ops, th.Border, clip.Rect(image.Rect(0, size.Y-1, size.X, size.Y)).Op())
@@ -787,6 +793,10 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 		}
 	}
 	win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized) // empty buttons are skipped
+	if r := win.bar.Search; !r.Empty() {
+		key := formatShortcut(runtime.GOOS, win.binds["palette"])
+		win.ui.layoutSearch(gtx, r, d.searchH, key, win.caption.hover == capSearch)
+	}
 }
 
 // captionEvent feeds one pointer event on the caption buttons and performs a completed click.
@@ -806,6 +816,8 @@ func (win *window) captionEvent(e pointer.Event) {
 		win.openSettings()
 	case capToggle:
 		win.toggleSidebar()
+	case capSearch:
+		win.openPalette()
 	default:
 		win.perform(actionFor(c, win.maximized))
 	}
