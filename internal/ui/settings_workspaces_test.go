@@ -5,9 +5,11 @@ import (
 	"image"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gioui.org/io/input"
 	"gioui.org/io/key"
@@ -241,6 +243,7 @@ func TestInvalidFieldBlocksSave(t *testing.T) {
 	}
 	f.typeInto(f.nameID(), "samurai")
 	k := f.tabKey(1)
+	f.sel(1)
 	f.typeInto(tabID(k, "folder"), "relative")
 	f.wantText("Folder must be a full path")
 	f.typeInto(tabID(k, "folder"), f.dirs[1])
@@ -263,6 +266,7 @@ func TestPortFieldOnlyForPortWait(t *testing.T) {
 	if _, ok := f.win.set.fields[tabID(k0, "port")]; ok {
 		t.Fatal("a Docker tab shows a port field")
 	}
+	f.sel(3)
 	if f.win.fieldText(tabID(k3, "port")) != "8000" {
 		t.Fatalf("port field %q", f.win.fieldText(tabID(k3, "port")))
 	}
@@ -428,18 +432,22 @@ func TestEditorTabAndCommandOps(t *testing.T) {
 	if titles() != "api,admin,storefront,extra,api logs" {
 		t.Fatalf("after up: %s", titles())
 	}
+	f.sel(0)
 	f.press(tabID(f.tabKey(0), "down"), 0)
 	if titles() != "admin,api,storefront,extra,api logs" {
 		t.Fatalf("after down: %s", titles())
 	}
+	f.sel(0)
 	if c, _ := f.ctl(tabID(f.tabKey(0), "up"), 0); !c.dead {
 		t.Fatal("the first tab can move up")
 	}
+	f.sel(3)
 	f.press(tabID(f.tabKey(3), "rm"), 0)
 	if titles() != "admin,api,storefront,api logs" {
 		t.Fatalf("after remove: %s", titles())
 	}
 	k := f.tabKey(0)
+	f.sel(0)
 	f.press(tabID(k, "addcmd"), 0)
 	cmds := d.tabs[0].cmds
 	if len(cmds) != 2 || f.win.set.editing != fmt.Sprintf("ws.cmd.%d", cmds[1].key) {
@@ -632,4 +640,222 @@ func TestUndoInANewDraftKeepsItsOwnText(t *testing.T) {
 	if d.name != "" || f.win.fieldText(b) != "" {
 		t.Fatalf("Ctrl+Z in draft B brought back %q (field %q)", d.name, f.win.fieldText(b))
 	}
+}
+
+// sel selects draft tab i, as a click on its row in the tab list would.
+func (f *runFixture) sel(i int) {
+	f.t.Helper()
+	wsAct(f.win, "ws.sel", f.tabKey(i))
+	f.draw()
+}
+
+func TestEditorSelectsFirstTabAndSwitches(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	if d.sel != f.tabKey(0) {
+		t.Fatalf("selected %d after Edit, want the first tab %d", d.sel, f.tabKey(0))
+	}
+	f.sel(2)
+	if d.sel != f.tabKey(2) {
+		t.Fatalf("selected %d, want tab 2's %d", d.sel, f.tabKey(2))
+	}
+	for i := range d.tabs {
+		_, has := f.win.set.fields[tabID(f.tabKey(i), "title")]
+		if has != (i == 2) {
+			t.Fatalf("tab %d title field shown: %v; only the selected tab's fields show", i, has)
+		}
+	}
+}
+
+func TestAddTabTakesNextUnusedColorAndIsSelected(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	for i, c := range []string{"cyan", "magenta", "yellow", "green"} {
+		d.tabs[i].color = c
+	}
+	f.press("ws.addtab", 0)
+	nt := d.tabs[len(d.tabs)-1]
+	if nt.color != "blue" || d.sel != nt.key || f.win.set.editing != tabID(nt.key, "title") {
+		t.Fatalf("new tab color %q, selected %v, editing %q", nt.color, d.sel == nt.key, f.win.set.editing)
+	}
+}
+
+func TestNextColorCyclesWhenAllAreUsed(t *testing.T) {
+	var tabs []*wsDraftTab
+	for _, c := range wsColors {
+		tabs = append(tabs, &wsDraftTab{color: c})
+	}
+	if got := nextColor(tabs); got != wsColors[0] {
+		t.Fatalf("nextColor with all six used = %q, want %q", got, wsColors[0])
+	}
+}
+
+func TestSwitchingTabsKeepsTypedText(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	id := tabID(f.tabKey(0), "title")
+	f.win.editField(id)
+	f.typeInto(id, "api-2")
+	f.sel(1)
+	if f.win.set.editing == id {
+		t.Fatal("tab 0's title still has the keyboard after selecting tab 1")
+	}
+	f.sel(0)
+	if got := f.win.wsp.draft.tabs[0].title; got != "api-2" || f.win.fieldText(id) != "api-2" {
+		t.Fatalf("title %q / field %q after switching away and back", got, f.win.fieldText(id))
+	}
+}
+
+func TestRemovingSelectedTabSelectsNeighbor(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	f.sel(3)
+	f.press(tabID(f.tabKey(3), "rm"), 0)
+	if len(d.tabs) != 3 || d.sel != f.tabKey(2) {
+		t.Fatalf("%d tabs, selected %d, want the new last tab %d", len(d.tabs), d.sel, f.tabKey(2))
+	}
+	f.sel(1)
+	f.press(tabID(f.tabKey(1), "rm"), 0)
+	if d.sel != f.tabKey(1) {
+		t.Fatalf("after removing the middle tab, selected %d, want the tab now at its place %d", d.sel, f.tabKey(1))
+	}
+}
+
+// fakePicker stands in for the system folder dialog: each call reports its
+// start folder and waits for the test to answer.
+type fakePicker struct {
+	starts chan string
+	answer chan string // "" means cancel
+}
+
+func usePicker(t *testing.T) *fakePicker {
+	t.Helper()
+	fp := &fakePicker{starts: make(chan string, 4), answer: make(chan string, 4)}
+	old := pickFolder
+	pickFolder = func(start string) (string, bool, error) {
+		fp.starts <- start
+		select {
+		case p := <-fp.answer:
+			return p, p != "", nil
+		case <-time.After(2 * time.Second):
+			return "", false, nil
+		}
+	}
+	t.Cleanup(func() { pickFolder = old })
+	return fp
+}
+
+// settle draws until the picker's answer has been applied, for at most 2s.
+func (f *runFixture) settlePick() {
+	f.t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for f.win.wsp.picking {
+		if time.Now().After(deadline) {
+			f.t.Fatal("the picker's answer never arrived")
+		}
+		time.Sleep(5 * time.Millisecond)
+		f.draw()
+	}
+}
+
+func TestPickFillsFolderTildeAndEmptyTitle(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.press("ws.addtab", 0)
+	d := f.win.wsp.draft
+	nt := d.tabs[len(d.tabs)-1]
+	f.press(tabID(nt.key, "pick"), 0)
+	if start := <-fp.starts; start != f.win.home {
+		t.Fatalf("picker started in %q, want the home folder %q for an empty field", start, f.win.home)
+	}
+	fp.answer <- filepath.Join(f.win.home, "work", "frontend")
+	f.settlePick()
+	want := "~" + string(filepath.Separator) + filepath.Join("work", "frontend")
+	if nt.folder != want || f.win.fieldText(tabID(nt.key, "folder")) != want || nt.title != "frontend" {
+		t.Fatalf("folder %q field %q title %q, want %q and title frontend", nt.folder, f.win.fieldText(tabID(nt.key, "folder")), nt.title, want)
+	}
+	// A title the owner typed stays.
+	f.sel(0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	if start := <-fp.starts; start != f.dirs[0] {
+		t.Fatalf("picker started in %q, want the tab's folder %q", start, f.dirs[0])
+	}
+	fp.answer <- filepath.Join(f.win.home, "other")
+	f.settlePick()
+	if d.tabs[0].title != "api" {
+		t.Fatalf("picking a folder changed the typed title to %q", d.tabs[0].title)
+	}
+}
+
+func TestPickCancelChangesNothing(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	before := f.win.wsp.draft.tabs[0].folder
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	<-fp.starts
+	fp.answer <- ""
+	f.settlePick()
+	if got := f.win.wsp.draft.tabs[0].folder; got != before {
+		t.Fatalf("cancel changed the folder to %q", got)
+	}
+}
+
+func TestPickResultForRemovedTabIsDropped(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	f.sel(2)
+	k := f.tabKey(2)
+	f.press(tabID(k, "pick"), 0)
+	<-fp.starts
+	f.press(tabID(k, "rm"), 0)
+	var before []string
+	for _, tb := range d.tabs {
+		before = append(before, tb.folder)
+	}
+	fp.answer <- filepath.Join(f.win.home, "elsewhere")
+	f.settlePick()
+	for i, tb := range d.tabs {
+		if tb.folder != before[i] {
+			t.Fatalf("tab %d folder became %q after its neighbour's picker answered", i, tb.folder)
+		}
+	}
+}
+
+func TestPickResultAfterTheDraftClosedIsDropped(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	<-fp.starts
+	f.press("ws.cancel", 0)
+	f.press("ws.edit", 0)
+	reopened := f.win.wsp.draft.tabs[0].folder
+	fp.answer <- filepath.Join(f.win.home, "elsewhere")
+	f.settlePick()
+	if got := f.win.wsp.draft.tabs[0].folder; got != reopened {
+		t.Fatalf("an answer for the closed draft landed in the new one: %q", got)
+	}
+}
+
+func TestSecondPickWhileOpenDoesNothing(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	<-fp.starts
+	select {
+	case <-fp.starts:
+		t.Fatal("a second picker opened while the first was up")
+	case <-time.After(50 * time.Millisecond):
+	}
+	fp.answer <- ""
+	f.settlePick()
 }
