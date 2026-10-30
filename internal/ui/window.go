@@ -173,6 +173,7 @@ type window struct {
 	// skillCache keeps parsed skill files between palette opens; only the scan goroutine uses it.
 	skillCache *skills.Cache
 	skillsFn   func(skills.Sources) []skills.Skill // nil reads through skillCache; tests fake it
+	fl         floats                              // floating panes per session; UI goroutine only
 	side       sideUI                              // the sidebar; UI goroutine only
 	wsp        wsPage                              // the Workspaces section: its list and the open draft; UI goroutine only
 }
@@ -500,6 +501,7 @@ func (win *window) frame(gtx layout.Context) error {
 		win.rend = render.NewRenderer(px, win.pal, rendOptions(win.opt.Config))
 		win.rend.SetFocused(win.focused)
 		win.rendPx, win.rendStale = px, false
+		win.fl.rends = nil // the panes' renderers follow the main one
 	}
 	cw, ch := win.rend.CellSize()
 	size := gtx.Constraints.Max
@@ -556,6 +558,7 @@ func (win *window) frame(gtx layout.Context) error {
 		return nil
 	}
 	active = win.mgr.Active()
+	win.paneStep(active)
 	win.switchedTo(active)
 	list := win.mgr.Tabs()
 	win.pruneSels(list)
@@ -613,13 +616,17 @@ func (win *window) frame(gtx layout.Context) error {
 	win.frameRuns = &runs
 	win.drawSide(gtx, sideRect)
 
+	var panes []paneView
 	if win.set.shown {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
 		win.wsr.hits = win.wsr.hits[:0]
 	} else {
 		win.drawTerminal(gtx, active, termRect, grid, &sel)
 		win.drawWsBanner(gtx, active, termRect) // after the terminal, so it takes the clicks it covers
+		panes = win.paneViews(gtx, termRect, cw, ch)
+		win.drawPanes(gtx, panes) // over the session and its banner, front pane last
 	}
+	win.syncVisible(panes)
 
 	// Status bar.
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
