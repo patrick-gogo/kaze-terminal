@@ -245,12 +245,12 @@ func (win *window) loop() error {
 	for {
 		switch e := win.w.Event().(type) {
 		case app.DestroyEvent:
-			if win.bench != nil {
-				win.benchScreen()
-				win.bench.Close(privateMB())
-			}
-			win.shutdown()
+			win.finish()
 			return e.Err
+		case *app.ClosingEvent:
+			if win.closing() {
+				return nil
+			}
 		case app.ConfigEvent:
 			win.onConfig(e)
 		case app.FrameEvent:
@@ -276,6 +276,30 @@ func (win *window) loop() error {
 			}
 		}
 	}
+}
+
+// exitOnClosing ends kaze when its window closes rather than when Gio destroys
+// it. On macOS DestroyEvent waits for AppKit to free the view, which may never
+// happen, so a closed window would leave kaze and its shells running.
+var exitOnClosing = runtime.GOOS == "darwin"
+
+// closing handles a window close: where exitOnClosing, it shuts kaze down and
+// reports true, so the loop returns.
+func (win *window) closing() bool {
+	if !exitOnClosing {
+		return false
+	}
+	win.finish()
+	return true
+}
+
+// finish writes the bench summary, if any, and closes the listener and every shell.
+func (win *window) finish() {
+	if win.bench != nil {
+		win.benchScreen()
+		win.bench.Close(privateMB())
+	}
+	win.shutdown()
 }
 
 // frameOrShutdown is frame, closing the listener and the shells when it fails.
