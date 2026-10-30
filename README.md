@@ -5,6 +5,11 @@
   </picture>
 </p>
 
+<p align="center">
+  <strong>風 · "wind"</strong><br>
+  <em>Light, fast, and out of the way.</em>
+</p>
+
 kaze is my personal terminal: a small, fast terminal with tabs, written in Go with
 [Gio](https://gioui.org). I built it for working in [Claude Code](https://claude.com/claude-code)
 all day, so it does a few things well (tabs, fast redraws, Japanese text, Claude Code's

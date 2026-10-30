@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"golang.org/x/image/font/sfnt"
+
+	"github.com/patrick-gogo/kaze-terminal/assets/fonts"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 	"github.com/patrick-gogo/kaze-terminal/internal/version"
 	"image"
@@ -22,11 +25,26 @@ func TestAboutSectionShowsBuildAcrossThemes(t *testing.T) {
 		win.applyTheme(th)
 		win.drawSettings(pageContext(800, 600), image.Rect(0, 38, 800, 576))
 		text := strings.Join(win.set.texts, "\n")
-		for _, want := range []string{"kaze", "Version " + version.Number, win.set.build, "MIT License"} {
+		for _, want := range []string{"kaze", aboutName, aboutTagline, "Version " + version.Number, win.set.build, "MIT License"} {
 			if !strings.Contains(text, want) {
 				t.Errorf("%s missing %q", th.Key, want)
 			}
 		}
+	}
+}
+
+// The kanji must come from a bundled UI font, or the tagline would show a box.
+func TestAboutNameKanjiIsInAUIFont(t *testing.T) {
+	var b sfnt.Buffer
+	cjk, err := sfnt.Parse(fonts.CJK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if i, _ := cjk.GlyphIndex(&b, '風'); i == 0 {
+		t.Fatal("the bundled Japanese font has no 風")
+	}
+	if !strings.ContainsRune(aboutName, '風') {
+		t.Fatalf("aboutName %q does not show 風", aboutName)
 	}
 }
 

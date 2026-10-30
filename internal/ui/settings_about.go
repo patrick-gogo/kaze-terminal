@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"image/color"
 	"io"
 	"os/exec"
 	"runtime"
@@ -16,6 +17,12 @@ import (
 )
 
 const aboutRepository = "https://github.com/patrick-gogo/kaze-terminal"
+
+// The name under the logo: kaze (風) is Japanese for "wind".
+const (
+	aboutName    = "風 · \"wind\""
+	aboutTagline = "Light, fast, and out of the way."
+)
 
 func aboutSection() settingsSection {
 	return settingsSection{title: "About", draw: drawAbout, act: aboutAct}
@@ -61,7 +68,7 @@ func drawAbout(p *page, r image.Rectangle, win *window) int {
 		}
 		win.note("Build details copied")
 	}
-	y := r.Min.Y + max(gtx.Dp(24), (r.Dy()-gtx.Dp(275))/2)
+	y := r.Min.Y + max(gtx.Dp(24), (r.Dy()-gtx.Dp(320))/2)
 	logoPx, wordSize := gtx.Dp(94), unit.Sp(52)
 	if r.Dx() < gtx.Dp(300) {
 		logoPx, wordSize = gtx.Dp(52), 30
@@ -76,14 +83,19 @@ func drawAbout(p *page, r image.Rectangle, win *window) int {
 		off.Pop()
 	}
 	place(ops, word, image.Pt(x+logoPx+gap, y+(logoPx-sz.Y)/2))
-	y += logoPx + gtx.Dp(24)
-	text := func(s string, size unit.Sp) {
+	y += logoPx + gtx.Dp(12)
+	textIn := func(s string, size unit.Sp, col color.NRGBA) {
 		for _, line := range p.wrap(s, size, max(r.Dx(), 1)) {
-			call, sz := p.text(line, size, p.col.fg)
+			call, sz := p.text(line, size, col)
 			place(ops, call, image.Pt(r.Min.X+(r.Dx()-sz.X)/2, y))
 			y += sz.Y
 		}
 	}
+	text := func(s string, size unit.Sp) { textIn(s, size, p.col.fg) }
+	textIn(aboutName, 14, p.col.muted)
+	y += gtx.Dp(2)
+	textIn(aboutTagline, 11, p.col.muted)
+	y += gtx.Dp(22)
 	text("Version "+version.Number, 14)
 	y += gtx.Dp(6)
 	text(win.set.build, 11)
