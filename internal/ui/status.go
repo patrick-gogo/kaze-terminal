@@ -189,7 +189,7 @@ func (win *window) showServer() {
 		down = first
 	}
 	if down != 0 {
-		win.selectTab(down)
+		win.floatMember(down)
 		win.w.Invalidate()
 	}
 }

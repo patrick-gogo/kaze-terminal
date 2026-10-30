@@ -1021,15 +1021,15 @@ func TestServerDotsClickShowsTheDownMember(t *testing.T) {
 		sideFrame(t, win, &r)
 		sideFrame(t, win, &r)
 	}
+	// Spec 7: the member floats over the session rather than replacing it.
 	click()
-	if win.mgr.Active().ID != m2.ID {
-		t.Fatalf("click showed %d, want the down member %d", win.mgr.Active().ID, m2.ID)
+	if win.mgr.Active().ID != a.ID || win.fl.owner(m2.ID) != a.ID {
+		t.Fatalf("click: active %d, m2 floats over %d; want the down member %d over %d", win.mgr.Active().ID, win.fl.owner(m2.ID), m2.ID, a.ID)
 	}
-	win.mgr.SetActive(a.ID)
 	run.members[1].run = workspaces.TabRun{Line: "x", State: workspaces.Launched}
 	click()
-	if win.mgr.Active().ID != m1.ID {
-		t.Fatalf("click showed %d, want the first member %d when none is down", win.mgr.Active().ID, m1.ID)
+	if win.fl.owner(m1.ID) != a.ID {
+		t.Fatalf("m1 floats over %d, want the first member over %d when none is down", win.fl.owner(m1.ID), a.ID)
 	}
 }
 

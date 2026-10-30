@@ -138,9 +138,16 @@ func (win *window) moveKeys(id tabs.TabID) {
 		win.wantFocus = true
 		return
 	}
-	from := win.keyTab()
+	tabOf := func(k tabs.TabID) *tabs.Tab {
+		if k != 0 {
+			if t := win.mgr.Lookup(k); t != nil {
+				return t
+			}
+		}
+		return win.shownTab()
+	}
+	from, to := tabOf(win.fl.keys), tabOf(id)
 	win.fl.keys = id
-	to := win.keyTab()
 	if win.focused && from != to {
 		if from != nil {
 			sendFocus(from, false)
@@ -191,4 +198,22 @@ func (win *window) expandMember(id tabs.TabID) {
 	win.mgr.Dock(id)
 	win.selectTab(id)
 	win.side.reveal = true
+}
+
+// floatMember opens workspace member id as a pane over the shown session (spec
+// 8.2): the one entry point for the sidebar, the server dots and the palette.
+// With no session in front (a member or Settings) it shows the member instead.
+func (win *window) floatMember(id tabs.TabID) {
+	if a := win.shownTab(); a != nil && a.ID == id {
+		return
+	}
+	owner := win.paneOwner()
+	if owner == 0 {
+		win.selectTab(id)
+		return
+	}
+	if _, dropped := win.fl.open(owner, id, paneMember); dropped != 0 {
+		win.mgr.Dock(dropped)
+	}
+	win.focusPane(id)
 }

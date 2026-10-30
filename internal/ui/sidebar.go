@@ -43,6 +43,7 @@ type sideState struct {
 	buttons    bool            // macOS: toggle and gear sit in the sidebar's top row
 	nextKey    string          // the "Next waiting" button's key, "" for none
 	runFolded  map[uint64]bool // workspace runs whose header is folded
+	floating   tabs.TabID      // the front member pane over the shown session, highlighted like shown
 }
 
 type sideRowHit struct {
@@ -602,7 +603,7 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 				hidden++
 				continue
 			}
-			on := mem.ID != 0 && mem.ID == st.shown && !st.settingsOn
+			on := mem.ID != 0 && (mem.ID == st.shown || mem.ID == st.floating) && !st.settingsOn
 			if on {
 				paint.FillShape(ops, th.Active, clip.UniformRRect(r, gtx.Dp(6)).Op(ops))
 			}

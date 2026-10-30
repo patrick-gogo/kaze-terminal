@@ -193,6 +193,12 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 			s.st.shown = a.ID
 		}
 		s.st.settings, s.st.settingsOn = win.set.open, win.set.shown
+		s.st.floating = 0
+		if set := win.fl.sets[win.paneOwner()]; set != nil {
+			if f := set.front(); f != nil && f.kind == paneMember {
+				s.st.floating = f.id
+			}
+		}
 		s.st.buttons = !win.custom
 		s.st.nextKey = win.nextWaitingKey()
 		rec := op.Record(ops)
@@ -552,6 +558,12 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 		case middle, p.In(r.close):
 			win.closeTab(r.id)
 		default:
+			if t := win.mgr.Lookup(r.id); t != nil {
+				if _, member := win.isMember(t); member {
+					win.floatMember(r.id)
+					return
+				}
+			}
 			win.selectTab(r.id)
 			if !primary || !p.In(r.title) {
 				break
