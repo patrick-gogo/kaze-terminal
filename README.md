@@ -439,7 +439,7 @@ Without this the folder and branch stay hidden. UNC paths (`\\server\share`) are
 
 kaze marks a tab and shows a small toast when Claude Code in that tab needs you (a permission
 prompt or a question) or has finished its turn. Click "Go ›" on the toast to switch to the tab.
-"Needs you" plays a soft chime (unless you're already looking at that tab); "done" is silent
+"Needs you" plays a chime (unless you're already looking at that tab); "done" is silent
 unless you turn on `chime_done`. While kaze is minimized, its taskbar button flashes (Windows).
 
 kaze learns about this from Claude Code hooks that run `kaze notify`. Add them to your Claude

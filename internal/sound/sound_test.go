@@ -2,6 +2,7 @@ package sound
 
 import (
 	"encoding/binary"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,8 +42,22 @@ func TestBundledChimeIsValidWav(t *testing.T) {
 		t.Fatalf("data size %d, file has %d", n, len(b)-44)
 	}
 	dur := float64(n) / 2 / float64(rate)
-	if dur < 0.3 || dur > 0.5 {
-		t.Fatalf("duration = %.3fs", dur)
+	if dur < 0.6 || dur > 1.0 {
+		t.Fatalf("duration = %.3fs, want a chime long enough to notice", dur)
+	}
+}
+
+// The chime must be heard over music or a call: its loudest sample sits near
+// full scale (-1 dBFS), not the old quiet -12 dBFS.
+func TestBundledChimeIsLoudEnough(t *testing.T) {
+	b := sounds.Chime
+	peak := 0
+	for i := 44; i+1 < len(b); i += 2 {
+		v := int(int16(binary.LittleEndian.Uint16(b[i:])))
+		peak = max(peak, v, -v)
+	}
+	if db := 20 * math.Log10(float64(peak)/32768); db < -2 || db > -0.5 {
+		t.Fatalf("peak %.1f dBFS, want about -1 dBFS", db)
 	}
 }
 
