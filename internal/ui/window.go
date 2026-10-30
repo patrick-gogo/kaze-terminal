@@ -155,6 +155,10 @@ type window struct {
 	claude     claudeState // the Claude section's setup check and dialog
 
 	runs map[uint64]*wsRun // workspace runs with a tab still open; UI goroutine only
+	// frameRuns is sideRuns built once for the frame being drawn, so the sidebar
+	// and the status bar share it; nil outside drawing, where callers build fresh.
+	frameRuns *[]sideRun
+
 	wsr  wsRunner
 	side sideUI // the sidebar; UI goroutine only
 	wsp  wsPage // the Workspaces section: its list and the open draft; UI goroutine only
@@ -554,6 +558,8 @@ func (win *window) frame(gtx layout.Context) error {
 		area.Pop()
 	}
 
+	runs := win.sideRuns()
+	win.frameRuns = &runs
 	win.drawSide(gtx, sideRect)
 
 	if win.set.shown {
@@ -569,6 +575,7 @@ func (win *window) frame(gtx layout.Context) error {
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
 	dots := win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	win.frameRuns = nil
 	win.serverDots = dots.Add(image.Pt(0, size.Y-statusH))
 	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
