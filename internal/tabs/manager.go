@@ -30,6 +30,10 @@ type Tab struct {
 	FixedTitle string
 	Color      string
 	Group      *Group // nil for a tab that no workspace run opened
+
+	// Set once at creation, so safe to read from any goroutine.
+	Parent TabID  // the session a scratch shell belongs to; 0 for every other tab
+	Dir    string // the folder it was started in, "" for the window's default
 }
 
 // Group says which workspace run opened a tab and which of its tabs it is.
@@ -44,6 +48,7 @@ type StartOpts struct {
 	Dir, Title, Color string // an empty Dir starts the shell in the window's default folder
 	Group             *Group
 	Prefeed           func(*term.Session) // writes into the tab before its shell's output, as NewWith does
+	Parent            TabID               // non-zero: a scratch shell of that session, never made active here
 }
 
 // entry holds what the session's notifier goroutine needs without taking the manager lock.
@@ -52,6 +57,10 @@ type entry struct {
 	sess    atomic.Pointer[term.Session]
 	removed atomic.Bool
 	watched atomic.Bool // a background tab that asks for frames on output too
+	visible atomic.Bool // drawn as a floating pane: asks for frames on output, separate from watched
+	// Guarded by Manager.mu: a tab sized on its own (a floating pane) that ResizeAll skips.
+	own              bool
+	ownCols, ownRows int
 	// Touched only by this session's single notifier goroutine.
 	seenTitle  string
 	seenExited bool
@@ -145,7 +154,7 @@ func (m *Manager) newTab(o StartOpts, prefeed func(*term.Session)) (*Tab, error)
 	if err != nil {
 		return nil, err
 	}
-	e := &entry{tab: &Tab{ID: id, Title: o.Title, FixedTitle: o.Title, Color: o.Color, Group: o.Group}}
+	e := &entry{tab: &Tab{ID: id, Title: o.Title, FixedTitle: o.Title, Color: o.Color, Group: o.Group, Parent: o.Parent, Dir: o.Dir}}
 	s := term.NewSessionOpts(p, cols, rows, term.Opts{Scrollback: sb, Prefeed: prefeed}, func() { m.notify(e) })
 	e.sess.Store(s)
 	e.tab.Session = s
@@ -153,7 +162,9 @@ func (m *Manager) newTab(o StartOpts, prefeed func(*term.Session)) (*Tab, error)
 	m.mu.Lock()
 	m.entries = append(m.entries, e)
 	m.mu.Unlock()
-	m.active.Store(int64(id))
+	if o.Parent == 0 {
+		m.active.Store(int64(id))
+	}
 	return e.tab, nil
 }
 
@@ -163,7 +174,7 @@ func (m *Manager) notify(e *entry) {
 	if e.removed.Load() {
 		return
 	}
-	if TabID(m.active.Load()) == e.tab.ID || e.watched.Load() {
+	if TabID(m.active.Load()) == e.tab.ID || e.watched.Load() || e.visible.Load() {
 		m.onChange()
 		return
 	}
@@ -263,6 +274,56 @@ func (m *Manager) Watch(id TabID, on bool) {
 	}
 }
 
+// SetVisible marks a background tab as drawn (a floating pane), so it asks for
+// a frame on every output while on; an unknown id is ignored.
+func (m *Manager) SetVisible(id TabID, on bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if i := m.indexLocked(id); i >= 0 {
+		m.entries[i].visible.Store(on)
+	}
+}
+
+// ResizeTab gives one tab its own grid size, which ResizeAll then leaves
+// alone; an unchanged size or an unknown id does nothing.
+func (m *Manager) ResizeTab(id TabID, cols, rows int) {
+	m.mu.Lock()
+	i := m.indexLocked(id)
+	if i < 0 {
+		m.mu.Unlock()
+		return
+	}
+	e := m.entries[i]
+	cur := [2]int{m.cols, m.rows}
+	if e.own {
+		cur = [2]int{e.ownCols, e.ownRows}
+	}
+	e.own, e.ownCols, e.ownRows = true, cols, rows
+	m.mu.Unlock()
+	if cur != [2]int{cols, rows} {
+		e.tab.Session.Resize(cols, rows)
+	}
+}
+
+// Dock puts a tab sized by ResizeTab back on the shared size; any other tab
+// is left alone.
+func (m *Manager) Dock(id TabID) {
+	m.mu.Lock()
+	i := m.indexLocked(id)
+	if i < 0 || !m.entries[i].own {
+		m.mu.Unlock()
+		return
+	}
+	e := m.entries[i]
+	e.own = false
+	same := e.ownCols == m.cols && e.ownRows == m.rows
+	cols, rows := m.cols, m.rows
+	m.mu.Unlock()
+	if !same {
+		e.tab.Session.Resize(cols, rows)
+	}
+}
+
 // SetActive switches to id; an unknown id is ignored.
 func (m *Manager) SetActive(id TabID) {
 	m.mu.Lock()
@@ -348,14 +409,15 @@ func (m *Manager) Empty() bool {
 	return len(m.entries) == 0
 }
 
-// Size is the grid size every tab has, and new tabs start with.
+// Size is the shared grid size: every tab not sized on its own has it, and new tabs start with it.
 func (m *Manager) Size() (cols, rows int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.cols, m.rows
 }
 
-// ResizeAll resizes every tab's screen and PTY; an unchanged size does nothing.
+// ResizeAll resizes every tab's screen and PTY except those ResizeTab sized;
+// an unchanged size does nothing.
 func (m *Manager) ResizeAll(cols, rows int) {
 	m.mu.Lock()
 	if cols == m.cols && rows == m.rows {
@@ -363,7 +425,12 @@ func (m *Manager) ResizeAll(cols, rows int) {
 		return
 	}
 	m.cols, m.rows = cols, rows
-	es := slices.Clone(m.entries)
+	var es []*entry
+	for _, e := range m.entries {
+		if !e.own {
+			es = append(es, e)
+		}
+	}
 	m.mu.Unlock()
 	for _, e := range es {
 		e.tab.Session.Resize(cols, rows)
