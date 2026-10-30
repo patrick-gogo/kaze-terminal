@@ -196,4 +196,4 @@ if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected -and (G
 }
 ```
 
-macOS equivalent: the `zsh-autosuggestions` plugin.
+macOS equivalent: the `zsh-autosuggestions` plugin plus zsh's own `compinit` menu; the steps are in the README ("Optional shell setup", zsh).

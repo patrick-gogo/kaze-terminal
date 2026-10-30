@@ -25,10 +25,24 @@ func segoeSymbol(t *testing.T) string {
 
 func TestFallbackDrawsClaudeSymbols(t *testing.T) {
 	segoeSymbol(t)
+	checkSymbolsDraw(t, []rune{'⏺', '⎿', '✻', '✔'})
+}
+
+// Claude Code's response mark and mode arrows: on macOS only the color emoji
+// font (bitmaps kaze cannot draw) has ⏺ ⏸, and no other font has ⏵.
+func TestFallbackDrawsClaudeSymbolsOnMac(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("uses the macOS font list")
+	}
+	checkSymbolsDraw(t, []rune{'⏺', '⏵', '⏸', '⎿', '✻', '✔'})
+}
+
+func checkSymbolsDraw(t *testing.T, runes []rune) {
+	t.Helper()
 	c := NewRenderer(15, DefaultPalette(), Options{}).glyphs
 	w, h := c.fs.cellW, c.fs.cellH
 	notdef := c.get(notdefProbe, false, false)
-	for _, r := range []rune{'⏺', '⎿', '✻', '✔'} {
+	for _, r := range runes {
 		g := c.get(r, false, false)
 		if g.face == faceMissing || g == notdef {
 			t.Errorf("%U resolved to .notdef", r)
