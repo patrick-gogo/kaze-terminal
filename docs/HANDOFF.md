@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-30, after Plan 6b (agent awareness) was built on `feat/agent-awareness`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-30, after Plan 6e (the palette) was built on `feat/palette`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -31,6 +31,16 @@ Last updated: 2026-10-30, after Plan 6b (agent awareness) was built on `feat/age
 - **`kaze --version`** (`internal/version`) prints the version and build commit without opening a window.
 - Not done: the Windows app icon, the notification card redesign.
 
+**Plan 6e (the palette) is built** on `feat/palette` (plan `docs/superpowers/plans/2026-10-30-kaze-plan-6e-palette.md`, spec sections 9.3 and 10), on top of 6b. Version 0.9:
+
+- **Palette** (`internal/ui/palette*.go`): `palette` key (Ctrl+Shift+K / Cmd+K), the title bar search box on Windows, a magnifier next to the sidebar toggle (and in the rail) on macOS. Sections Waiting on you, Sessions, Skills, Kaze; contains-anywhere matching with name-prefix matches first; the list is rebuilt from live state each frame while open, the selection follows its item. No ticker: hover redraws only when the row under the pointer changes.
+- **Skill catalog** (`internal/skills`): user and project `skills/*/SKILL.md` and `commands/**/*.md`, enabled plugins from `installed_plugins.json` (newest version, else the highest cache folder). Frontmatter read without a YAML library, 32 KB per file, 1000 entries, read only, on a goroutine when the palette opens, cached by modification time and size. A plugin's nested command keeps its folder in the name (`plugin:folder:name`), as Claude Code names it.
+- **Starting a skill** (`internal/ui/prompt_start.go`, spec 9.3): typed into a Claude session in front (no Enter), else a new session in the same folder types `claude '<skill>'` on its first prompt marker; after 3s the workspace "Waiting for shell prompt" banner asks. `workspaces.QuoteArg` quotes for POSIX and PowerShell; other shells get a notice.
+- **Settings, Commands:** every shortcut as bound on this machine, the mouse gestures, and the command line with Copy buttons. The nav's Later line is now "Terminal, Shell setup".
+- **Not in 6e:** chips and `kaze status` (6c, parked); changing shortcuts from Settings.
+- **To do by the owner:** rerun the go-winres command in the README so the exe details say 0.9. The Windows search box is untested by hand (built and tested on the Mac).
+- **Known failing on macOS before 6e** (also on `main` at 7822b23): the four line-count tests (`TestCount*`) and `TestRenameSurvivesClaudeLeaving` in `internal/ui`.
+
 **Workspaces UI round 2 is built** on `feat/workspaces-ui` (spec `docs/superpowers/specs/2026-10-30-kaze-workspaces-ui-design.md`, plan `docs/superpowers/plans/2026-10-30-kaze-workspaces-ui.md`): a two-pane workspace editor (tab list left, selected tab right, next unused color, red problem marks), a native folder picker (`internal/pick`: AppleScript `choose folder` on macOS, PowerShell `FolderBrowserDialog` on Windows; Windows not yet tried by hand), a list that shows each tab's color, folder and full command chain, a group dropdown that shows what each member runs and its status (Finished = a prompt report after the line was typed), and About / sidebar without the build line. Still owed: the Windows picker check on the laptop.
 
 **Plan 6b (agent awareness) is built** on `feat/agent-awareness` (plan `docs/superpowers/plans/2026-10-30-kaze-plan-6b-agent-awareness.md`, spec `docs/superpowers/specs/2026-10-30-kaze-agent-sidebar-design.md`). Version 0.8:
@@ -41,7 +51,7 @@ Last updated: 2026-10-30, after Plan 6b (agent awareness) was built on `feat/age
 - **Line counts:** `+N -M` from `git diff --shortstat HEAD` (`internal/gitstat`, `internal/ui/linecount.go`), run only on events, one at a time per tab, no console window, 2s timeout, hidden outside a repo.
 - **Next waiting:** `next_waiting` (Ctrl+Shift+J on Windows, Cmd+J on macOS, changeable under `[keys]`) and a "Next waiting" button at the bottom of the sidebar. With nothing waiting the status bar says "Nothing is waiting on you."
 - **To do by the owner:** press **Fix** once in Settings, Claude, Claude Code setup to add the prompt hook (the installed settings.json predates it); rerun the go-winres command in the README so the exe details say 0.8 (the `.syso` files still carry older versions); then run `kaze.exe notify done` once after the rebuild for Smart App Control. The macOS look of the new rows and the Next waiting key are unchecked on a Mac.
-- **What is next:** Plan 6d (floating panes and the scratch shell, `docs/superpowers/plans/2026-10-30-kaze-plan-6d-floating-panes.md`) and Plan 6e (the palette, `docs/superpowers/plans/2026-10-30-kaze-plan-6e-palette.md`). The owner plans to build 6d and 6e on his own machine. **Plan 6c (`kaze status`, chips, timed checks) stays parked.**
+- **What is next:** Plan 6d (floating panes and the scratch shell, `docs/superpowers/plans/2026-10-30-kaze-plan-6d-floating-panes.md`) and Plan 6e (the palette, `docs/superpowers/plans/2026-10-30-kaze-plan-6e-palette.md`). 6e is now built (above). **Plan 6c (`kaze status`, chips, timed checks) stays parked.**
 
 **Plan 6a (the sidebar) is built** on `feat/agent-sidebar` (spec `docs/superpowers/specs/2026-10-30-kaze-agent-sidebar-design.md`). Version 0.7:
 
