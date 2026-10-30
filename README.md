@@ -131,6 +131,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 | Previous session | Ctrl+Shift+Tab | Ctrl+Shift+Tab |
 | Hide or show the sidebar | Ctrl+Shift+B | Cmd+B |
 | Jump to the next session that needs you | Ctrl+Shift+J | Cmd+J |
+| Open the palette | Ctrl+Shift+K | Cmd+K |
 | Copy the selection | Ctrl+Shift+C | Cmd+C |
 | Paste | Ctrl+Shift+V | Cmd+V |
 | Open settings | Ctrl+, | Cmd+, |
@@ -138,7 +139,8 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
 submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The session, copy,
-paste, sidebar, next-waiting and settings shortcuts can be changed under `[keys]` in the config.
+paste, sidebar, next-waiting, palette and settings shortcuts can be changed under `[keys]` in the
+config. Settings, Commands lists every shortcut as this machine has it.
 
 ## Mouse
 
@@ -194,6 +196,33 @@ Sessions are listed down the left side, in place of a tab strip.
   title bar. On macOS, with the native title bar, the toggle and the gear sit at the top of the
   sidebar, and a thin rail with them stays when the sidebar is hidden.
 
+## The palette
+
+One key finds and starts things: Ctrl+Shift+K (Cmd+K on macOS), the search box in the middle of
+the Windows title bar, or the magnifier button next to the sidebar toggle on macOS. Type to
+narrow the list; a leading `/` is ignored and the text can match anywhere in a name or
+description. It has four sections:
+
+- **Waiting on you:** sessions where Claude is asking for something.
+- **Sessions:** every other session and workspace member, with its state. Enter shows it.
+- **Skills:** every skill and slash command in your Claude Code setup, recently used ones first.
+- **Kaze:** kaze's own actions, and "Run workspace" for each saved workspace.
+
+Up and Down move, Enter acts, Esc or a click outside closes. On a skill:
+
+- **Enter** types the command into the session in front, without pressing Enter for you, when
+  that session runs Claude Code and is not waiting on a permission. You add arguments and send it.
+- Otherwise, or with **Shift+Enter**, kaze opens a new session in the same folder and runs
+  `claude '/the-skill'` there once its shell shows a prompt. If no prompt marker arrives within
+  3 seconds, the tab asks first (Run commands / Use shell); kaze never sends on a timer alone.
+  PowerShell, zsh, bash and sh are supported; other shells get a message instead.
+
+Skills come from `~/.claude/skills/*/SKILL.md`, `~/.claude/commands/**/*.md`, the same folders
+under the current session's repo (`.claude/`, which win over yours), and enabled plugins in
+`~/.claude/settings.json` (newest installed version only, shown as `plugin:name`). kaze only
+reads these files, when the palette opens, and rereads only the ones that changed. The last 10
+skills you started stay at the top while kaze runs.
+
 ## Settings
 
 Open it with the gear button (in the title bar on Windows, at the top of the sidebar on macOS)
@@ -204,6 +233,8 @@ sidebar, and it closes with that row's ×. It has three sections in a menu on th
 - **Claude:** the alert and usage choices (chimes, taskbar flash, how long the "done" toast stays,
   the usage readout in the status bar) and a check of your Claude Code setup (below).
 - **Workspaces:** saved launch recipes (see Workspaces below).
+- **Commands:** every shortcut with its key and config name, and kaze's command line
+  (`kaze --workspace`, `kaze --version`, and the hook commands). Read-only for now.
 
 A change applies right away and is saved when you make it. kaze edits only that one key in
 `config.toml` and leaves every other line and your comments as they are, so a hand-edited file
@@ -361,7 +392,7 @@ error makes kaze use all defaults.
 | `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
 | `sidebar` | Show the session sidebar (the toggle saves it here) | `true` |
-| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `toggle_sidebar`, `next_waiting`, `open_settings` | the shortcuts above |
+| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `toggle_sidebar`, `next_waiting`, `palette`, `open_settings` | the shortcuts above |
 | `font_family` | **Not supported yet.** Setting it only adds a warning; kaze always uses its bundled font. | |
 
 Shortcuts are written like `"ctrl+shift+t"`. Modifiers: `ctrl`, `shift`, `alt` (or `option`),

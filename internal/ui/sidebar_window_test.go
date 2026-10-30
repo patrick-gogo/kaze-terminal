@@ -795,3 +795,36 @@ func TestNextWaitingButtonSitsAboveWorkspaces(t *testing.T) {
 		t.Fatalf("button %v is not above the workspaces section (first member %v)", h.next, h.members[0].rect)
 	}
 }
+
+func TestMacSidebarPaletteButton(t *testing.T) {
+	win, _ := sideWindow(t, false)
+	openIn(t, win, "")
+	var r input.Router
+	sideFrame(t, win, &r)
+	h := win.side.hits
+	if h.palette.Empty() || h.palette.Min.X < h.toggle.Max.X || h.palette.Max.X > h.gear.Min.X || h.palette.Overlaps(h.toggle) || h.palette.Overlaps(h.gear) {
+		t.Fatalf("palette %v, toggle %v, gear %v", h.palette, h.toggle, h.gear)
+	}
+	sideClick(win, &r, h.palette, pointer.ButtonPrimary)
+	sideFrame(t, win, &r)
+	if !win.palette.open {
+		t.Fatal("the palette button did not open the palette")
+	}
+}
+
+func TestMacRailPaletteButton(t *testing.T) {
+	win, _ := sideWindow(t, false)
+	openIn(t, win, "")
+	var r input.Router
+	win.toggleSidebar()
+	sideFrame(t, win, &r)
+	h := win.side.hits
+	if !win.side.hidden || h.palette.Empty() || h.palette.Min.Y < h.toggle.Max.Y || h.palette.Max.Y > h.gear.Min.Y {
+		t.Fatalf("hidden %v: toggle %v, palette %v, gear %v", win.side.hidden, h.toggle, h.palette, h.gear)
+	}
+	sideClick(win, &r, h.palette, pointer.ButtonPrimary)
+	sideFrame(t, win, &r)
+	if !win.palette.open {
+		t.Fatal("the rail's palette button did not open the palette")
+	}
+}

@@ -35,6 +35,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/ptyx"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
 	"github.com/patrick-gogo/kaze-terminal/internal/screen"
+	"github.com/patrick-gogo/kaze-terminal/internal/skills"
 	"github.com/patrick-gogo/kaze-terminal/internal/sound"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/term"
@@ -72,6 +73,8 @@ type window struct {
 	opt Options
 	pal render.Palette
 	km  keymap
+	// binds is each [keys] action's shortcut, overrides included, for display.
+	binds map[string]input.Shortcut
 
 	mgr       *tabs.Manager
 	rend      *render.Renderer
@@ -162,9 +165,15 @@ type window struct {
 	// and the status bar share it; nil outside drawing, where callers build fresh.
 	frameRuns *[]sideRun
 
-	wsr  wsRunner
-	side sideUI // the sidebar; UI goroutine only
-	wsp  wsPage // the Workspaces section: its list and the open draft; UI goroutine only
+	wsr wsRunner
+	// launches are new sessions waiting for their prompt to type `claude`; UI goroutine only.
+	launches map[tabs.TabID]*wsMember
+	palette  paletteUI // the palette; UI goroutine only
+	// skillCache keeps parsed skill files between palette opens; only the scan goroutine uses it.
+	skillCache *skills.Cache
+	skillsFn   func(skills.Sources) []skills.Skill // nil reads through skillCache; tests fake it
+	side       sideUI                              // the sidebar; UI goroutine only
+	wsp        wsPage                              // the Workspaces section: its list and the open draft; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -187,6 +196,7 @@ func Run(w *app.Window, opt Options) error {
 		toastTag: new(int),
 		cfgPath:  config.Path(),
 	}
+	win.binds, _ = resolveBindings(runtime.GOOS, opt.Config.Keys)
 	win.applyTheme(startTheme(opt.Config))
 	win.snapFocused.Store(true)
 	win.flash = func() { flashTaskbar(win.hwnd.Load()) }
@@ -527,6 +537,7 @@ func (win *window) frame(gtx layout.Context) error {
 	}
 	win.mgr.ResizeAll(cols, rows)
 
+	win.paletteEvents(gtx) // first: while open it takes every click
 	win.barEvents(gtx)
 	win.dotsEvents(gtx)
 	win.sideEvents(gtx)
@@ -564,6 +575,9 @@ func (win *window) frame(gtx layout.Context) error {
 	if at, ok := win.wsTick(win.wsNow()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
 	}
+	if at, ok := win.launchTick(win.wsNow()); ok {
+		gtx.Execute(op.InvalidateCmd{At: at}) // one wake to ask about a new session's prompt
+	}
 	sel := win.checkSel(active)
 	// After input, so a key typed this frame shows the cursor in it.
 	if next, ok := win.blink(gtx.Now); ok {
@@ -576,13 +590,16 @@ func (win *window) frame(gtx layout.Context) error {
 	bar := gtx
 	bar.Constraints = layout.Exact(image.Pt(size.X, barH))
 	win.drawBar(bar, barH)
-	if r := win.bar.Drag; !r.Empty() {
+	for _, r := range []image.Rectangle{win.bar.Drag, win.bar.DragR} {
+		if r.Empty() {
+			continue
+		}
 		// Windows answers hit tests here with HTCAPTION: drag, double-click and snap are native.
 		area := clip.Rect(r).Push(ops)
 		system.ActionInputOp(system.ActionMove).Add(ops)
 		area.Pop()
 	}
-	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
+	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Search, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
 		if r.Empty() {
 			continue
 		}
@@ -638,6 +655,7 @@ func (win *window) frame(gtx layout.Context) error {
 		event.Op(ops, win.toastTag)
 		area.Pop()
 	}
+	win.drawPalette(gtx, termRect) // last: it sits over everything, toasts included
 
 	if win.wantFocus {
 		gtx.Execute(key.FocusCmd{Tag: win.focusTarget()})
@@ -756,7 +774,10 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 	}
 	ops, th := gtx.Ops, win.ui.th
 	size := image.Pt(gtx.Constraints.Max.X, barH)
-	d := barDims{buttonW: gtx.Dp(46), gearW: gtx.Dp(46), toggleW: gtx.Dp(46), markW: gtx.Dp(30)}
+	d := barDims{
+		buttonW: gtx.Dp(46), gearW: gtx.Dp(46), toggleW: gtx.Dp(46), markW: gtx.Dp(30),
+		searchMin: gtx.Dp(160), searchMax: gtx.Dp(460), searchH: gtx.Dp(24),
+	}
 	win.bar = layoutBar(size, d, true)
 	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
 	paint.FillShape(ops, th.Border, clip.Rect(image.Rect(0, size.Y-1, size.X, size.Y)).Op())
@@ -772,6 +793,10 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 		}
 	}
 	win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized) // empty buttons are skipped
+	if r := win.bar.Search; !r.Empty() {
+		key := formatShortcut(runtime.GOOS, win.binds["palette"])
+		win.ui.layoutSearch(gtx, r, d.searchH, key, win.caption.hover == capSearch)
+	}
 }
 
 // captionEvent feeds one pointer event on the caption buttons and performs a completed click.
@@ -791,6 +816,8 @@ func (win *window) captionEvent(e pointer.Event) {
 		win.openSettings()
 	case capToggle:
 		win.toggleSidebar()
+	case capSearch:
+		win.openPalette()
 	default:
 		win.perform(actionFor(c, win.maximized))
 	}
@@ -815,6 +842,9 @@ func (win *window) barEvents(gtx layout.Context) {
 // focusTarget is who gets the keyboard: the sidebar's rename or filter field, a settings
 // text field, the settings page or the terminal.
 func (win *window) focusTarget() event.Tag {
+	if win.palette.open {
+		return &win.palette.ed
+	}
 	if win.side.renaming != 0 && !win.side.hidden {
 		return &win.side.ren
 	}
@@ -878,6 +908,13 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 			break
 		}
 		batch = append(batch, ev)
+		if e, ok := ev.(key.Event); ok && e.State == key.Press &&
+			win.km[input.Shortcut{Name: e.Name, Mods: e.Modifiers}] == actPalette {
+			// Leave subsequent events in Gio's queue. The palette's focus
+			// command replays them to its editor, preserving fast typing and
+			// IME edits that arrived with the opening shortcut.
+			break
+		}
 	}
 	if win.bench != nil {
 		batch = win.benchBatch(gtx, t, batch, ch)
@@ -985,6 +1022,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.toggleSidebar()
 	case actNextWaiting:
 		win.nextWaiting()
+	case actPalette:
+		win.togglePalette()
 	case actPaste:
 		if win.shownTab() != nil {
 			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})

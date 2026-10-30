@@ -20,6 +20,7 @@ const (
 	capClose
 	capGear   // opens settings; sits left of minimize, outside Buttons
 	capToggle // shows or hides the sidebar; at the bar's left end
+	capSearch // opens the palette; centred between the mark and the gear
 )
 
 // barLayout is where things go in kaze's own top bar, in pixels. Without a custom
@@ -27,7 +28,9 @@ const (
 type barLayout struct {
 	Toggle  image.Rectangle    // the sidebar toggle at the left end
 	Mark    image.Rectangle    // where the K mark is drawn; inside Drag, so it moves the window too
-	Drag    image.Rectangle    // empty space that moves the window; may be empty
+	Drag    image.Rectangle    // empty space that moves the window; left of Search when there is one
+	Search  image.Rectangle    // the palette's search box column; empty when the bar is too narrow
+	DragR   image.Rectangle    // empty space right of Search that moves the window too
 	Buttons [3]image.Rectangle // indexed capMinimize-1, capMaximize-1, capClose-1
 	Gear    image.Rectangle    // the settings button, left of Buttons; may be empty
 }
@@ -38,6 +41,9 @@ type barDims struct {
 	gearW   int // the settings button; 0 leaves it out
 	toggleW int // the sidebar toggle; 0 leaves it out
 	markW   int // the K mark's box, right of the toggle
+
+	searchMin, searchMax int // the search box's width range; searchMax 0 leaves it out
+	searchH              int // the search box's height
 }
 
 // layoutBar splits a bar of the given size, left to right: toggle, mark, drag
@@ -66,6 +72,16 @@ func layoutBar(size image.Point, d barDims, custom bool) barLayout {
 		b.Drag = image.Rect(toggleR, 0, gearL, size.Y)
 		b.Mark = image.Rect(toggleR, 0, min(toggleR+max(d.markW, 0), gearL), size.Y)
 	}
+	// The search box takes the middle of the space between the mark and the
+	// gear, with room to drag on both sides; too little room leaves it out.
+	room := gearL - b.Mark.Max.X
+	if d.searchMax > 0 && !b.Mark.Empty() && room >= d.searchMin+d.searchMin/4 {
+		w := min(max(room*2/3, d.searchMin), d.searchMax, room)
+		x := b.Mark.Max.X + (room-w)/2
+		b.Search = image.Rect(x, 0, x+w, size.Y)
+		b.Drag.Max.X = x
+		b.DragR = image.Rect(x+w, 0, gearL, size.Y)
+	}
 	return b
 }
 
@@ -81,6 +97,9 @@ func (b barLayout) captionAt(p image.Point) captionButton {
 	}
 	if p.In(b.Toggle) {
 		return capToggle
+	}
+	if p.In(b.Search) {
+		return capSearch
 	}
 	return capNone
 }
@@ -114,7 +133,7 @@ func (s *captionState) pointer(kind pointer.Kind, p image.Point, b barLayout) ca
 }
 
 // actionFor maps a fired button to the window action, given the real maximized state.
-// It returns 0 (no action) for capNone, capGear and capToggle, which the window handles itself.
+// It returns 0 (no action) for capNone, capGear, capToggle and capSearch, which the window handles itself.
 func actionFor(c captionButton, maximized bool) system.Action {
 	switch c {
 	case capMinimize:

@@ -169,3 +169,33 @@ func hasComment(k ShellKind, c string) bool {
 	}
 	return false
 }
+
+// QuoteArg quotes s as one argument for the shell, in single quotes so $,
+// backticks and ; stay literal. POSIX closes the quote around each single
+// quote and escapes it; PowerShell doubles it and the curly quotes it also
+// treats as quotes. A control character, which
+// could press Enter, and any other shell are errors.
+func QuoteArg(k ShellKind, s string) (string, error) {
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return "", fmt.Errorf("the text has a control character")
+		}
+	}
+	switch k {
+	case ShellPOSIX:
+		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'", nil
+	case ShellPowerShell:
+		var b strings.Builder
+		b.WriteByte('\'')
+		for _, r := range s {
+			switch r {
+			case '\'', '‘', '’', '‚', '‛':
+				b.WriteRune(r)
+			}
+			b.WriteRune(r)
+		}
+		b.WriteByte('\'')
+		return b.String(), nil
+	}
+	return "", fmt.Errorf("only PowerShell, zsh, bash and sh are supported")
+}

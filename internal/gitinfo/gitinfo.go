@@ -152,3 +152,13 @@ func clean(s string) string {
 		return r
 	}, s)
 }
+
+// Top returns the top folder of the checkout containing dir (a worktree's own
+// top, not the main checkout's), or "" outside a repo.
+func Top(dir string) string {
+	_, top, ok := locate(dir)
+	if !ok {
+		return ""
+	}
+	return top
+}

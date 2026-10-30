@@ -31,13 +31,14 @@ const (
 	actOpenSettings
 	actToggleSidebar
 	actNextWaiting
+	actPalette
 )
 
 // actionByName maps config [keys] names to actions; it must match config.KnownActions.
 var actionByName = map[string]action{
 	"new_tab": actNewTab, "close_tab": actCloseTab, "next_tab": actNextTab,
 	"prev_tab": actPrevTab, "copy": actCopy, "paste": actPaste, "open_settings": actOpenSettings,
-	"toggle_sidebar": actToggleSidebar, "next_waiting": actNextWaiting,
+	"toggle_sidebar": actToggleSidebar, "next_waiting": actNextWaiting, "palette": actPalette,
 }
 
 // maxGrid matches term's per-dimension clamp, so a huge window never asks for more.
@@ -79,6 +80,7 @@ func defaultBindings(goos string) map[string]input.Shortcut {
 			"open_settings":  {Name: ",", Mods: key.ModCommand},
 			"toggle_sidebar": {Name: "B", Mods: key.ModCommand},
 			"next_waiting":   {Name: "J", Mods: key.ModCommand},
+			"palette":        {Name: "K", Mods: key.ModCommand},
 		}
 	}
 	return map[string]input.Shortcut{
@@ -88,6 +90,7 @@ func defaultBindings(goos string) map[string]input.Shortcut {
 		"open_settings":  {Name: ",", Mods: key.ModCtrl},
 		"toggle_sidebar": {Name: "B", Mods: cs},
 		"next_waiting":   {Name: "J", Mods: cs},
+		"palette":        {Name: "K", Mods: cs},
 	}
 }
 
@@ -138,6 +141,17 @@ type keymap map[input.Shortcut]action
 // buildKeymap applies config [keys] over the defaults. A bad or clashing
 // shortcut keeps the default and comes back as a warning.
 func buildKeymap(goos string, overrides map[string]string) (keymap, []string) {
+	b, warns := resolveBindings(goos, overrides)
+	km := keymap{}
+	for name, sc := range b {
+		km[sc] = actionByName[name]
+	}
+	return km, warns
+}
+
+// resolveBindings is buildKeymap's name-to-shortcut step, kept so the palette
+// and Settings can show each action's key, overrides included.
+func resolveBindings(goos string, overrides map[string]string) (map[string]input.Shortcut, []string) {
 	b := defaultBindings(goos)
 	var warns []string
 	names := make([]string, 0, len(overrides))
@@ -167,11 +181,7 @@ func buildKeymap(goos string, overrides map[string]string) (keymap, []string) {
 		}
 		b[name] = sc
 	}
-	km := keymap{}
-	for name, sc := range b {
-		km[sc] = actionByName[name]
-	}
-	return km, warns
+	return b, warns
 }
 
 func (k keymap) shortcuts() []input.Shortcut {

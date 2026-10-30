@@ -492,6 +492,10 @@ func (win *window) takeOver(t *tabs.Tab) {
 	if m := win.memberOf(t); m != nil && !m.run.Settled() {
 		win.wsEvent(m, t, workspaces.UserInputEvent{})
 	}
+	if l := win.launchOf(t); l != nil {
+		win.mgr.Watch(t.ID, false)
+		delete(win.launches, t.ID) // the owner typed first: never type claude over it
+	}
 }
 
 // cancelRuns stops every run's probes; for shutdown.

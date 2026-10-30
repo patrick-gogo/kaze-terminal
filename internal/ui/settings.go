@@ -25,6 +25,7 @@ import (
 // open means its row is in the sidebar; shown means it is in front instead of the terminal.
 type settingsState struct {
 	aboutCopy string // pending clipboard content, consumed by the About layout
+	cmdCopy   string // the same for the Commands section
 
 	open, shown       bool
 	section           int             // index into the sections; never a later one
@@ -101,6 +102,7 @@ func defaultSections() []settingsSection {
 		appearanceSection(),
 		workspacesSection(),
 		claudeSection(),
+		commandsSection(),
 		aboutSection(),
 	}
 }
@@ -662,7 +664,7 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 		y = item.Max.Y + gtx.Dp(2)
 	}
 	y += gtx.Dp(14)
-	for _, line := range p.wrap("Later: Terminal, Shell setup, Shortcuts", 11, textW) {
+	for _, line := range p.wrap("Later: Terminal, Shell setup", 11, textW) {
 		call, size := p.text(line, 11, col.dim)
 		place(ops, call, image.Pt(x0+inner, y))
 		y += size.Y

@@ -160,7 +160,8 @@ func TestRouteKey(t *testing.T) {
 		{"darwin", "V", key.ModCommand, actPaste, "", false},
 		{"darwin", key.NameTab, key.ModCtrl, actNextTab, "", false},
 		{"darwin", "A", key.ModAlt, actNone, "\x1ba", true}, // Option as Alt
-		{"darwin", "K", key.ModCommand, actNone, "", false},
+		{"darwin", "K", key.ModCommand, actPalette, "", false},
+		{"darwin", "L", key.ModCommand, actNone, "", false},
 		{"darwin", "C", key.ModCtrl, actNone, "\x03", false},
 	} {
 		km := winKM
@@ -275,5 +276,28 @@ func TestNextWaitingDefaults(t *testing.T) {
 	}
 	if actionByName["next_waiting"] != actNextWaiting || actNextWaiting == actNone {
 		t.Error("next_waiting does not map to actNextWaiting")
+	}
+}
+
+func TestPaletteDefaults(t *testing.T) {
+	if got := defaultBindings("windows")["palette"]; got != (input.Shortcut{Name: "K", Mods: key.ModCtrl | key.ModShift}) {
+		t.Errorf("windows palette %+v", got)
+	}
+	if got := defaultBindings("darwin")["palette"]; got != (input.Shortcut{Name: "K", Mods: key.ModCommand}) {
+		t.Errorf("darwin palette %+v", got)
+	}
+	if !config.KnownActions["palette"] || actionByName["palette"] != actPalette {
+		t.Error("palette is not a known action")
+	}
+}
+
+// Plain Ctrl+K, Ctrl+J and Ctrl+B belong to the shell and to Claude Code (spec 4).
+func TestPaletteKeyNotPlainCtrlK(t *testing.T) {
+	for name, sc := range defaultBindings("windows") {
+		for _, k := range []key.Name{"K", "J", "B"} {
+			if sc == (input.Shortcut{Name: k, Mods: key.ModCtrl}) {
+				t.Errorf("%s is bound to plain Ctrl+%s", name, k)
+			}
+		}
 	}
 }
