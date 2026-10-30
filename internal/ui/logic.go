@@ -30,13 +30,14 @@ const (
 	actPaste
 	actOpenSettings
 	actToggleSidebar
+	actNextWaiting
 )
 
 // actionByName maps config [keys] names to actions; it must match config.KnownActions.
 var actionByName = map[string]action{
 	"new_tab": actNewTab, "close_tab": actCloseTab, "next_tab": actNextTab,
 	"prev_tab": actPrevTab, "copy": actCopy, "paste": actPaste, "open_settings": actOpenSettings,
-	"toggle_sidebar": actToggleSidebar,
+	"toggle_sidebar": actToggleSidebar, "next_waiting": actNextWaiting,
 }
 
 // maxGrid matches term's per-dimension clamp, so a huge window never asks for more.
@@ -77,6 +78,7 @@ func defaultBindings(goos string) map[string]input.Shortcut {
 			"copy": {Name: "C", Mods: key.ModCommand}, "paste": {Name: "V", Mods: key.ModCommand},
 			"open_settings":  {Name: ",", Mods: key.ModCommand},
 			"toggle_sidebar": {Name: "B", Mods: key.ModCommand},
+			"next_waiting":   {Name: "J", Mods: key.ModCommand},
 		}
 	}
 	return map[string]input.Shortcut{
@@ -85,6 +87,7 @@ func defaultBindings(goos string) map[string]input.Shortcut {
 		"copy": {Name: "C", Mods: cs}, "paste": {Name: "V", Mods: cs},
 		"open_settings":  {Name: ",", Mods: key.ModCtrl},
 		"toggle_sidebar": {Name: "B", Mods: cs},
+		"next_waiting":   {Name: "J", Mods: cs},
 	}
 }
 

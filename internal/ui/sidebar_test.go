@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"gioui.org/io/input"
+
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 )
@@ -242,6 +244,22 @@ func TestSidebarCappedSectionKeepsRoomForMore(t *testing.T) {
 	for _, m := range h.members {
 		if m.rect.Max.Y > size.Y-24 {
 			t.Fatalf("member %v leaves no room for the +N more line", m.rect)
+		}
+	}
+}
+
+// The running ring is drawn still: laying a running row out never asks for another frame.
+func TestRunningMarkIsStill(t *testing.T) {
+	m := sideModel{Loose: []sideRow{{ID: 1, Title: "V3-1", Command: "/ship-ticket", Running: true}}}
+	c := newChrome()
+	r := new(input.Router)
+	for i := 0; i < 2; i++ {
+		gtx := pageContext(sidebarW, 400)
+		gtx.Source = r.Source()
+		c.layoutSidebar(gtx, m, sideState{}, image.Pt(sidebarW, 400))
+		r.Frame(gtx.Ops)
+		if _, wake := r.WakeupTime(); wake {
+			t.Fatalf("frame %d asked for another frame", i)
 		}
 	}
 }

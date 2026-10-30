@@ -356,7 +356,7 @@ func (win *window) fieldText(id string) string {
 func (win *window) editField(id string) {
 	win.set.editing = id
 	if id != "" {
-		win.side.filtering = false
+		win.dropSideEdit()
 	}
 	win.wantFocus = true
 	win.w.Invalidate()

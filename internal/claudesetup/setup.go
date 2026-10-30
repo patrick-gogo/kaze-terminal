@@ -1,5 +1,5 @@
 // Package claudesetup checks and repairs kaze's entries in Claude Code's
-// settings.json: the Stop and Notification hooks that run `kaze notify` and
+// settings.json: the Stop, Notification and UserPromptSubmit hooks that run `kaze notify` and
 // the status line that runs `kaze statusline`. It never touches other entries.
 package claudesetup
 
@@ -31,9 +31,9 @@ type Entry struct {
 	Exe, Command string
 }
 
-// Report is the check of all three entries.
+// Report is the check of all four entries.
 type Report struct {
-	Stop, Needs, StatusLine Entry
+	Stop, Needs, Prompt, StatusLine Entry
 }
 
 // NeedsMatcher is the Notification matcher for the alerts that mean "Claude needs you".
@@ -42,6 +42,7 @@ const NeedsMatcher = "permission_prompt|elicitation_dialog|elicitation_url_dialo
 const (
 	argsDone   = "notify done"
 	argsNeeds  = "notify needs"
+	argsPrompt = "notify prompt"
 	argsStatus = "statusline"
 )
 
@@ -50,12 +51,13 @@ func Inspect(settings []byte, exists func(string) bool) Report {
 	root, err := load(settings)
 	if err != nil {
 		u := Entry{State: Unreadable}
-		return Report{u, u, u}
+		return Report{Stop: u, Needs: u, Prompt: u, StatusLine: u}
 	}
 	hooks := root.get("hooks")
 	r := Report{
-		Stop:  findHook(hooks.get("Stop"), argsDone, exists),
-		Needs: findHook(hooks.get("Notification"), argsNeeds, exists),
+		Stop:   findHook(hooks.get("Stop"), argsDone, exists),
+		Needs:  findHook(hooks.get("Notification"), argsNeeds, exists),
+		Prompt: findHook(hooks.get("UserPromptSubmit"), argsPrompt, exists),
 	}
 	r.StatusLine = Entry{State: Missing}
 	if s := root.get("statusLine"); s != nil {
@@ -82,7 +84,7 @@ func load(settings []byte) (*node, error) {
 		if h.kind != '{' {
 			return nil, errors.New(`"hooks" is not an object`)
 		}
-		for _, ev := range []string{"Stop", "Notification"} {
+		for _, ev := range []string{"Stop", "Notification", "UserPromptSubmit"} {
 			if g := h.get(ev); g != nil && g.kind != '[' {
 				return nil, fmt.Errorf("hooks %q is not a list", ev)
 			}
@@ -207,6 +209,7 @@ func Fix(settings []byte, r Report, exe string) (out []byte, summary []string, e
 	}{
 		{r.Stop, "Stop", argsDone, "", "the Stop hook (alerts when Claude is done)"},
 		{r.Needs, "Notification", argsNeeds, NeedsMatcher, "the Notification hook (alerts when Claude needs you)"},
+		{r.Prompt, "UserPromptSubmit", argsPrompt, "", "the prompt hook (shows which command each session runs)"},
 	} {
 		switch h.e.State {
 		case Missing:

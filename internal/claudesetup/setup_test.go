@@ -19,6 +19,11 @@ const (
 // ownerSettings is the shape of the owner's real file: agent-flow node hooks on
 // every event, kaze's Stop and Notification hooks, kaze's status line and other keys.
 func ownerSettings(stop, needs, status string) string {
+	return ownerWithPrompt(stop, needs, status, false)
+}
+
+// ownerWithPrompt is ownerSettings with kaze's prompt hook left out when noPrompt is set.
+func ownerWithPrompt(stop, needs, status string, noPrompt bool) string {
 	node := `{"type": "command", "command": ` + jsonString(nodeCmd) + `}`
 	group := func(cmds ...string) string {
 		return `{"hooks": [` + strings.Join(cmds, ", ") + `]}`
@@ -30,6 +35,10 @@ func ownerSettings(stop, needs, status string) string {
 	notif := group(node)
 	if needs != "" {
 		notif += `, {"matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input", "hooks": [{"type": "command", "command": ` + jsonString(needs) + `, "timeout": 3}]}`
+	}
+	promptGroups := group(node)
+	if !noPrompt {
+		promptGroups += `, {"hooks": [{"type": "command", "command": ` + jsonString(promptCmd) + `, "timeout": 3}]}`
 	}
 	statusLine := ""
 	if status != "" {
@@ -44,6 +53,7 @@ func ownerSettings(stop, needs, status string) string {
     "SessionEnd": [` + group(node) + `],
     "Stop": [` + stopGroups + `],
     "Notification": [` + notif + `],
+    "UserPromptSubmit": [` + promptGroups + `],
     "PreToolUse": [{"matcher": "*", "hooks": [` + node + `]}],
     "PostToolUse": [{"matcher": "*", "hooks": [` + node + `]}]
   },
@@ -63,6 +73,7 @@ var (
 	stopCmd   = q(kazeExe) + " notify done"
 	needsCmd  = q(kazeExe) + " notify needs"
 	statusCmd = q(kazeExe) + " statusline"
+	promptCmd = q(kazeExe) + " notify prompt"
 )
 
 func onlyKaze(p string) bool { return p == kazeExe || p == newExe }
@@ -256,11 +267,11 @@ func TestMissingStatusLineIsAdded(t *testing.T) {
 
 func TestEmptyObjectGetsEverything(t *testing.T) {
 	r := Inspect([]byte("{}"), onlyKaze)
-	if r.Stop.State != Missing || r.Needs.State != Missing || r.StatusLine.State != Missing {
+	if r.Stop.State != Missing || r.Needs.State != Missing || r.Prompt.State != Missing || r.StatusLine.State != Missing {
 		t.Fatalf("report %+v", r)
 	}
 	out, summary, err := Fix([]byte("{}"), r, newExe)
-	if err != nil || len(summary) != 3 {
+	if err != nil || len(summary) != 4 {
 		t.Fatalf("summary %q err %v", summary, err)
 	}
 	if r2 := Inspect(out, onlyKaze); r2.Stop.State != OK || r2.Needs.State != OK || r2.StatusLine.State != OK {
@@ -405,5 +416,76 @@ func TestWriteFollowsASymlink(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(target); string(b) != "new" {
 		t.Fatalf("target %q", b)
+	}
+}
+
+func TestInspectFindsThePromptHook(t *testing.T) {
+	r := Inspect([]byte(ownerSettings(stopCmd, needsCmd, statusCmd)), onlyKaze)
+	if r.Prompt.State != OK || r.Prompt.Exe != kazeExe || r.Prompt.Command != promptCmd {
+		t.Fatalf("prompt %+v, want OK", r.Prompt)
+	}
+	r = Inspect([]byte(ownerWithPrompt(stopCmd, needsCmd, statusCmd, true)), onlyKaze)
+	if r.Prompt.State != Missing {
+		t.Fatalf("prompt %+v, want Missing", r.Prompt)
+	}
+	r = Inspect([]byte(ownerSettings(stopCmd, needsCmd, statusCmd)), func(string) bool { return false })
+	if r.Prompt.State != Broken {
+		t.Fatalf("prompt %+v, want Broken", r.Prompt)
+	}
+	if r := Inspect([]byte("nope"), onlyKaze); r.Prompt.State != Unreadable {
+		t.Fatalf("prompt %+v, want Unreadable", r.Prompt)
+	}
+	bad := `{"hooks": {"UserPromptSubmit": {}}}`
+	if r := Inspect([]byte(bad), onlyKaze); r.Prompt.State != Unreadable {
+		t.Fatalf("a non-list UserPromptSubmit: %+v", r.Prompt)
+	}
+}
+
+func TestFixAddsThePromptHook(t *testing.T) {
+	in := []byte(ownerWithPrompt(stopCmd, needsCmd, statusCmd, true))
+	r := Inspect(in, onlyKaze)
+	out, summary, err := Fix(in, r, newExe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary) != 1 || !strings.Contains(summary[0], "the prompt hook (shows which command each session runs)") {
+		t.Fatalf("summary %q", summary)
+	}
+	groups := hooksOf(t, out, "UserPromptSubmit")
+	before := hooksOf(t, in, "UserPromptSubmit")
+	if len(groups) != len(before)+1 || !reflect.DeepEqual(groups[:len(before)], before) {
+		t.Fatalf("groups before %v after %v", before, groups)
+	}
+	last := groups[len(groups)-1].(map[string]any)
+	if _, has := last["matcher"]; has {
+		t.Fatalf("prompt hook has a matcher: %v", last)
+	}
+	h := last["hooks"].([]any)[0].(map[string]any)
+	if h["command"] != q(newExe)+" notify prompt" || h["timeout"] != 3.0 {
+		t.Fatalf("hook %v", h)
+	}
+	bm, am := decode(t, in).(map[string]any), decode(t, out).(map[string]any)
+	bm["hooks"].(map[string]any)["UserPromptSubmit"] = nil
+	am["hooks"].(map[string]any)["UserPromptSubmit"] = nil
+	if !reflect.DeepEqual(bm, am) {
+		t.Fatal("Fix changed something besides the prompt hook")
+	}
+}
+
+func TestBrokenPromptHookIsRepointed(t *testing.T) {
+	in := []byte(ownerSettings(stopCmd, needsCmd, statusCmd))
+	r := Inspect(in, func(p string) bool { return false })
+	if r.Prompt.State != Broken {
+		t.Fatalf("prompt %+v", r.Prompt)
+	}
+	out, summary, err := Fix(in, r, newExe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(summary, "|"), "Repoint the prompt hook") {
+		t.Fatalf("summary %q", summary)
+	}
+	if r2 := Inspect(out, func(p string) bool { return p == newExe }); r2.Prompt.State != OK || r2.Prompt.Exe != newExe {
+		t.Fatalf("after Fix: %+v", r2.Prompt)
 	}
 }

@@ -332,7 +332,7 @@ func TestOnNotifyIgnoresClosedTabs(t *testing.T) {
 
 func TestDeliverNeverChimes(t *testing.T) {
 	win, played, _ := liveWindow(t, 2)
-	win.deliver(notify.Msg{Tab: int(win.mgr.Tabs()[1].ID), Kind: notify.KindNeeds}, t0)
+	deliverNow(win, notify.Msg{Tab: int(win.mgr.Tabs()[1].ID), Kind: notify.KindNeeds}, t0)
 	if len(*played) != 0 {
 		t.Fatal("the UI side chimed too; the chime belongs to onNotify")
 	}

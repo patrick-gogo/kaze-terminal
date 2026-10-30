@@ -4,6 +4,7 @@ import (
 	"image"
 	"slices"
 	"strings"
+	"time"
 
 	"gioui.org/io/clipboard"
 	"gioui.org/io/event"
@@ -24,6 +25,8 @@ const (
 	minSideWindow = 560
 	// railW is the macOS rail's width in dp: it keeps the toggle and gear while the sidebar is hidden.
 	railW = 36
+	// doubleClick is the longest gap between two presses on a row's title that renames it.
+	doubleClick = 500 * time.Millisecond
 )
 
 // sideUI is the window's sidebar: the state the drawing needs, the folds kept
@@ -41,6 +44,17 @@ type sideUI struct {
 	filtering bool            // the filter field has the keyboard
 	narrow    bool            // the window is too narrow for the sidebar
 	filters   []event.Filter  // the filter's own keys, built once
+	ren       widget.Editor   // the title of the row being renamed
+	renaming  tabs.TabID      // 0 when no row is being renamed
+	renFrom   string          // the text the rename started with
+	renKeys   []event.Filter  // the rename editor's own keys, built once
+	lastClick titleClick      // the last press on a row's title, for a double click
+}
+
+// titleClick is a press on a session row's title.
+type titleClick struct {
+	id tabs.TabID
+	at time.Duration
 }
 
 // isMember reports whether t belongs to an open workspace run; members are not sessions.
@@ -61,6 +75,9 @@ func (win *window) sideIn() sideInput {
 		Folded:   win.side.folded,
 		Home:     win.home,
 		DefTitle: win.defTitle,
+		Agent:    win.agentOf,
+		Name:     func(id tabs.TabID) string { return win.names[id] },
+		Lines:    win.linesOf,
 	}
 	if win.ui != nil {
 		in.Clean = win.ui.fit
@@ -118,7 +135,7 @@ func (win *window) toggleSidebar() {
 	if win.side.narrow && win.opt.Config.Sidebar {
 		return
 	}
-	win.dropFilter()
+	win.dropSideEdit()
 	on := !win.opt.Config.Sidebar
 	win.opt.Config.Sidebar = on
 	win.side.st.hover = 0
@@ -132,7 +149,7 @@ func (win *window) sideWidth(gtx layout.Context, width int) int {
 	on := win.opt.Config.Sidebar && !win.side.narrow
 	win.side.hidden = !on
 	if !on {
-		win.dropFilter() // an invisible field must not keep the keyboard
+		win.dropSideEdit() // an invisible field must not keep the keyboard
 	}
 	w := 0
 	switch {
@@ -162,8 +179,12 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		s.st.hover, s.reveal = 0, false
 		s.hits = win.ui.layoutRail(sg, r.Size())
 	} else {
+		if s.renaming != 0 && win.mgr.Lookup(s.renaming) == nil {
+			win.endRename(false) // its tab closed
+		}
 		in := win.sideIn()
 		s.st.filter, s.st.ed = s.ed.Text(), &s.ed
+		s.st.renaming, s.st.ren = s.renaming, &s.ren
 		in.Filter = s.st.filter
 		in.Runs = win.curRuns()
 		m := buildSide(in)
@@ -173,6 +194,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		}
 		s.st.settings, s.st.settingsOn = win.set.open, win.set.shown
 		s.st.buttons = !win.custom
+		s.st.nextKey = win.nextWaitingKey()
 		rec := op.Record(ops)
 		h := win.ui.layoutSidebar(sg, m, s.st, r.Size())
 		call := rec.Stop()
@@ -188,6 +210,10 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		}
 		call.Add(ops)
 		s.hits = h
+		if s.renaming != 0 && h.rename.Empty() {
+			// Gio drops focus from an editor it no longer lays out; give the keyboard back.
+			win.endRename(true)
+		}
 		s.st.scroll = min(max(s.st.scroll, 0), h.scrollMax)
 	}
 	area := clip.Rect{Max: r.Size()}.Push(ops)
@@ -251,30 +277,49 @@ func (win *window) sideEvents(gtx layout.Context) {
 	}
 }
 
+// edKeys are a sidebar editor's own keys, taken before the editor sees them: Esc,
+// Tab and kaze's Ctrl / Cmd shortcuts.
+func (win *window) edKeys(ed *widget.Editor) []event.Filter {
+	fs := []event.Filter{
+		key.Filter{Focus: ed, Name: key.NameEscape, Optional: allMods},
+		key.Filter{Focus: ed, Name: key.NameTab, Optional: allMods},
+	}
+	for sc := range win.km {
+		if sc.Mods&(key.ModCtrl|key.ModCommand) != 0 {
+			fs = append(fs, key.Filter{Focus: ed, Name: sc.Name, Required: sc.Mods})
+		}
+	}
+	return fs
+}
+
+// edShortcuts runs the keys edKeys caught for ed, esc on Esc; it reports whether a
+// kaze shortcut ran.
+func (win *window) edShortcuts(gtx layout.Context, ed *widget.Editor, keys []event.Filter, esc func()) bool {
+	for {
+		ev, ok := gtx.Event(keys...)
+		if !ok {
+			return false
+		}
+		if e, ok := ev.(key.Event); ok && e.State == key.Press && !win.bench.IgnoreInput() && win.edKey(gtx, ed, e, esc) {
+			return true
+		}
+	}
+}
+
 // filterEvents takes Esc, Enter and kaze's Ctrl / Cmd shortcuts before the editor,
 // which gets every other key.
 func (win *window) filterEvents(gtx layout.Context) {
 	s := &win.side
 	s.ed.SingleLine, s.ed.Submit = true, true
 	if s.filters == nil {
-		s.filters = []event.Filter{
-			key.Filter{Focus: &s.ed, Name: key.NameEscape, Optional: allMods},
-			key.Filter{Focus: &s.ed, Name: key.NameTab, Optional: allMods},
-		}
-		for sc := range win.km {
-			if sc.Mods&(key.ModCtrl|key.ModCommand) != 0 {
-				s.filters = append(s.filters, key.Filter{Focus: &s.ed, Name: sc.Name, Required: sc.Mods})
-			}
-		}
+		s.filters = win.edKeys(&s.ed)
 	}
-	for {
-		ev, ok := gtx.Event(s.filters...)
-		if !ok {
-			break
-		}
-		if e, ok := ev.(key.Event); ok && e.State == key.Press && !win.bench.IgnoreInput() && win.filterKey(gtx, e) {
-			return // a shortcut ran; the layout drains what is left
-		}
+	clearFilter := func() {
+		s.ed.SetText("")
+		win.leaveFilter()
+	}
+	if win.edShortcuts(gtx, &s.ed, s.filters, clearFilter) {
+		return // a shortcut ran; the layout drains what is left
 	}
 	// Layout drains Update itself and would drop a change still queued; take it first.
 	for {
@@ -293,14 +338,14 @@ func (win *window) filterEvents(gtx layout.Context) {
 	}
 }
 
-// filterKey handles one key filterEvents caught; it reports whether a kaze shortcut ran.
-func (win *window) filterKey(gtx layout.Context, e key.Event) bool {
+// edKey handles one key edShortcuts caught; it reports whether a kaze shortcut ran.
+func (win *window) edKey(gtx layout.Context, ed *widget.Editor, e key.Event, esc func()) bool {
 	if a, ok := win.km[kinput.Shortcut{Name: e.Name, Mods: e.Modifiers}]; ok {
 		switch a {
 		case actPaste:
-			gtx.Execute(clipboard.ReadCmd{Tag: &win.side.ed})
+			gtx.Execute(clipboard.ReadCmd{Tag: ed})
 		case actCopy:
-			win.writeClipboard(gtx, win.side.ed.SelectedText())
+			win.writeClipboard(gtx, ed.SelectedText())
 		default:
 			win.runShortcut(gtx, a)
 			return true
@@ -308,19 +353,86 @@ func (win *window) filterKey(gtx layout.Context, e key.Event) bool {
 		return false
 	}
 	if e.Name == key.NameEscape {
-		win.side.ed.SetText("")
-		win.leaveFilter()
+		esc()
 	}
 	return false
 }
 
-// dropFilter gives the keyboard back from the filter field, keeping its text, when
-// the main view changes or the sidebar goes away.
-func (win *window) dropFilter() {
+// renameEvents runs the rename editor's keys the way filterEvents runs the filter's:
+// Enter saves, Esc cancels, kaze's shortcuts still work.
+func (win *window) renameEvents(gtx layout.Context) {
+	s := &win.side
+	s.ren.SingleLine, s.ren.Submit, s.ren.MaxLen = true, true, maxSideText
+	if s.renKeys == nil {
+		s.renKeys = win.edKeys(&s.ren)
+	}
+	if win.edShortcuts(gtx, &s.ren, s.renKeys, func() { win.endRename(false) }) {
+		return
+	}
+	for {
+		ev, ok := s.ren.Update(gtx)
+		if !ok {
+			return
+		}
+		switch ev.(type) {
+		case widget.ChangeEvent:
+			win.ui.fit(s.ren.Text()) // loads a fallback font for any rune the bundled ones lack
+			win.sideRedraw()
+		case widget.SubmitEvent:
+			win.endRename(true)
+		}
+	}
+}
+
+// startRename puts an editor over id's title, holding the title all selected, and
+// gives it the keyboard. Workspace tabs keep their fixed titles.
+func (win *window) startRename(id tabs.TabID) {
+	t := win.mgr.Lookup(id)
+	if t == nil || t.FixedTitle != "" {
+		return
+	}
+	s := &win.side
+	s.renaming = id
+	s.renFrom = win.sideIn().renameText(t, win.locOf(t), win.agentOf(id))
+	s.ren.SetText(s.renFrom)
+	s.ren.SetCaret(s.ren.Len(), 0)
+	win.wantFocus = true
+	win.sideRedraw()
+}
+
+// endRename closes the rename editor; save keeps a changed text as the row's name,
+// and a blank one gives the row back to the title rule.
+func (win *window) endRename(save bool) {
+	s := &win.side
+	id := s.renaming
+	if id == 0 {
+		return
+	}
+	s.renaming = 0
+	win.wantFocus = true
+	win.sideRedraw()
+	name := strings.TrimSpace(s.ren.Text())
+	if !save || name == s.renFrom {
+		return // an untouched title must not pin what the rule would change later
+	}
+	if name == "" {
+		delete(win.names, id)
+		return
+	}
+	if win.names == nil {
+		win.names = map[tabs.TabID]string{}
+	}
+	win.names[id] = name
+}
+
+// dropSideEdit gives the keyboard back from the sidebar's editors when the main view
+// changes or the sidebar goes away: the filter keeps its text, a rename is saved.
+func (win *window) dropSideEdit() {
 	if win.side.filtering {
 		win.side.filtering = false
 		win.wantFocus = true
 	}
+	win.endRename(true)
 }
 
 // leaveFilter gives the keyboard back to the shown session or the settings page.
@@ -374,18 +486,25 @@ func (win *window) sidePointer(e pointer.Event) {
 			win.sideRedraw()
 		}
 	case pointer.Press:
-		win.sidePress(p, e.Buttons)
+		win.sidePress(p, e.Buttons, e.Time)
 	}
 }
 
 // sidePress handles a click: a row or member line shows its tab, its × or a middle
-// click closes it; headers fold; + opens a session.
-func (win *window) sidePress(p image.Point, b pointer.Buttons) {
+// click closes it, a double click on a row's title renames it; headers fold; + opens
+// a session. A click off the rename editor saves the rename.
+func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration) {
 	primary, middle := b.Contain(pointer.ButtonPrimary), b.Contain(pointer.ButtonTertiary)
 	if !primary && !middle {
 		return
 	}
 	h := &win.side.hits
+	if win.side.renaming != 0 && p.In(h.rename) {
+		return // a click inside the editor keeps renaming
+	}
+	win.endRename(true)
+	last := win.side.lastClick
+	win.side.lastClick = titleClick{}
 	win.wantFocus = true
 	win.side.filtering = primary && p.In(h.filter) // any other click leaves the field
 	defer win.sideRedraw()
@@ -413,6 +532,11 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons) {
 			win.newTab()
 		}
 		return
+	case p.In(h.next):
+		if primary {
+			win.nextWaiting()
+		}
+		return
 	case p.In(h.filter):
 		return // the frame gives the field the keyboard
 	}
@@ -422,6 +546,14 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons) {
 			win.closeTab(r.id)
 		default:
 			win.selectTab(r.id)
+			if !primary || !p.In(r.title) {
+				break
+			}
+			if last.id == r.id && at >= last.at && at-last.at < doubleClick {
+				win.startRename(r.id)
+			} else {
+				win.side.lastClick = titleClick{r.id, at}
+			}
 		}
 		return
 	}
@@ -467,4 +599,47 @@ func flip[K comparable](m map[K]bool, k K) {
 	} else {
 		m[k] = true
 	}
+}
+
+// nextWaiting shows the next session after the shown one that needs the owner,
+// wrapping; with none it only says so in the status bar.
+func (win *window) nextWaiting() {
+	order := win.sessionIDs()
+	from := -1
+	if a := win.mgr.Active(); a != nil {
+		from = slices.Index(order, a.ID)
+	}
+	for i := 1; i <= len(order); i++ {
+		id := order[(from+i+len(order))%len(order)]
+		if win.alerts.markOf(id) == markNeeds {
+			win.selectSession(id)
+			return
+		}
+	}
+	win.note("Nothing is waiting on you.")
+	win.w.Invalidate()
+}
+
+// nextWaitingKey is the bound shortcut's text for the button, "" when unbound.
+func (win *window) nextWaitingKey() string {
+	for sc, a := range win.km {
+		if a == actNextWaiting {
+			return shortcutText(sc)
+		}
+	}
+	return ""
+}
+
+// shortcutText writes a shortcut the way the platform names it, like Ctrl+Shift+J or Cmd+J.
+func shortcutText(sc kinput.Shortcut) string {
+	var parts []string
+	for _, m := range []struct {
+		bit  key.Modifiers
+		name string
+	}{{key.ModCtrl, "Ctrl"}, {key.ModAlt, "Alt"}, {key.ModShift, "Shift"}, {key.ModCommand, "Cmd"}, {key.ModSuper, "Super"}} {
+		if sc.Mods&m.bit != 0 {
+			parts = append(parts, m.name)
+		}
+	}
+	return strings.Join(append(parts, string(sc.Name)), "+")
 }

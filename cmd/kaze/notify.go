@@ -5,8 +5,10 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 )
@@ -38,7 +40,7 @@ func runNotify(args []string, stdin io.Reader, env func(string) string) (code in
 		return 0
 	}
 	kind := notify.Kind(args[0])
-	if kind != notify.KindDone && kind != notify.KindNeeds {
+	if kind != notify.KindDone && kind != notify.KindNeeds && kind != notify.KindPrompt {
 		return 0
 	}
 	addr, token, tab, ok := kazeTab(env)
@@ -50,8 +52,16 @@ func runNotify(args []string, stdin io.Reader, env func(string) string) (code in
 		var hook struct {
 			Message string `json:"message"`
 			Type    string `json:"notification_type"`
+			Prompt  string `json:"prompt"`
 		}
 		if json.Unmarshal(readStdinLimited(stdin, stdinWait), &hook) == nil {
+			if kind == notify.KindPrompt {
+				msg.Command, msg.Args = promptCommand(hook.Prompt)
+				if !notify.ValidCommand(msg.Command) {
+					msg.Command = "" // an oversized word would push the message past the server's cap
+				}
+				msg.Args = notify.CleanArgs(msg.Args)
+			}
 			if kind == notify.KindNeeds && quietNotification[hook.Type] {
 				return 0
 			}
@@ -62,6 +72,24 @@ func runNotify(args []string, stdin io.Reader, env func(string) string) (code in
 		_ = notify.Send(addr, token, msg, left)
 	}
 	return 0
+}
+
+// promptCommand splits a prompt that starts with a slash command into the
+// command and the rest of its first line; any other prompt gives two empties.
+func promptCommand(prompt string) (cmd, args string) {
+	p := strings.TrimLeftFunc(prompt, unicode.IsSpace)
+	if len(p) < 2 || p[0] != '/' {
+		return "", ""
+	}
+	line := p
+	if i := strings.IndexByte(p, 10); i >= 0 { // first line only
+		line = p[:i]
+	}
+	line = strings.TrimSpace(line)
+	if i := strings.IndexFunc(line, unicode.IsSpace); i >= 0 {
+		return line[:i], strings.TrimSpace(line[i:])
+	}
+	return line, ""
 }
 
 // kazeTab is where to send from this tab; ok is false outside a kaze tab.

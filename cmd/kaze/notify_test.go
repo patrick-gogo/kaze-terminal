@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"strings"
@@ -203,5 +204,96 @@ func TestNotifyNeedsByNotificationType(t *testing.T) {
 			case <-time.After(300 * time.Millisecond):
 			}
 		})
+	}
+}
+
+func TestPromptCommand(t *testing.T) {
+	for _, c := range []struct{ in, cmd, args string }{
+		{"/ship-ticket V3-3348", "/ship-ticket", "V3-3348"},
+		{"  /v3-lap\nmore", "/v3-lap", ""},
+		{"fix the bug", "", ""},
+		{"/", "", ""},
+		{"/a b c", "/a", "b c"},
+	} {
+		cmd, args := promptCommand(c.in)
+		if cmd != c.cmd || args != c.args {
+			t.Errorf("promptCommand(%q) = %q, %q; want %q, %q", c.in, cmd, args, c.cmd, c.args)
+		}
+	}
+}
+
+func TestNotifyPromptSendsCommand(t *testing.T) {
+	srv, got := startServer(t)
+	in := strings.NewReader(`{"prompt":"/review-mine --quality-only"}`)
+	var out bytes.Buffer
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	code := runNotify([]string{"prompt"}, in, envOf(srv, "4"))
+	os.Stdout = old
+	w.Close()
+	io.Copy(&out, r)
+	if code != 0 || out.Len() != 0 {
+		t.Fatalf("exit %d, printed %q", code, out.String())
+	}
+	m := wait(t, got)
+	if m.Tab != 4 || m.Kind != notify.KindPrompt || m.Command != "/review-mine" || m.Args != "--quality-only" {
+		t.Fatalf("got %+v", m)
+	}
+}
+
+func TestNotifyPromptPlainTextStillSends(t *testing.T) {
+	srv, got := startServer(t)
+	runNotify([]string{"prompt"}, strings.NewReader(`{"prompt":"please continue"}`), envOf(srv, "1"))
+	m := wait(t, got)
+	if m.Kind != notify.KindPrompt || m.Command != "" || m.Args != "" {
+		t.Fatalf("got %+v", m)
+	}
+}
+
+func TestNotifyPromptHugeInputStaysBounded(t *testing.T) {
+	srv, got := startServer(t)
+	p := "/big " + strings.Repeat("a\x1bb\x07c", 1<<20/5)
+	b, _ := json.Marshal(map[string]string{"prompt": p})
+	start := time.Now()
+	runNotify([]string{"prompt"}, bytes.NewReader(b), envOf(srv, "1"))
+	if time.Since(start) > notifyTotal+500*time.Millisecond {
+		t.Fatalf("took %v", time.Since(start))
+	}
+	m := wait(t, got)
+	if m.Kind != notify.KindPrompt || len([]rune(m.Args)) > 120 {
+		t.Fatalf("got kind %q, %d arg runes", m.Kind, len([]rune(m.Args)))
+	}
+	for _, r := range m.Command + m.Args {
+		if r < 0x20 || r == 0x7f {
+			t.Fatalf("control char %q survived", r)
+		}
+	}
+}
+
+func TestNotifyPromptOversizedCommandStillSends(t *testing.T) {
+	srv, got := startServer(t)
+	b, _ := json.Marshal(map[string]string{"prompt": "/" + strings.Repeat("a", 5000)})
+	runNotify([]string{"prompt"}, bytes.NewReader(b), envOf(srv, "1"))
+	m := wait(t, got)
+	if m.Kind != notify.KindPrompt || m.Command != "" {
+		t.Fatalf("got kind %q command len %d", m.Kind, len(m.Command))
+	}
+}
+
+func TestNotifyPromptCleansArgsUnder64KB(t *testing.T) {
+	srv, got := startServer(t)
+	p := "/big " + strings.Repeat("a\x1bb\x07c", 1000)
+	b, _ := json.Marshal(map[string]string{"prompt": p})
+	runNotify([]string{"prompt"}, bytes.NewReader(b), envOf(srv, "1"))
+	m := wait(t, got)
+	n := len([]rune(m.Args))
+	if m.Command != "/big" || n == 0 || n > 120 {
+		t.Fatalf("command %q, %d arg runes", m.Command, n)
+	}
+	for _, r := range m.Args {
+		if r < 0x20 || r == 0x7f {
+			t.Fatalf("control char %q survived", r)
+		}
 	}
 }

@@ -361,3 +361,31 @@ func TestAlertsCarryNoUsage(t *testing.T) {
 		t.Fatal("timeout")
 	}
 }
+
+func TestServerCleansPrompt(t *testing.T) {
+	s, ch := start(t)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindPrompt, Command: "/x\x1b[31m", Args: "a\nb\x1bc"}, time.Second)
+	m := <-ch
+	if m.Command != "" || m.Args != "abc" {
+		t.Fatalf("got %+v", m)
+	}
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindPrompt, Command: "/ship-ticket", Args: strings.Repeat("あ", 300),
+		Usage: &Usage{}}, time.Second)
+	m = <-ch
+	if m.Command != "/ship-ticket" || len([]rune(m.Args)) != 120 || m.Usage != nil {
+		t.Fatalf("got %+v", m)
+	}
+}
+
+func TestServerCleansPromptReasonAndInvisibles(t *testing.T) {
+	s, ch := start(t)
+	args := "a" + string(rune(0x202e)) + "b" + string(rune(0x2028)) + "c" + string(rune(0x2029)) + "d"
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindPrompt, Command: "/x", Args: args, Reason: "r"}, time.Second)
+	m := <-ch
+	if m.Args != "abcd" || m.Reason != "" {
+		t.Fatalf("got %+v", m)
+	}
+	if ValidCommand("/"+strings.Repeat("a", 5000)) || !ValidCommand("/ship-ticket") {
+		t.Fatal("ValidCommand")
+	}
+}

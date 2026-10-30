@@ -143,9 +143,12 @@ type window struct {
 	hwnd        atomic.Uintptr // native window handle, 0 until known
 
 	// Claude usage from `kaze statusline`.
-	usageIn usageBox                // notify goroutines -> UI goroutine
-	acct    notify.Usage            // plan limits (no Ctx); UI goroutine only
-	ctx     map[tabs.TabID]ctxEntry // per-tab context use; UI goroutine only
+	usageIn usageBox                  // notify goroutines -> UI goroutine
+	acct    notify.Usage              // plan limits (no Ctx); UI goroutine only
+	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
+	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
+	names   map[tabs.TabID]string     // row names the owner gave; UI goroutine only
+	lc      lineCounter               // git lines added and removed per tab; UI goroutine only
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
@@ -395,7 +398,7 @@ func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 }
 
 func (win *window) newTab() {
-	win.dropFilter()
+	win.dropSideEdit()
 	win.hideSettings() // the new tab is shown
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
@@ -528,6 +531,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.dotsEvents(gtx)
 	win.sideEvents(gtx)
 	win.filterEvents(gtx)
+	win.renameEvents(gtx)
 	win.toastEvents(gtx)
 	win.bannerEvents(gtx)
 	active := win.mgr.Active()
@@ -544,12 +548,17 @@ func (win *window) frame(gtx layout.Context) error {
 	list := win.mgr.Tabs()
 	win.pruneSels(list)
 	win.pruneLocs(list)
+	win.pruneAgents(list)
+	win.pruneCounts(list)
+	win.checkCounts(list)
+	win.drainCounts()
 	win.alerts.prune(func(id tabs.TabID) bool {
 		return slices.ContainsFunc(list, func(t *tabs.Tab) bool { return t.ID == id })
 	})
 	win.publish(win.shownTab(), win.focused)
 	win.drainAlerts(gtx.Now)
 	win.drainUsage()
+	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
 	win.visit(win.shownTab())
 	win.autoScroll(gtx, active, cw, ch)
 	if at, ok := win.wsTick(win.wsNow()); ok {
@@ -803,9 +812,12 @@ func (win *window) barEvents(gtx layout.Context) {
 	}
 }
 
-// focusTarget is who gets the keyboard: the sidebar's filter field, a settings
+// focusTarget is who gets the keyboard: the sidebar's rename or filter field, a settings
 // text field, the settings page or the terminal.
 func (win *window) focusTarget() event.Tag {
+	if win.side.renaming != 0 && !win.side.hidden {
+		return &win.side.ren
+	}
 	if win.side.filtering && !win.side.hidden {
 		return &win.side.ed
 	}
@@ -971,6 +983,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.openSettings()
 	case actToggleSidebar:
 		win.toggleSidebar()
+	case actNextWaiting:
+		win.nextWaiting()
 	case actPaste:
 		if win.shownTab() != nil {
 			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
@@ -1003,7 +1017,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 	switch e.Kind {
 	case pointer.Press:
 		win.wantFocus = true
-		win.side.filtering = false // the filter keeps its text and gives the keyboard back
+		win.dropSideEdit() // the filter keeps its text, a rename is saved
 		win.w.Invalidate()
 		btn := pressedButton(win.held, e.Buttons)
 		first := win.held == 0
