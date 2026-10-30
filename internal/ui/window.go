@@ -94,8 +94,9 @@ type window struct {
 	composing bool
 	gridMin   image.Point // top-left of the grid in window pixels
 
-	home     string                  // for "~" in the status bar
-	branchFn func(dir string) string // gitinfo.Branch unless a test replaces it
+	home     string                              // for "~" in the status bar
+	branchFn func(dir string) string             // gitinfo.Branch unless a test replaces it
+	repoFn   func(dir string) (key, name string) // gitinfo.Repo unless a test replaces it
 	locs     map[tabs.TabID]locEntry
 
 	memMB   float64
