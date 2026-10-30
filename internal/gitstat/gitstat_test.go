@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -56,6 +57,54 @@ func TestShortstatInARealRepo(t *testing.T) {
 	}
 }
 
+// Counting must never rewrite the index: that takes index.lock, which would
+// fail the git commands Claude is running in the same repo.
+func TestShortstatLeavesTheIndexAlone(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+	dir := t.TempDir()
+	git(t, dir, "init", "-q")
+	git(t, dir, "config", "user.name", "t")
+	git(t, dir, "config", "user.email", "t@example.com")
+	git(t, dir, "config", "commit.gpgsign", "false")
+	write(t, dir, "a.txt", "one\ntwo\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "init")
+	// Only stat info changes: the content is the same, the times are not.
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(filepath.Join(dir, "a.txt"), past, past); err != nil {
+		t.Fatal(err)
+	}
+	index := filepath.Join(dir, ".git", "index")
+	older := time.Now().Add(-3 * time.Hour)
+	if err := os.Chtimes(index, older, older); err != nil {
+		t.Fatal(err)
+	}
+	before := mtime(t, index)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if add, del, err := Shortstat(ctx, dir); err != nil || add != 0 || del != 0 {
+		t.Fatalf("got %d, %d, %v; want 0, 0, nil", add, del, err)
+	}
+	if after := mtime(t, index); !after.Equal(before) {
+		t.Fatalf("the index was rewritten: mtime %v, was %v", after, before)
+	}
+	write(t, dir, "a.txt", "one\nTWO\nthree\n")
+	if add, del, err := Shortstat(ctx, dir); err != nil || add != 2 || del != 1 {
+		t.Fatalf("after an edit got %d, %d, %v; want 2, 1, nil", add, del, err)
+	}
+}
+
+func mtime(t *testing.T, path string) time.Time {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fi.ModTime()
+}
+
 func TestShortstatNotARepo(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not on PATH")
@@ -76,14 +125,15 @@ func TestShortstatNotARepo(t *testing.T) {
 func TestMain(m *testing.M) {
 	switch os.Getenv("GITSTAT_HELPER") {
 	case "child":
-		time.Sleep(30 * time.Second)
+		// Outlives the timeout plus WaitDelay below, then exits so go can clean up.
+		time.Sleep(3 * time.Second)
 		return
 	case "parent":
 		c := exec.Command(os.Args[0])
 		c.Env = append(os.Environ(), "GITSTAT_HELPER=child")
 		c.Stdout = os.Stdout
 		_ = c.Start()
-		time.Sleep(30 * time.Second)
+		time.Sleep(3 * time.Second)
 		return
 	}
 	os.Exit(m.Run())
@@ -100,7 +150,7 @@ func TestReadIsBoundedWhenAChildKeepsThePipe(t *testing.T) {
 		if err == nil {
 			t.Fatal("a killed command gave no error")
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(2 * time.Second): // under the helper's 3s, so a pipe wait shows
 		t.Fatal("the read outlived the timeout")
 	}
 }

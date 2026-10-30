@@ -36,8 +36,12 @@ func (h *head) Write(p []byte) (int, error) {
 }
 
 // Shortstat runs `git diff --shortstat HEAD` in dir. Empty output is 0, 0.
+// It never refreshes the index: that takes index.lock and would fail the git
+// commands Claude runs in the same repo. --no-optional-locks alone still refreshes.
 func Shortstat(ctx context.Context, dir string) (add, del int, err error) {
-	return shortstat(ctx, "git", "-C", dir, "diff", "--shortstat", "HEAD")
+	return shortstat(ctx, "git", "--no-optional-locks",
+		"-c", "diff.autoRefreshIndex=false", "-c", "core.fsmonitor=false",
+		"-C", dir, "diff", "--no-ext-diff", "--no-textconv", "--shortstat", "HEAD")
 }
 
 func shortstat(ctx context.Context, name string, args ...string) (add, del int, err error) {
