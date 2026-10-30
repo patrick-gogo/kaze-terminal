@@ -54,6 +54,7 @@ type fileEntry struct {
 // modification time and size) is never read again. One goroutine at a time.
 type Cache struct {
 	files map[string]fileEntry
+	raw   map[string]rawEntry // settings.json, installed_plugins.json
 	open  func(string) (io.ReadCloser, error)
 	seen  map[string]bool // files met by the current Load
 	visit int
@@ -62,6 +63,7 @@ type Cache struct {
 func NewCache() *Cache {
 	return &Cache{
 		files: map[string]fileEntry{},
+		raw:   map[string]rawEntry{},
 		open:  func(p string) (io.ReadCloser, error) { return os.Open(p) },
 	}
 }
@@ -92,6 +94,11 @@ func (c *Cache) Load(src Sources) []Skill {
 	for p := range c.files {
 		if !c.seen[p] {
 			delete(c.files, p)
+		}
+	}
+	for p := range c.raw {
+		if !c.seen[p] {
+			delete(c.raw, p)
 		}
 	}
 	best := map[string]found{}
@@ -139,7 +146,7 @@ func (c *Cache) scanSkills(dir string, scope Scope, prefix string, rank int) []f
 	return out
 }
 
-// scanCommands lists dir/**/*.md, named by the file. WalkDir does not follow
+// scanCommands lists dir/**/*.md, named by the file (a plugin's by its path). WalkDir does not follow
 // symlinked folders, so a link loop can't trap it.
 func (c *Cache) scanCommands(dir string, scope Scope, prefix string, rank int) []found {
 	var out []found
@@ -156,7 +163,7 @@ func (c *Cache) scanCommands(dir string, scope Scope, prefix string, rank int) [
 		rel, _ := filepath.Rel(dir, p)
 		depth := len(strings.Split(rel, string(filepath.Separator)))
 		if d.IsDir() {
-			if p != dir && (strings.HasPrefix(d.Name(), ".") || depth >= maxCmdDepth) {
+			if p != dir && (!validName.MatchString(d.Name()) || depth >= maxCmdDepth) {
 				return fs.SkipDir
 			}
 			return nil
@@ -165,8 +172,13 @@ func (c *Cache) scanCommands(dir string, scope Scope, prefix string, rank int) [
 		if !isMD || !validName.MatchString(base) {
 			return nil
 		}
+		name := base
+		if scope == Plugin {
+			// Claude Code names a plugin's nested command by its folders too.
+			name = strings.ReplaceAll(strings.TrimSuffix(filepath.ToSlash(rel), ".md"), "/", ":")
+		}
 		if _, desc, ok := c.parse(p, base); ok {
-			out = append(out, found{Skill{Name: prefix + base, Desc: desc, Scope: scope, Path: p}, rank})
+			out = append(out, found{Skill{Name: prefix + name, Desc: desc, Scope: scope, Path: p}, rank})
 		}
 		return nil
 	})
@@ -201,5 +213,14 @@ func (c *Cache) read(path string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, maxRead))
 }
 
-// plugins lists enabled plugins' entries; filled in plugins.go.
-func (c *Cache) plugins(claudeDir string) []found { return nil }
+type rawEntry struct {
+	mod  time.Time
+	size int64
+	data []byte
+}
+
+func readAllLimit(r io.Reader, buf []byte, limit int64) ([]byte, error) {
+	b := bytes.NewBuffer(buf)
+	_, err := b.ReadFrom(io.LimitReader(r, limit))
+	return b.Bytes(), err
+}

@@ -159,6 +159,7 @@ func TestLoadIsBoundedInDepthAndCount(t *testing.T) {
 func TestLoadSkipsHiddenFolders(t *testing.T) {
 	home := t.TempDir()
 	put(t, filepath.Join(home, "commands", ".git", "x.md"), "x\n")
+	put(t, filepath.Join(home, "commands", "has space", "y.md"), "y\n")
 	put(t, filepath.Join(home, "commands", "ok.md"), "x\n")
 	if got := NewCache().Load(Sources{ClaudeDir: home}); strings.Join(names(got), ",") != "ok" {
 		t.Fatalf("names %v", names(got))
