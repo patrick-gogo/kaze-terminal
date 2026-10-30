@@ -2,6 +2,9 @@ package screen
 
 const defaultScrollback = 10000
 
+// reuseSlack lets a short line still reuse a slightly bigger evicted line.
+const reuseSlack = 16
+
 // scrollback is a ring of lines; once full, the oldest line's slice is reused for the newest.
 // A line stores its cells up to the last one that is not a default blank, and its width apart.
 type scrollback struct {
@@ -34,7 +37,9 @@ func (b *scrollback) push(row []Cell) {
 	}
 	b.evicted++
 	old := b.lines[b.start]
-	if cap(old) >= len(row) {
+	// Reuse the evicted line unless it is far bigger than this one, so history
+	// that once held long lines does not keep their storage behind short ones.
+	if cap(old) >= len(row) && cap(old) <= 2*len(row)+reuseSlack {
 		old = old[:len(row)]
 	} else {
 		old = make([]Cell, len(row))

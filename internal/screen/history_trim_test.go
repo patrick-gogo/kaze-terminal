@@ -2,6 +2,7 @@ package screen_test
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/screen"
@@ -62,5 +63,29 @@ func TestShortHistoryLinesStayCheapOnAWideScreen(t *testing.T) {
 	runtime.KeepAlive(s)
 	if grew > 8 {
 		t.Fatalf("10,000 short history lines hold %.1f MiB, want under 8 (a full 240-cell row each is %.1f)", grew, float64(lines*cols*16)/(1<<20))
+	}
+}
+
+// A full ring reuses evicted lines' storage, but a short line must not keep a
+// long line's allocation: history that once held long lines would stay large.
+func TestShortLinesReplacingLongOnesFreeTheirStorage(t *testing.T) {
+	const lines, cols = 10000, 240
+	s := screen.NewWithScrollback(cols, 1, lines)
+	long := strings.Repeat("x", cols-1)
+	for i := 0; i < lines; i++ {
+		scrollOff(s, long)
+	}
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	for i := 0; i < lines; i++ {
+		scrollOff(s, "short")
+	}
+	runtime.GC()
+	runtime.ReadMemStats(&after)
+	runtime.KeepAlive(s)
+	held := float64(after.HeapAlloc) / (1 << 20)
+	if shrunk := float64(int64(before.HeapAlloc)-int64(after.HeapAlloc)) / (1 << 20); shrunk < 25 {
+		t.Fatalf("replacing 10,000 long lines with short ones freed %.1f MiB (heap now %.1f), want at least 25", shrunk, held)
 	}
 }
