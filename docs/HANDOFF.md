@@ -79,7 +79,7 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-app\kaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.7.
 2. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
 3. **Notification card redesign** (GitHub issue #9).
-4. **Real panes** (Zellij-like tiles; would replace tab groups).
+4. **Real panes** (Zellij-like tiles; would replace the sidebar's workspaces section).
 5. **Plan 2**: subagent child tabs (spec 6.3).
 6. **Mac milestone** (checklist below): build and use kaze on macOS for the first time.
 7. Speed task: tighten kaze's own keypress p99 and first-frame time.

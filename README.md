@@ -173,8 +173,9 @@ Sessions are listed down the left side, in place of a tab strip.
 
 ## Settings
 
-Open it with the gear button (in the title bar on Windows, at the top of the sidebar on macOS) or with Ctrl+, (Cmd+, on macOS). While it is open, a pinned
-Settings row sits at the top of the sidebar, and it closes with that row's ×. It has three sections in a menu on the left:
+Open it with the gear button (in the title bar on Windows, at the top of the sidebar on macOS)
+or with Ctrl+, (Cmd+, on macOS). While it is open, a pinned Settings row sits at the top of the
+sidebar, and it closes with that row's ×. It has three sections in a menu on the left:
 
 - **Appearance:** theme, font size, line spacing, cursor shape and blinking.
 - **Claude:** the alert and usage choices (chimes, taskbar flash, how long the "done" toast stays,
@@ -250,15 +251,16 @@ the ones you already have. If any of the workspace's tabs is still open, the but
 A running workspace gets a header in the Workspaces section at the bottom of the sidebar,
 reading "all up" or "N down". Click the header to fold it.
 
-- Each member gets one line: its color bar, its title and its status. A member whose server
-  stopped reads `stopped` in red. Click a member to show it as the main view.
-- The status shows what the member runs and how far it got: Starting, Waiting for Docker
+- Each member gets one line: its color bar, its title and its status. A member whose commands
+  finished, failed or whose shell exited reads `stopped` in red. Click a member to show it as
+  the main view.
+- The Workspaces list in Settings shows how far each member got: Starting, Waiting for Docker
   (or a port), Confirm to run, Running, Finished, Failed, Cancelled or No commands. Finished means
   the shell came back to its prompt (it needs the snippet from "Folder and branch in the status
   bar"); kaze can't tell whether the commands worked.
 - Running a workspace keeps your current session in front.
 - The status bar shows one dot per running member (green running, red down, muted otherwise)
-  and the word "servers". Click the dots to show the member that is down.
+  and the word "servers". Click the dots to show the member that is down, or the first member if none is.
 - Ctrl+Tab and Ctrl+Shift+Tab step through sessions in sidebar order and skip workspace members.
 - Close a member with your close-session shortcut (Ctrl+Shift+W, Cmd+W on macOS) or the × on its
   line. Only a workspace run makes these lines; you can't drag ordinary sessions into one.
