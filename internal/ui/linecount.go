@@ -24,8 +24,8 @@ type countResult struct {
 type lineCounter struct {
 	fn       func(ctx context.Context, dir string) (int, int, error) // nil counts with git
 	results  chan countResult
-	inflight map[tabs.TabID]bool
-	again    map[tabs.TabID]bool // an event arrived while a count ran
+	inflight map[tabs.TabID]time.Time // when each running count started
+	again    map[tabs.TabID]bool      // an event arrived while a count ran
 	counts   map[tabs.TabID]lineCount
 	seen     map[tabs.TabID]uint64 // cwdSeq already counted
 }
@@ -37,7 +37,7 @@ func (win *window) wantCount(t *tabs.Tab) {
 		return
 	}
 	lc := &win.lc
-	if lc.inflight[t.ID] {
+	if at, ok := lc.inflight[t.ID]; ok && time.Since(at) < 2*countTimeout {
 		if lc.again == nil {
 			lc.again = map[tabs.TabID]bool{}
 		}
@@ -46,15 +46,16 @@ func (win *window) wantCount(t *tabs.Tab) {
 	}
 	loc := win.locOf(t)
 	if loc.cwd == "" || loc.repo == "" {
+		delete(lc.counts, t.ID) // outside a repo there is nothing to show
 		return
 	}
 	if lc.results == nil {
 		lc.results = make(chan countResult, 64)
 	}
 	if lc.inflight == nil {
-		lc.inflight = map[tabs.TabID]bool{}
+		lc.inflight = map[tabs.TabID]time.Time{}
 	}
-	lc.inflight[t.ID] = true
+	lc.inflight[t.ID] = time.Now()
 	fn, results, w, id, dir := lc.fn, lc.results, win.w, t.ID, loc.cwd
 	if fn == nil {
 		fn = gitstat.Shortstat
@@ -63,7 +64,10 @@ func (win *window) wantCount(t *tabs.Tab) {
 		ctx, cancel := context.WithTimeout(context.Background(), countTimeout)
 		defer cancel()
 		add, del, err := fn(ctx, dir)
-		results <- countResult{id, add, del, err} // one per tab in flight, so never full
+		select {
+		case results <- countResult{id, add, del, err}:
+		default: // full: drop it; the stale in-flight mark expires and the next event recounts
+		}
 		if w != nil {
 			w.Invalidate()
 		}

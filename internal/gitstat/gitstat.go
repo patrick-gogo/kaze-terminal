@@ -2,38 +2,54 @@
 package gitstat
 
 import (
+	"bytes"
 	"context"
-	"io"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"time"
 )
 
-const maxOutput = 4 << 10
+const (
+	maxOutput = 4 << 10
+	// waitDelay bounds the read after a kill: on Windows git's launcher leaves a
+	// child holding the stdout pipe, which would otherwise block Wait forever.
+	waitDelay = 500 * time.Millisecond
+)
 
 var (
 	insRe = regexp.MustCompile(`(\d+) insertions?\(\+\)`)
 	delRe = regexp.MustCompile(`(\d+) deletions?\(-\)`)
 )
 
+// head keeps the first max bytes and discards the rest.
+type head struct {
+	buf bytes.Buffer
+	max int
+}
+
+func (h *head) Write(p []byte) (int, error) {
+	if room := h.max - h.buf.Len(); room > 0 {
+		h.buf.Write(p[:min(room, len(p))])
+	}
+	return len(p), nil
+}
+
 // Shortstat runs `git diff --shortstat HEAD` in dir. Empty output is 0, 0.
 func Shortstat(ctx context.Context, dir string) (add, del int, err error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", dir, "diff", "--shortstat", "HEAD")
+	return shortstat(ctx, "git", "-C", dir, "diff", "--shortstat", "HEAD")
+}
+
+func shortstat(ctx context.Context, name string, args ...string) (add, del int, err error) {
+	cmd := exec.CommandContext(ctx, name, args...)
 	hideWindow(cmd)
-	out, err := cmd.StdoutPipe()
-	if err != nil {
+	out := &head{max: maxOutput}
+	cmd.Stdout = out
+	cmd.WaitDelay = waitDelay
+	if err := cmd.Run(); err != nil {
 		return 0, 0, err
 	}
-	if err := cmd.Start(); err != nil {
-		return 0, 0, err
-	}
-	buf, _ := io.ReadAll(io.LimitReader(out, maxOutput))
-	// Drain so git never blocks on a full pipe before Wait.
-	_, _ = io.Copy(io.Discard, out)
-	if err := cmd.Wait(); err != nil {
-		return 0, 0, err
-	}
-	add, del = parse(string(buf))
+	add, del = parse(out.buf.String())
 	return add, del, nil
 }
 

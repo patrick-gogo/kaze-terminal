@@ -2,6 +2,7 @@ package gitstat
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -67,5 +68,39 @@ func TestShortstatNotARepo(t *testing.T) {
 	}
 	if time.Since(start) > 6*time.Second {
 		t.Fatal("took longer than the timeout")
+	}
+}
+
+// TestMain doubles as a helper process: a parent that starts a child holding
+// the inherited stdout, like git.exe's launcher, then waits.
+func TestMain(m *testing.M) {
+	switch os.Getenv("GITSTAT_HELPER") {
+	case "child":
+		time.Sleep(30 * time.Second)
+		return
+	case "parent":
+		c := exec.Command(os.Args[0])
+		c.Env = append(os.Environ(), "GITSTAT_HELPER=child")
+		c.Stdout = os.Stdout
+		_ = c.Start()
+		time.Sleep(30 * time.Second)
+		return
+	}
+	os.Exit(m.Run())
+}
+
+func TestReadIsBoundedWhenAChildKeepsThePipe(t *testing.T) {
+	t.Setenv("GITSTAT_HELPER", "parent")
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, _, err := shortstat(ctx, os.Args[0]); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a killed command gave no error")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the read outlived the timeout")
 	}
 }
