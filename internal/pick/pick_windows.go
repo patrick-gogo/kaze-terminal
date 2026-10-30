@@ -10,7 +10,8 @@ const createNoWindow = 0x08000000
 
 // script shows the folder dialog; PowerShell 7 draws it Explorer-style. The
 // start folder comes from the environment, never from the script text.
-const script = `Add-Type -AssemblyName System.Windows.Forms
+const script = `[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+Add-Type -AssemblyName System.Windows.Forms
 $d = New-Object System.Windows.Forms.FolderBrowserDialog
 $d.Description = "Choose the tab's folder"
 if ($d.PSObject.Properties["UseDescriptionForTitle"]) { $d.UseDescriptionForTitle = $true }

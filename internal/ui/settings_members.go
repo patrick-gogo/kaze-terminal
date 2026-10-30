@@ -35,16 +35,19 @@ func (p *page) memberRow(r image.Rectangle, y int, row settingRow) int {
 		folderW = max(folderW, s.X)
 	}
 	titleX := r.Min.X + dot + gtx.Dp(10)
-	folderMax := r.Dx() * 3 / 10 // the commands matter more than the folder
-	folderW = min(folderW, folderMax)
+	// Reserve space for commands before assigning title and folder columns. A
+	// valid long title must not push the entire command chain outside the pane.
+	available := max(r.Max.X-titleX-2*gap, 1)
+	titleW = min(titleW, max(available/4, 1))
+	folderW = min(folderW, max(available/3, 1))
 	folderX := titleX + titleW + gap
 	cmdX := folderX + folderW + gap
-	cmdW := max(r.Max.X-cmdX, gtx.Dp(80))
+	cmdW := max(r.Max.X-cmdX, 1)
 	for _, m := range row.members {
 		_, lh := p.c.label(gtx, "M", sz, col.fg)
 		mid := ty + lh.Y/2
 		paint.FillShape(ops, p.c.memberColor(m.color), clip.Ellipse(image.Rect(r.Min.X, mid-dot/2, r.Min.X+dot, mid+dot/2)).Op(ops))
-		call, _ = p.text(m.title, sz, col.fg)
+		call, _ = p.text(p.fit(m.title, sz, titleW), sz, col.fg)
 		place(ops, call, image.Pt(titleX, ty))
 		call, _ = p.text(p.fitStart(m.folder, sz, folderW), sz, col.dim)
 		place(ops, call, image.Pt(folderX, ty))

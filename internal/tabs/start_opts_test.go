@@ -106,3 +106,41 @@ func TestWatchedBackgroundTabRequestsFrames(t *testing.T) {
 	}
 	m.Watch(9999, true) // unknown tabs are ignored
 }
+
+// A launched workspace member is no longer watched for every output burst, but
+// a later prompt still changes its dropdown status from Running to Finished.
+func TestWorkspaceBackgroundPromptRequestsFrameWithoutWatchingOutput(t *testing.T) {
+	st := &starter{}
+	changed := make(chan struct{}, 16)
+	m := tabs.NewManager(st.start, 80, 24, func() { changed <- struct{}{} })
+	t.Cleanup(st.closeAll)
+	bg, err := m.NewOpts(tabs.StartOpts{Title: "worker", Group: &tabs.Group{Workspace: "w", Run: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustNew(t, m)
+	st.fakes[0].outW.Write([]byte("started"))
+	select {
+	case <-changed:
+	case <-time.After(time.Second):
+		t.Fatal("initial title notification missing")
+	}
+	st.fakes[0].outW.Write([]byte("\x1b]133;A\x07"))
+	select {
+	case <-changed:
+	case <-time.After(time.Second):
+		t.Fatal("background workspace prompt did not request a frame")
+	}
+	bg.Session.Lock()
+	count := bg.Session.Applier().PromptSeq()
+	bg.Session.Unlock()
+	if count != 1 {
+		t.Fatalf("prompt count %d", count)
+	}
+	st.fakes[0].outW.Write([]byte("ordinary output"))
+	select {
+	case <-changed:
+		t.Fatal("ordinary output requested a frame without watching")
+	case <-time.After(50 * time.Millisecond):
+	}
+}

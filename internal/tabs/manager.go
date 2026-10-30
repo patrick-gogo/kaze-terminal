@@ -55,6 +55,7 @@ type entry struct {
 	// Touched only by this session's single notifier goroutine.
 	seenTitle  string
 	seenExited bool
+	seenPrompt uint64 // workspace dropdown status changes on a later prompt
 }
 
 // Manager is driven from the UI goroutine; onChange may be called from any goroutine.
@@ -172,13 +173,19 @@ func (m *Manager) notify(e *entry) {
 	}
 	exited, _ := s.Exited()
 	title := e.tab.FixedTitle // set once at creation, so safe to read here
-	if title == "" {
+	var prompt uint64
+	if title == "" || e.tab.Group != nil {
 		s.Lock()
-		title = s.Applier().Title()
+		if title == "" {
+			title = s.Applier().Title()
+		}
+		if e.tab.Group != nil {
+			prompt = max(s.Applier().CwdSeq(), s.Applier().PromptSeq())
+		}
 		s.Unlock()
 	}
-	if title != e.seenTitle || exited != e.seenExited {
-		e.seenTitle, e.seenExited = title, exited
+	if title != e.seenTitle || exited != e.seenExited || prompt != e.seenPrompt {
+		e.seenTitle, e.seenExited, e.seenPrompt = title, exited, prompt
 		m.onChange()
 	}
 }

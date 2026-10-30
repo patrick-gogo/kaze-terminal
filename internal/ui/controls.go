@@ -333,9 +333,13 @@ func (p *page) textField(k ctrl) image.Point {
 
 	size := box.Size()
 	if k.err != "" {
-		call, es := p.text(k.err, 11, col.err)
-		place(ops, call, image.Pt(0, h+gtx.Dp(3)))
-		size = image.Pt(max(size.X, es.X), h+gtx.Dp(3)+es.Y)
+		y := h + gtx.Dp(3)
+		for _, line := range p.wrap(k.err, 11, box.Dx()) {
+			call, es := p.text(line, 11, col.err)
+			place(ops, call, image.Pt(0, y))
+			y += es.Y
+		}
+		size.Y = y
 	}
 	return size
 }

@@ -89,7 +89,7 @@ func (f *runFixture) has(s string) bool { return pageHas(f.win, s) }
 
 func (f *runFixture) wantText(s string) {
 	f.t.Helper()
-	if !f.has(s) {
+	if !strings.Contains(strings.Join(f.win.set.texts, " "), s) {
 		f.t.Fatalf("page lacks %q: %q", s, f.win.set.texts)
 	}
 }
@@ -1000,5 +1000,38 @@ func TestChainLinesFitWithTheirArrow(t *testing.T) {
 		if _, ls := p.c.label(p.gtx, l, 12, p.col.fg); ls.X > s.X {
 			t.Fatalf("line %q is %dpx wide, more than %d", l, ls.X, s.X)
 		}
+	}
+}
+
+func TestWorkspaceListLongTitleKeepsFolderInsidePane(t *testing.T) {
+	f := newWSPage(t)
+	f.win.wsp.doc.Workspaces[0].Tabs[0].Title = strings.Repeat("W", workspaces.MaxNameRunes)
+	f.draw()
+	for _, x := range f.win.set.memberFolderX {
+		if x+f.win.set.pane.Dx()*3/10+16 >= f.win.set.pane.Max.X {
+			t.Fatalf("folder starts at %d and leaves no visible command column in pane %v", x, f.win.set.pane)
+		}
+	}
+}
+
+func TestEditorFolderControlsFitIntermediateWidth(t *testing.T) {
+	for _, width := range []int{600, 700, 820, 900} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			f := newWSPage(t)
+			f.press("ws.edit", 0)
+			f.win.wsp.draft.tabs[0].folder = filepath.Join(t.TempDir(), "missing")
+			r := image.Rect(0, 38, width, 4000)
+			f.win.drawSettings(pageContext(r.Dx(), r.Max.Y+24), r)
+			for _, what := range []string{"folder", "pick"} {
+				c, ok := f.ctl(tabID(f.tabKey(0), what), 0)
+				if !ok {
+					t.Fatalf("missing %s", what)
+				}
+				if c.rect.Min.X < f.win.set.pane.Min.X || c.rect.Max.X > f.win.set.pane.Max.X {
+					t.Fatalf("%s at %v outside pane %v", what, c.rect, f.win.set.pane)
+				}
+			}
+			f.wantText("This folder does not exist yet; Run stops here until it does.")
+		})
 	}
 }

@@ -38,6 +38,39 @@ func wsDraw(p *page, r image.Rectangle, win *window) int {
 		detail = image.Rect(r.Min.X+gtx.Dp(14), top, r.Max.X, r.Max.Y)
 	}
 	detail.Min.Y = top
+	// Fixed-width text editors share their row with Choose/remove buttons.
+	// Keep their boxes inside the selected pane at every breakpoint.
+	for i := range ed.tab {
+		row := &ed.tab[i]
+		texts, fixed := 0, 0
+		for _, k := range row.ctrls {
+			if k.kind == ctlText {
+				texts++
+				continue
+			}
+			if k.kind == ctlButton {
+				_, sz := p.c.label(gtx, k.text, 12, p.col.fg)
+				fixed += sz.X + 2*gtx.Dp(12)
+			}
+		}
+		if texts == 0 {
+			continue
+		}
+		room := max((detail.Dx()-fixed-max(len(row.ctrls)-1, 0)*gtx.Dp(8))/texts, 1)
+		for j := range row.ctrls {
+			if row.ctrls[j].kind == ctlText {
+				scale := gtx.Metric.PxPerDp
+				if scale == 0 {
+					scale = 1
+				}
+				width := row.ctrls[j].width
+				if width <= 0 {
+					width = fieldWidth
+				}
+				row.ctrls[j].width = min(width, max(int(float32(room)/scale), 1))
+			}
+		}
+	}
 	end := p.rows(detail, top, ed.tab)
 	_, t := d.selected()
 	stripe := image.Rect(detail.Min.X-gtx.Dp(12), top, detail.Min.X-gtx.Dp(12)+bar, end)
