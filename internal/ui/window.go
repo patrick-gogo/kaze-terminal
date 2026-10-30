@@ -164,9 +164,12 @@ type window struct {
 	// and the status bar share it; nil outside drawing, where callers build fresh.
 	frameRuns *[]sideRun
 
-	wsr  wsRunner
-	side sideUI // the sidebar; UI goroutine only
-	wsp  wsPage // the Workspaces section: its list and the open draft; UI goroutine only
+	wsr wsRunner
+	// launches are new sessions waiting for their prompt to type `claude`; UI goroutine only.
+	launches map[tabs.TabID]*wsMember
+	palette  paletteUI // the palette; UI goroutine only
+	side     sideUI    // the sidebar; UI goroutine only
+	wsp      wsPage    // the Workspaces section: its list and the open draft; UI goroutine only
 }
 
 // Run drives the window until it closes. It returns after every shell is closed.
@@ -566,6 +569,9 @@ func (win *window) frame(gtx layout.Context) error {
 	win.autoScroll(gtx, active, cw, ch)
 	if at, ok := win.wsTick(win.wsNow()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
+	}
+	if at, ok := win.launchTick(win.wsNow()); ok {
+		gtx.Execute(op.InvalidateCmd{At: at}) // one wake to ask about a new session's prompt
 	}
 	sel := win.checkSel(active)
 	// After input, so a key typed this frame shows the cursor in it.

@@ -74,7 +74,7 @@ func bannerShown(m *wsMember) bool {
 // terminal area, never into the shell, and records its buttons.
 func (win *window) drawWsBanner(gtx layout.Context, t *tabs.Tab, termRect image.Rectangle) {
 	win.wsr.hits = win.wsr.hits[:0]
-	m := win.memberOf(t)
+	m := win.bannerMember(t)
 	if !bannerShown(m) {
 		return
 	}
@@ -151,7 +151,7 @@ func (win *window) bannerPress(e pointer.Event) {
 		return
 	}
 	t := win.mgr.Lookup(win.wsr.hitTab)
-	m := win.memberOf(t)
+	m := win.bannerMember(t)
 	if m == nil {
 		return
 	}
@@ -167,6 +167,7 @@ func (win *window) bannerPress(e pointer.Event) {
 				m.hideBanner = true
 			} else {
 				win.wsEvent(m, t, workspaces.UserInputEvent{})
+				win.takeOver(t) // a waiting new session drops its claude line
 			}
 		case bannerRun:
 			win.wsEvent(m, t, workspaces.RunCommandsEvent{})

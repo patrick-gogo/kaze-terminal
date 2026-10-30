@@ -95,3 +95,34 @@ func TestCheckCommandsRejectsLinesTheJoinWouldBreak(t *testing.T) {
 		}
 	}
 }
+
+func TestQuoteArg(t *testing.T) {
+	ok := []struct {
+		k        ShellKind
+		in, want string
+	}{
+		{ShellPOSIX, "it's $HOME `x`; y", `'it'\''s $HOME ` + "`x`" + `; y'`},
+		{ShellPOSIX, "/v3-lap", `'/v3-lap'`},
+		{ShellPowerShell, "it's", `'it''s'`},
+		{ShellPowerShell, "it’s", `'it’’s'`},
+		{ShellPowerShell, "‘a‚b‛", `'‘‘a‚‚b‛‛'`},
+		{ShellPowerShell, "日本語", `'日本語'`},
+		{ShellPOSIX, "日本語", `'日本語'`},
+	}
+	for _, c := range ok {
+		got, err := QuoteArg(c.k, c.in)
+		if err != nil || got != c.want {
+			t.Errorf("%v %q: got %q %v, want %q", c.k, c.in, got, err, c.want)
+		}
+	}
+	for _, k := range []ShellKind{ShellPOSIX, ShellPowerShell} {
+		for _, bad := range []string{"a\nb", "a\rb", "a\x1bb", "a\x00b"} {
+			if _, err := QuoteArg(k, bad); err == nil {
+				t.Errorf("%v %q: no error", k, bad)
+			}
+		}
+	}
+	if _, err := QuoteArg(ShellUnknown, "x"); err == nil {
+		t.Error("unknown shell: no error")
+	}
+}
