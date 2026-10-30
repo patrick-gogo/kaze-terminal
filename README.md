@@ -130,6 +130,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 | Next session | Ctrl+Tab | Ctrl+Tab |
 | Previous session | Ctrl+Shift+Tab | Ctrl+Shift+Tab |
 | Hide or show the sidebar | Ctrl+Shift+B | Cmd+B |
+| Jump to the next session that needs you | Ctrl+Shift+J | Cmd+J |
 | Copy the selection | Ctrl+Shift+C | Cmd+C |
 | Paste | Ctrl+Shift+V | Cmd+V |
 | Open settings | Ctrl+, | Cmd+, |
@@ -137,7 +138,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
 submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The session, copy,
-paste, sidebar and settings shortcuts can be changed under `[keys]` in the config.
+paste, sidebar, next-waiting and settings shortcuts can be changed under `[keys]` in the config.
 
 ## Mouse
 
@@ -160,11 +161,30 @@ Sessions are listed down the left side, in place of a tab strip.
 - **Rows:** each row shows the title, a shortened folder, the branch (without a `feature/` style
   prefix) and the word `needs you` or `done` when Claude Code has something to say. Hover a row
   to get a ×, or middle click it to close it. The `+` button opens a new session.
+  - **Command:** when you start a prompt with a slash command, the row shows ` · /command` in
+    magenta after the title. This needs the prompt hook (see Alerts below).
+  - **Running:** a still ring and the word `running` show that Claude is working on a prompt.
+    `needs you` and `done` take priority over it. The ring does not animate, so an idle kaze
+    still uses no CPU. A session counts as running from the prompt until Claude says it is done
+    or needs you. When the shell prompt comes back, Claude has left and the row is a plain shell
+    again. Esc to interrupt Claude fires no hook, so an interrupted row stays `running` until your
+    next message.
+  - **Title:** the title is your own name for the row if you set one, otherwise the slash
+    command's first argument, otherwise the folder name, otherwise the shell's title.
+  - **Rename:** double-click a title to edit it. Enter saves, Esc cancels, and a blank name goes
+    back to the rule above. Members of a running workspace can't be renamed.
+  - **Line counts:** inside a git repo, `+N -M` shows the lines added and removed against
+    `HEAD` (`git diff --shortstat HEAD`). kaze runs git only when something happens (a hook
+    message or the shell reporting its folder), never on a timer, with no console window and a
+    2 second limit. Outside a repo nothing is shown.
 - **Filter:** the "Filter sessions…" field at the top. Click it to type. Typing narrows the list
-  by title, folder and branch, and folded groups open while you filter. Enter shows the first
+  by title, folder, branch and command, and folded groups open while you filter. Enter shows the first
   match (on an empty field it only gives the keyboard back). Esc clears the field and gives the
   keyboard back to the terminal. Switching or opening a session, opening Settings or hiding the
   sidebar also gives the keyboard back and keeps the text.
+- **Next waiting:** the button at the bottom of the sidebar, with its key on the right, jumps to
+  the next session after the one you're on that needs you, in sidebar order, wrapping around. When none is waiting, the status bar
+  says "Nothing is waiting on you."
 - **Workspaces:** a section at the bottom lists each running workspace (see Workspaces below).
 - **Hiding it:** the sidebar toggle (Ctrl+Shift+B, Cmd+B on macOS) hides or shows it, and kaze
   remembers the choice as `sidebar` in the config. Below 560 dp of window width it also hides
@@ -203,9 +223,9 @@ still win over the theme's terminal palette.
 
 ### Claude Code setup check
 
-The Claude section reads `~/.claude/settings.json` and shows the state of the three entries kaze
-needs: the Stop hook (`notify done`), the Notification hook (`notify needs`) and the status line
-(`statusline`):
+The Claude section reads `~/.claude/settings.json` and shows the state of the four entries kaze
+needs: the Stop hook (`notify done`), the Notification hook (`notify needs`), the prompt hook
+(`notify prompt`, shown as "Command each session runs") and the status line (`statusline`):
 
 | State | Meaning |
 |---|---|
@@ -340,7 +360,7 @@ error makes kaze use all defaults.
 | `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
 | `sidebar` | Show the session sidebar (the toggle saves it here) | `true` |
-| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `toggle_sidebar`, `open_settings` | the shortcuts above |
+| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `toggle_sidebar`, `next_waiting`, `open_settings` | the shortcuts above |
 | `font_family` | **Not supported yet.** Setting it only adds a warning; kaze always uses its bundled font. | |
 
 Shortcuts are written like `"ctrl+shift+t"`. Modifiers: `ctrl`, `shift`, `alt` (or `option`),
@@ -498,9 +518,17 @@ Code settings (`~/.claude/settings.json`), with the full path to your kaze binar
 If you already have hooks, add these entries next to them. On macOS the command is
 `"/path/to/kaze" notify needs` (and `notify done`).
 
+- **The prompt hook** is a third entry, under `UserPromptSubmit`, that runs
+  `kaze.exe notify prompt` (timeout 3). It sends kaze the slash command that starts your prompt
+  (like `/work-ticket`) and its first line of arguments, so the sidebar can show the command and
+  mark the session as running. A prompt that does not start with a slash command sends only
+  "running". Settings, Claude, Claude Code setup adds it with **Fix**, with the usual
+  show-the-change, confirm and back-up steps, so you don't need to edit the file by hand. Claude
+  Code adds a prompt hook's output to the conversation, so this one prints nothing at all. Its
+  text is cleaned of control characters and capped before kaze shows it.
 - The hooks do nothing outside kaze: `kaze notify` looks for the kaze variables, finds none
   and exits quietly, so Claude Code in another terminal is unaffected.
-- `kaze notify` always exits 0 and prints nothing, so a hook can never block or slow Claude Code.
+- `kaze notify` (including `notify prompt`) always exits 0 and prints nothing, so a hook can never block or slow Claude Code.
 - Even without the matcher, kaze ignores the "idle for a minute" and "login finished"
   notifications.
 - **Windows with Smart App Control:** after each rebuild, run `kaze.exe notify done` once by hand.
@@ -558,11 +586,12 @@ Done:
 - Plan 5a: the settings page (Appearance and Claude), five themes and the Claude Code setup check.
 - Plan 5b: Workspaces (launch a saved set of tabs in one click).
 - Plan 6a: the session sidebar, replacing the tab strip, with repo groups, a filter and the running workspaces.
+- Plan 6b: agent awareness on the rows (slash command, running mark, titles you can rename, `+N -M` line counts) and a Next waiting button and key.
 
 Next:
 
 - A redesign of the alert notification card (GitHub issue #9).
-- Plans 6b to 6e: agent awareness on the rows, `kaze status`, floating panes and a scratch shell, then the command palette.
+- Plans 6d and 6e: floating panes and a scratch shell, then the command palette. (`kaze status`, Plan 6c, is parked.)
 - Real panes, which would replace the workspace section of the sidebar as the way a workspace is shown.
 - Plan 2: child tabs for Claude Code subagents.
 - The Mac milestone: run, fix and benchmark kaze on macOS.

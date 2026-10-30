@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-30, after Plan 6a (the sidebar) was built on `feat/agent-sidebar`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-30, after Plan 6b (agent awareness) was built on `feat/agent-awareness`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -33,14 +33,24 @@ Last updated: 2026-10-30, after Plan 6a (the sidebar) was built on `feat/agent-s
 
 **Workspaces UI round 2 is built** on `feat/workspaces-ui` (spec `docs/superpowers/specs/2026-10-30-kaze-workspaces-ui-design.md`, plan `docs/superpowers/plans/2026-10-30-kaze-workspaces-ui.md`): a two-pane workspace editor (tab list left, selected tab right, next unused color, red problem marks), a native folder picker (`internal/pick`: AppleScript `choose folder` on macOS, PowerShell `FolderBrowserDialog` on Windows; Windows not yet tried by hand), a list that shows each tab's color, folder and full command chain, a group dropdown that shows what each member runs and its status (Finished = a prompt report after the line was typed), and About / sidebar without the build line. Still owed: the Windows picker check on the laptop.
 
+**Plan 6b (agent awareness) is built** on `feat/agent-awareness` (plan `docs/superpowers/plans/2026-10-30-kaze-plan-6b-agent-awareness.md`, spec `docs/superpowers/specs/2026-10-30-kaze-agent-sidebar-design.md`). Version 0.8:
+
+- **Prompt hook:** `kaze notify prompt` runs from a Claude Code `UserPromptSubmit` hook. It sends the leading slash command and its first line of arguments, prints nothing, always exits 0, and cleans and caps the text (`internal/notify`, `cmd/kaze/notify.go`). Settings, Claude, Claude Code setup shows it as "Command each session runs"; Fix adds or repoints it with the usual show-the-change, confirm and back-up steps (`internal/claudesetup`).
+- **Per-session state** (`internal/ui/agent.go`): running starts on a prompt and ends on done or needs. When the shell prompt comes back, Claude has left and the row is a plain shell. Esc interrupts fire no hook, so an interrupted row stays running until the next message (known limit).
+- **Rows:** ` · /command` in magenta, a still `running` ring (no ticker, idle CPU stays zero; `needs you` and `done` win over it). Title rule: your name, then the command's first argument, then the folder name, then the shell title. Double-click a title to rename (Enter saves, Esc cancels, blank goes back to the rule; workspace members can't be renamed). The filter matches the command.
+- **Line counts:** `+N -M` from `git diff --shortstat HEAD` (`internal/gitstat`, `internal/ui/linecount.go`), run only on events, one at a time per tab, no console window, 2s timeout, hidden outside a repo.
+- **Next waiting:** `next_waiting` (Ctrl+Shift+J on Windows, Cmd+J on macOS, changeable under `[keys]`) and a "Next waiting" button at the bottom of the sidebar. With nothing waiting the status bar says "Nothing is waiting on you."
+- **To do by the owner:** press **Fix** once in Settings, Claude, Claude Code setup to add the prompt hook (the installed settings.json predates it); rerun the go-winres command in the README so the exe details say 0.8 (the `.syso` files still carry older versions); then run `kaze.exe notify done` once after the rebuild for Smart App Control. The macOS look of the new rows and the Next waiting key are unchecked on a Mac.
+- **What is next:** Plan 6d (floating panes and the scratch shell, `docs/superpowers/plans/2026-10-30-kaze-plan-6d-floating-panes.md`) and Plan 6e (the palette, `docs/superpowers/plans/2026-10-30-kaze-plan-6e-palette.md`). The owner plans to build 6d and 6e on his own machine. **Plan 6c (`kaze status`, chips, timed checks) stays parked.**
+
 **Plan 6a (the sidebar) is built** on `feat/agent-sidebar` (spec `docs/superpowers/specs/2026-10-30-kaze-agent-sidebar-design.md`). Version 0.7:
 
 - **A left sidebar replaces the tab strip.** Sessions are grouped by git repo (worktrees count as the same repo), groups fold, rows show title, short folder, branch and `needs you` / `done`. Hover gives a ×, middle click closes, `+` opens a session. Settings is a pinned row at the top while open. A "Filter sessions…" field narrows by title, folder and branch (Esc clears, Enter shows the first match, folded groups open while filtering).
 - **Workspaces section** at the bottom: a folding header per running workspace ("all up" / "N down"), one line per member (color bar, title, status, `stopped` in red). Clicking a member shows it as the main view. Running a workspace keeps the current session in front. The status bar has one dot per running member plus "servers"; clicking shows the down member.
 - **Hiding:** `toggle_sidebar` (Ctrl+Shift+B / Cmd+B) saves `sidebar = true|false`; under 560 dp the sidebar hides without saving. The Windows title bar holds the toggle, K mark, gear and window buttons; macOS keeps the native title bar, with the toggle and gear at the top of the sidebar and a thin rail when hidden.
 - **Removed:** the tab strip, the workspace group chip and dropdown, the Settings chip. Ctrl+Tab and Ctrl+Shift+Tab walk sessions in sidebar order and skip workspace members.
-- **Plans 6b to 6e come next**, as in spec section 15: 6b agent awareness (prompt hook and its settings check, running state, command and title on rows, lines added/removed, next-waiting), 6c `kaze status`, chips and timed checks (**parked** by the owner, 2026-10-30), 6d floating panes and the scratch shell, 6e the palette, the skill catalog and the Commands settings section.
-- **To do by the owner:** rerun the go-winres command in the README so the exe details say 0.7 (the `.syso` files still carry 0.5/0.6). The macOS look of the sidebar (rail, toggle at the top of the sidebar) is still unchecked on a Mac.
+- **Plans 6b to 6e were next**, as in spec section 15 (6b is now built, see above): 6b agent awareness, 6c `kaze status`, chips and timed checks (**parked** by the owner, 2026-10-30), 6d floating panes and the scratch shell, 6e the palette, the skill catalog and the Commands settings section.
+- **Still open from 6a:** the go-winres rerun is now for 0.8 (above). The macOS look of the sidebar (rail, toggle at the top of the sidebar) is still unchecked on a Mac.
 
 **Plan 5b (Workspaces) is built** on `feature/workspaces` (decisions `docs/superpowers/specs/2026-10-29-kaze-workspaces-decisions.md`, mockups in `docs/design/`). Version 0.6:
 
@@ -76,7 +86,7 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 
 ## Next
 
-1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-app\kaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.7.
+1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-app\kaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.8.
 2. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
 3. **Notification card redesign** (GitHub issue #9).
 4. **Real panes** (Zellij-like tiles; would replace the sidebar's workspaces section).
