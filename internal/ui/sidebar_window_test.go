@@ -4,6 +4,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ import (
 func centre(r image.Rectangle) image.Point { return r.Min.Add(r.Size().Div(2)) }
 
 // sideWindow is a test window for whole headless frames with the sidebar on. A
-// folder under C:\code\<repo>\ belongs to that repo; cfgPath stays "" so nothing is saved.
+// folder under code/<repo>/ belongs to that repo; cfgPath stays "" so nothing is saved.
 func sideWindow(t *testing.T, custom bool) (*window, *recStarter) {
 	t.Helper()
 	st := &recStarter{}
@@ -45,6 +46,16 @@ func sideWindow(t *testing.T, custom bool) (*window, *recStarter) {
 		return "", ""
 	}
 	return win, st
+}
+
+// osPath turns a slash path into an absolute one for this OS: /code/X/a is
+// C:\code\X\a on Windows and stays /code/X/a elsewhere, so fixtures split and
+// shorten the way real folders do on the machine running the test.
+func osPath(p string) string {
+	if runtime.GOOS == "windows" {
+		return `C:` + filepath.FromSlash(p)
+	}
+	return p
 }
 
 // openIn opens a session whose shell reports dir; "" leaves it without a folder.
@@ -187,10 +198,10 @@ func TestClosingTheLastSessionShowsAMember(t *testing.T) {
 
 func TestNextPrevFollowSidebarOrder(t *testing.T) {
 	win, _ := sideWindow(t, true)
-	a := openIn(t, win, `C:\code\X\a`)
+	a := openIn(t, win, osPath("/code/X/a"))
 	b := openIn(t, win, "")
 	openMember(t, win, "api")
-	c := openIn(t, win, `C:\code\X\c`)
+	c := openIn(t, win, osPath("/code/X/c"))
 	win.mgr.SetActive(a.ID)
 	ctrlTab := key.Event{Name: key.NameTab, Modifiers: key.ModCtrl, State: key.Press}
 	want := []tabs.TabID{c.ID, b.ID, a.ID}
@@ -236,8 +247,8 @@ func TestNextFromAMemberGoesToTheFirstSession(t *testing.T) {
 
 func TestGroupHeaderFolds(t *testing.T) {
 	win, _ := sideWindow(t, true)
-	a := openIn(t, win, `C:\code\X\a`)
-	c := openIn(t, win, `C:\code\X\c`)
+	a := openIn(t, win, osPath("/code/X/a"))
+	c := openIn(t, win, osPath("/code/X/c"))
 	win.mgr.SetActive(a.ID)
 	var r input.Router
 	sideFrame(t, win, &r)
@@ -670,8 +681,8 @@ func TestToggleInANarrowWindowChangesNothing(t *testing.T) {
 // A Stop or Notification alert re-reads a background session's branch and repo.
 func TestAlertRereadsABackgroundBranch(t *testing.T) {
 	win, _ := sideWindow(t, true)
-	a := openIn(t, win, `C:\code\X\a`)
-	b := openIn(t, win, `C:\code\X\b`)
+	a := openIn(t, win, osPath("/code/X/a"))
+	b := openIn(t, win, osPath("/code/X/b"))
 	win.mgr.SetActive(a.ID)
 	branch := "one"
 	win.branchFn = func(string) string { return branch }
@@ -680,8 +691,12 @@ func TestAlertRereadsABackgroundBranch(t *testing.T) {
 	branch = "two"
 	for _, k := range []notify.Kind{notify.KindDone, notify.KindNeeds} {
 		win.deliver(notify.Msg{Tab: int(b.ID), Kind: k}, time.Unix(1000, 0))
+		groups := buildSide(win.sideIn()).Groups
+		if len(groups) != 1 {
+			t.Fatalf("after a %s alert: %d groups, want a and b in one", k, len(groups))
+		}
 		var got string
-		for _, row := range buildSide(win.sideIn()).Groups[0].Rows {
+		for _, row := range groups[0].Rows {
 			if row.ID == b.ID {
 				got = row.Branch
 			}
@@ -695,12 +710,12 @@ func TestAlertRereadsABackgroundBranch(t *testing.T) {
 
 func TestSideTabChangesGroupOnNewReport(t *testing.T) {
 	win, _ := sideWindow(t, true)
-	a := openIn(t, win, `C:\code\X\a`)
-	openIn(t, win, `C:\code\X\b`)
+	a := openIn(t, win, osPath("/code/X/a"))
+	openIn(t, win, osPath("/code/X/b"))
 	if g := buildSide(win.sideIn()).Groups; len(g) != 1 || g[0].Key != "key-X" || len(g[0].Rows) != 2 {
 		t.Fatalf("groups %+v, want both in X", g)
 	}
-	report(t, a, `C:\code\Y\a`)
+	report(t, a, osPath("/code/Y/a"))
 	g := buildSide(win.sideIn()).Groups
 	byKey := map[string][]sideRow{}
 	for _, x := range g {

@@ -226,7 +226,10 @@ func TestResolveFindsTheProgramOnPath(t *testing.T) {
 	}
 	dir, base := filepath.Split(exe)
 	t.Setenv("PATH", dir)
-	name := strings.TrimSuffix(base, filepath.Ext(base))
+	name := base // ptyx.test here; on Windows ptyx.test.exe, found as ptyx.test
+	if runtime.GOOS == "windows" {
+		name = strings.TrimSuffix(base, filepath.Ext(base))
+	}
 	got := ptyx.Resolve([]string{name, "-x"})
 	if !strings.EqualFold(filepath.Clean(got[0]), filepath.Clean(exe)) || got[1] != "-x" {
 		t.Fatalf("Resolve(%q) = %v, want %s", name, got, exe)
