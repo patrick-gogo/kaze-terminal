@@ -32,8 +32,8 @@ const (
 // Cell is one grid position. Width is 1, 2 (lead half of a wide char) or 0 (continuation half).
 type Cell struct {
 	Rune   rune
-	Width  uint8
 	FG, BG Color
+	Width  uint8 // after the 4-byte fields, so a Cell packs into 16 bytes, not 20
 	Attrs  Attr
 }
 
