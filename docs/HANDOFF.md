@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-30, after Plan 6e (the palette) was built on `feat/palette`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-31, after Plan 6d (floating panes and the scratch shell) was built on `feat/floating-panes`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -30,6 +30,15 @@ Last updated: 2026-10-30, after Plan 6e (the palette) was built on `feat/palette
 - **Claude setup check** (`internal/claudesetup`): inspects the Stop hook, the Notification hook and the status line in `~/.claude/settings.json` (OK / missing / broken / taken). Fix and Replace only after a confirm dialog, with a timestamped `.bak` copy first; other entries are never touched.
 - **`kaze --version`** (`internal/version`) prints the version and build commit without opening a window.
 - Not done: the Windows app icon, the notification card redesign.
+
+**Plan 6d (floating panes and the scratch shell) is built** on `feat/floating-panes` (plan `docs/superpowers/plans/2026-10-30-kaze-plan-6d-floating-panes.md`, spec sections 7, 8, 11). Version 0.10:
+
+- **Floating panes** (`internal/ui/panes*.go`): a workspace member opens over the shown session from its sidebar line, the server dots or the palette (`floatMember`). Drag the header, resize from edges and corners (6 dp bands, 14 dp corners, 280x140 dp minimum), click to raise and take the keyboard, Expand to make it the main view, × to hide it (the member keeps running). Up to 4 panes per session, the oldest member replaced first; one session at a time per member. Geometry is kept in dp relative to the terminal area and fitted to it every frame.
+- **Own renderer and size per pane:** each visible pane has its own `render.Renderer` (a renderer keeps one tab's strips and dirty rows) and its own PTY size (`tabs.Manager.ResizeTab`, `Dock`; `ResizeAll` skips floated tabs). `SetVisible` makes a pane's output ask for frames. Hidden panes and other sessions' panes cost nothing.
+- **Input through views** (`termView`): the session and every pane use the same key, paste, mouse and selection code. Esc goes to the program in a pane. Focus reports move with the keyboard.
+- **Scratch shell** (`internal/ui/scratch.go`): `scratch_shell` (Ctrl+Shift+` / Ctrl+`), a title bar button on Windows, a sidebar and rail button on macOS. A tab with `Tab.Parent` set: hidden from the sidebar and next/prev, started in the session's folder, kept running while hidden, replaced if it exited, closed with its session. Its hook messages count on the parent row (`hookTab`); usage stays on the scratch tab.
+- **To check on the Mac by hand:** the Ctrl+` key name and the scratch button in the rail. **To do by the owner:** the go-winres rerun so the exe details say 0.10.
+- **Known failing before 6d** (also on `main` at 61a9229, macOS): the four `TestCount*` line-count tests, `TestRenameSurvivesClaudeLeaving`, and a data race reported by `go test -race` in `TestOnNotifyNeverBlocksAndStaysBounded`.
 
 **Plan 6e (the palette) is built** on `feat/palette` (plan `docs/superpowers/plans/2026-10-30-kaze-plan-6e-palette.md`, spec sections 9.3 and 10), on top of 6b. Version 0.9:
 
