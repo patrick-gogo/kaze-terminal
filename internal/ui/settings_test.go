@@ -20,6 +20,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/config"
 	kinput "github.com/patrick-gogo/kaze-terminal/internal/input"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
+	"github.com/patrick-gogo/kaze-terminal/internal/version"
 )
 
 // pageContext is a 1x-scale context for a whole window.
@@ -271,7 +272,7 @@ func TestVersionBlockShowsVersionWithoutBuild(t *testing.T) {
 	win.openSettings()
 	win.drawSettings(pageContext(800, 600), pageRect)
 	texts := win.set.texts
-	if !slices.Contains(texts, "kaze 0.6") {
+	if !slices.Contains(texts, "kaze "+version.Number) {
 		t.Fatalf("texts %q lack the version", texts)
 	}
 	all := strings.Join(texts, " ")

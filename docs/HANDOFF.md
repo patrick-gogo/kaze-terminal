@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-30, after the Workspaces UI round 2 was built on `feat/workspaces-ui`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-30, after Plan 6a (the sidebar) was built on `feat/agent-sidebar`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -32,6 +32,15 @@ Last updated: 2026-10-30, after the Workspaces UI round 2 was built on `feat/wor
 - Not done: the Windows app icon, the notification card redesign.
 
 **Workspaces UI round 2 is built** on `feat/workspaces-ui` (spec `docs/superpowers/specs/2026-10-30-kaze-workspaces-ui-design.md`, plan `docs/superpowers/plans/2026-10-30-kaze-workspaces-ui.md`): a two-pane workspace editor (tab list left, selected tab right, next unused color, red problem marks), a native folder picker (`internal/pick`: AppleScript `choose folder` on macOS, PowerShell `FolderBrowserDialog` on Windows; Windows not yet tried by hand), a list that shows each tab's color, folder and full command chain, a group dropdown that shows what each member runs and its status (Finished = a prompt report after the line was typed), and About / sidebar without the build line. Still owed: the Windows picker check on the laptop.
+
+**Plan 6a (the sidebar) is built** on `feat/agent-sidebar` (spec `docs/superpowers/specs/2026-10-30-kaze-agent-sidebar-design.md`). Version 0.7:
+
+- **A left sidebar replaces the tab strip.** Sessions are grouped by git repo (worktrees count as the same repo), groups fold, rows show title, short folder, branch and `needs you` / `done`. Hover gives a ×, middle click closes, `+` opens a session. Settings is a pinned row at the top while open. A "Filter sessions…" field narrows by title, folder and branch (Esc clears, Enter shows the first match, folded groups open while filtering).
+- **Workspaces section** at the bottom: a folding header per running workspace ("all up" / "N down"), one line per member (color bar, title, status, `stopped` in red). Clicking a member shows it as the main view. Running a workspace keeps the current session in front. The status bar has one dot per running member plus "servers"; clicking shows the down member.
+- **Hiding:** `toggle_sidebar` (Ctrl+Shift+B / Cmd+B) saves `sidebar = true|false`; under 560 dp the sidebar hides without saving. The Windows title bar holds the toggle, K mark, gear and window buttons; macOS keeps the native title bar, with the toggle and gear at the top of the sidebar and a thin rail when hidden.
+- **Removed:** the tab strip, the workspace group chip and dropdown, the Settings chip. Ctrl+Tab and Ctrl+Shift+Tab walk sessions in sidebar order and skip workspace members.
+- **Plans 6b to 6e come next**, as in spec section 15: 6b agent awareness (prompt hook and its settings check, running state, command and title on rows, lines added/removed, next-waiting), 6c `kaze status`, chips and timed checks, 6d floating panes and the scratch shell, 6e the palette, the skill catalog and the Commands settings section.
+- **To do by the owner:** rerun the go-winres command in the README so the exe details say 0.7 (the `.syso` files still carry 0.5/0.6). The macOS look of the sidebar (rail, toggle at the top of the sidebar) is still unchecked on a Mac.
 
 **Plan 5b (Workspaces) is built** on `feature/workspaces` (decisions `docs/superpowers/specs/2026-10-29-kaze-workspaces-decisions.md`, mockups in `docs/design/`). Version 0.6:
 
@@ -67,7 +76,7 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 
 ## Next
 
-1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-app\kaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.6.
+1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-app\kaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.7.
 2. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
 3. **Notification card redesign** (GitHub issue #9).
 4. **Real panes** (Zellij-like tiles; would replace tab groups).
