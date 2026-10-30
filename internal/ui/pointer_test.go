@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"testing"
 	"time"
 
@@ -228,4 +229,24 @@ func TestTabSwitchMidAppDragReleasesInTheOwnerTab(t *testing.T) {
 	if got := p2.sent(); got != "" {
 		t.Fatalf("the new tab got mouse reports %q for a gesture it never saw", got)
 	}
+}
+
+// A floating pane's press is mapped through its own grid and size, not the main one.
+func TestPointerUsesTheViewsGrid(t *testing.T) {
+	st := &recStarter{}
+	win := testWindow(t, st)
+	tab, p := shellTab(t, win, st, "\x1b[?1000h\x1b[?1006hx", func() bool {
+		a := win.mgr.Active()
+		return a != nil && textShown(a, 0, 'x')()
+	})
+	v := termView{tab: tab, tag: new(int), grid: image.Rect(300, 200, 300+10*testCW, 200+5*testCH), cols: 10, rows: 5}
+	press := func(x, y int) {
+		at := f32.Pt(float32(x), float32(y))
+		win.pointerView(layout.Context{}, v, pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: at}, modes(tab.Session), testCW, testCH)
+		win.pointerView(layout.Context{}, v, pointer.Event{Kind: pointer.Release, Position: at}, modes(tab.Session), testCW, testCH)
+	}
+	press(300+3*testCW+1, 200+2*testCH+1)
+	waitSent(t, p, "\x1b[<0;4;3M\x1b[<0;4;3m")
+	press(300+40*testCW, 200+1)
+	waitSent(t, p, "\x1b[<0;4;3M\x1b[<0;4;3m\x1b[<0;10;1M\x1b[<0;10;1m")
 }

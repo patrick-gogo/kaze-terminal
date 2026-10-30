@@ -94,7 +94,8 @@ type window struct {
 	wheel     wheel
 	gate      textGate
 	composing bool
-	gridMin   image.Point // top-left of the grid in window pixels
+	gridMin   image.Point     // top-left of the grid in window pixels
+	gridRect  image.Rectangle // the main grid in window pixels
 
 	home     string                              // for "~" in the status bar
 	branchFn func(dir string) string             // gitinfo.Branch unless a test replaces it
@@ -506,7 +507,7 @@ func (win *window) frame(gtx layout.Context) error {
 	sideRect := image.Rect(0, barH, win.sideWidth(gtx, size.X), bottom)
 	termRect := image.Rect(sideRect.Max.X, barH, size.X, bottom)
 	grid := image.Rect(termRect.Min.X+pad, termRect.Min.Y+pad/2, termRect.Max.X-pad, termRect.Max.Y-pad/2)
-	win.gridMin = grid.Min
+	win.gridMin, win.gridRect = grid.Min, grid
 	cols, rows := gridSize(grid.Dx(), grid.Dy(), cw, ch)
 
 	if win.mgr == nil {
@@ -549,7 +550,7 @@ func (win *window) frame(gtx layout.Context) error {
 	if win.set.shown {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
 	} else if active != nil {
-		win.termEvents(gtx, active, cw, ch)
+		win.termEvents(gtx, win.mainView(active), cw, ch)
 	}
 	if win.mgr.Empty() {
 		return nil
@@ -571,7 +572,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.drainUsage()
 	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
 	win.visit(win.shownTab())
-	win.autoScroll(gtx, active, cw, ch)
+	win.autoScrollView(gtx, win.mainView(active), cw, ch)
 	if at, ok := win.wsTick(win.wsNow()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
 	}
@@ -888,7 +889,35 @@ func (win *window) toastEvents(gtx layout.Context) {
 	}
 }
 
-func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
+// termView is one terminal on screen: the shown session or a floating pane.
+type termView struct {
+	tab        *tabs.Tab
+	tag        event.Tag       // keys, paste and pointer input
+	grid       image.Rectangle // window px
+	cols, rows int
+}
+
+// mainView is the shown session's terminal: termTag, the main grid, the shared size.
+func (win *window) mainView(t *tabs.Tab) termView {
+	cols, rows := win.mgr.Size()
+	grid := win.gridRect
+	if grid.Empty() {
+		grid = image.Rectangle{Min: win.gridMin, Max: win.gridMin}
+	}
+	return termView{tab: t, tag: win.termTag, grid: grid, cols: cols, rows: rows}
+}
+
+// keyView is the view with the keyboard; ok is false while none is shown.
+func (win *window) keyView() (termView, bool) {
+	t := win.shownTab()
+	if t == nil {
+		return termView{}, false
+	}
+	return win.mainView(t), true
+}
+
+func (win *window) termEvents(gtx layout.Context, v termView, cw, ch int) {
+	t := v.tab
 	m := modes(t.Session)
 	kinds := pointer.Press | pointer.Release | pointer.Scroll | pointer.Drag | pointer.Cancel
 	if m.MouseAny {
@@ -897,12 +926,12 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 	var batch []event.Event
 	for {
 		ev, ok := gtx.Event(
-			key.FocusFilter{Target: win.termTag},
-			key.Filter{Focus: win.termTag, Optional: allMods},
+			key.FocusFilter{Target: v.tag},
+			key.Filter{Focus: v.tag, Optional: allMods},
 			// Tab is a focus key in Gio and is only delivered to filters that name it.
-			key.Filter{Focus: win.termTag, Name: key.NameTab, Optional: allMods},
-			transfer.TargetFilter{Target: win.termTag, Type: "application/text"},
-			pointer.Filter{Target: win.termTag, Kinds: kinds, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}},
+			key.Filter{Focus: v.tag, Name: key.NameTab, Optional: allMods},
+			transfer.TargetFilter{Target: v.tag, Type: "application/text"},
+			pointer.Filter{Target: v.tag, Kinds: kinds, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}},
 		)
 		if !ok {
 			break
@@ -919,17 +948,17 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 	if win.bench != nil {
 		batch = win.benchBatch(gtx, t, batch, ch)
 	}
-	win.routeAndWait(gtx, t, batch, cw, ch)
+	win.routeAndWait(gtx, v, batch, cw, ch)
 }
 
 // routeAndWait routes the frame's input to t and, when that wrote to the shell,
 // waits up to echoWait for its echo. A shell answers a key well under a
 // millisecond later; without the wait this frame is drawn first and the echo
 // waits a whole screen refresh (16.7ms at 60Hz) for the next one.
-func (win *window) routeAndWait(gtx layout.Context, t *tabs.Tab, batch []event.Event, cw, ch int) {
-	mark := t.Session.EchoMark()
-	win.route(gtx, batch, cw, ch)
-	t.Session.WaitEcho(mark, echoWait)
+func (win *window) routeAndWait(gtx layout.Context, v termView, batch []event.Event, cw, ch int) {
+	mark := v.tab.Session.EchoMark()
+	win.routeView(gtx, v, batch, cw, ch)
+	v.tab.Session.WaitEcho(mark, echoWait)
 }
 
 // route delivers one frame's terminal input to the active tab.
@@ -937,6 +966,22 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 	t := win.mgr.Active()
 	if t == nil {
 		return
+	}
+	win.routeView(gtx, win.mainView(t), batch, cw, ch)
+}
+
+// routeView delivers one frame's input to the view's tab. For the main view a
+// key that switches tabs sends the rest of the batch to the new active tab;
+// any other view stops there, or when its own tab closed.
+func (win *window) routeView(gtx layout.Context, v termView, batch []event.Event, cw, ch int) {
+	main := v.tag == win.termTag
+	t := v.tab
+	if main {
+		t = win.mgr.Active()
+		if t == nil {
+			return
+		}
+		v.tab = t
 	}
 	m := modes(t.Session)
 	edited := false
@@ -946,9 +991,17 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 			if e.State == key.Press {
 				win.blinkFrom = time.Time{} // typing shows the cursor and restarts the blink
 			}
+			before := win.mgr.Active()
 			win.onKey(gtx, t, e, m)
 			if win.set.shown {
 				return // the key showed settings; the rest of the frame's input is not the terminal's
+			}
+			if !main {
+				if win.mgr.Lookup(t.ID) == nil || win.mgr.Active() != before {
+					win.endGesture()
+					return
+				}
+				continue
 			}
 			if a := win.mgr.Active(); a != t {
 				// The key opened, closed or switched tabs; the rest of the frame's input goes to the new one.
@@ -957,6 +1010,7 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 					return
 				}
 				t, m = a, modes(a.Session)
+				v.tab = t
 			}
 		case key.CompositionEvent:
 			win.composing = compositionActive(e)
@@ -972,13 +1026,13 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 		case transfer.DataEvent:
 			win.paste(t, e, m)
 		case pointer.Event:
-			win.onPointer(gtx, t, e, m, cw, ch)
+			win.pointerView(gtx, v, e, m, cw, ch)
 		}
 	}
 	if edited && !win.composing {
 		// Gio keeps typed text as editor state; clear it so it doesn't grow forever.
-		gtx.Execute(key.SnippetCmd{Tag: win.termTag})
-		gtx.Execute(key.SelectionCmd{Tag: win.termTag})
+		gtx.Execute(key.SnippetCmd{Tag: v.tag})
+		gtx.Execute(key.SelectionCmd{Tag: v.tag})
 	}
 }
 
@@ -1025,12 +1079,12 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 	case actPalette:
 		win.togglePalette()
 	case actPaste:
-		if win.shownTab() != nil {
-			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
+		if v, ok := win.keyView(); ok {
+			gtx.Execute(clipboard.ReadCmd{Tag: v.tag})
 		}
 	case actCopy:
-		if t := win.shownTab(); t != nil {
-			win.copySel(gtx, t)
+		if v, ok := win.keyView(); ok {
+			win.copySel(gtx, v.tab)
 		}
 	}
 }
@@ -1049,10 +1103,15 @@ func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 
 func mouseOn(m term.Modes) bool { return m.MouseX10 || m.MouseButton || m.MouseAny }
 
+// onPointer is pointerView for the main view.
 func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m term.Modes, cw, ch int) {
-	p := e.Position.Round().Sub(win.gridMin)
-	cols, rows := win.mgr.Size()
-	col, row := gridCell(p, cw, ch, cols, rows)
+	win.pointerView(gtx, win.mainView(t), e, m, cw, ch)
+}
+
+func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, m term.Modes, cw, ch int) {
+	t := v.tab
+	p := e.Position.Round().Sub(v.grid.Min)
+	col, row := gridCell(p, cw, ch, v.cols, v.rows)
 	switch e.Kind {
 	case pointer.Press:
 		win.wantFocus = true
@@ -1213,11 +1272,15 @@ func (win *window) selectRelease(gtx layout.Context, t *tabs.Tab) {
 // autoScroll scrolls the view while a selection drag is held above or below the
 // grid. It reports whether it asked for another frame.
 func (win *window) autoScroll(gtx layout.Context, t *tabs.Tab, cw, ch int) bool {
+	return win.autoScrollView(gtx, win.mainView(t), cw, ch)
+}
+
+func (win *window) autoScrollView(gtx layout.Context, v termView, cw, ch int) bool {
+	t, rows := v.tab, v.rows
 	ts := win.sels[t.ID]
 	if ts == nil || !ts.dragging || win.toApp || ch <= 0 {
 		return false
 	}
-	_, rows := win.mgr.Size()
 	dir := edgeDir(win.dragPos.Y, rows*ch)
 	if dir == 0 {
 		return false
