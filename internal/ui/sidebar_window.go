@@ -101,6 +101,7 @@ func (win *window) selectSession(id tabs.TabID) {
 // order (else the one before) is shown first, so closing never lands on a member
 // while a session is left; with none left, the first open member is shown.
 func (win *window) closeTab(id tabs.TabID) {
+	win.closeScratch(id)
 	if a := win.mgr.Active(); a != nil && a.ID == id {
 		if next := win.afterClose(id); next != 0 {
 			win.mgr.SetActive(next)
@@ -122,7 +123,7 @@ func (win *window) afterClose(id tabs.TabID) tabs.TabID {
 		return order[0]
 	}
 	for _, t := range win.mgr.Tabs() {
-		if _, ok := win.isMember(t); ok && t.ID != id {
+		if _, ok := win.isMember(t); ok && t.ID != id && t.Parent == 0 {
 			return t.ID
 		}
 	}
@@ -254,8 +255,8 @@ func revealScroll(gtx layout.Context, m sideModel, st sideState, h sideHits) (in
 	return min(max(sc, 0), h.scrollMax), true
 }
 
-// layoutRail draws the macOS rail: the sidebar toggle, the palette button and
-// the gear, top to bottom.
+// layoutRail draws the macOS rail: the sidebar toggle, the palette button, the
+// scratch shell button and the gear, top to bottom.
 func (c *chrome) layoutRail(gtx layout.Context, size image.Point) sideHits {
 	ops, th := gtx.Ops, c.th
 	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
@@ -265,7 +266,9 @@ func (c *chrome) layoutRail(gtx layout.Context, size image.Point) sideHits {
 	var h sideHits
 	h.toggle = image.Rect(x, y, x+btn, y+btn)
 	h.palette = image.Rect(x, bar+y, x+btn, bar+y+btn)
-	h.gear = image.Rect(x, 2*bar+y, x+btn, 2*bar+y+btn)
+	h.scratch = image.Rect(x, 2*bar+y, x+btn, 2*bar+y+btn)
+	h.gear = image.Rect(x, 3*bar+y, x+btn, 3*bar+y+btn)
+	fillGlyph(ops, th.CapGlyph, h.scratch, scratchGlyph(gtx, h.scratch))
 	fillGlyph(ops, th.CapGlyph, h.toggle, toggleGlyph(gtx, h.toggle))
 	fillGlyph(ops, th.CapGlyph, h.palette, searchGlyph(gtx, h.palette))
 	fillGlyph(ops, th.CapGlyph, h.gear, captionGlyph(gtx, capGear, h.gear, false))
@@ -530,6 +533,11 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 	case p.In(h.palette):
 		if primary {
 			win.openPalette()
+		}
+		return
+	case p.In(h.scratch):
+		if primary {
+			win.toggleScratch()
 		}
 		return
 	case p.In(h.settings):

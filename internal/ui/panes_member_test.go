@@ -169,3 +169,14 @@ func TestFloatingAMemberMovesTheFocusReports(t *testing.T) {
 	waitSent(t, ptyOf(st, 0), "\x1b[O")
 	waitSent(t, ptyOf(st, 2), "\x1b[I")
 }
+
+// A member floated from the sidebar takes the keyboard: typing goes to it at once.
+func TestTypingAfterFloatingAMemberReachesIt(t *testing.T) {
+	win, st, r, _, _, m1, _ := paneWindow(t)
+	clickMember(t, win, r, m1.ID)
+	typeKeys(t, win, r, "q")
+	waitSent(t, ptyOf(st, 2), "q")
+	if got := ptyOf(st, 0).sent(); got != "" {
+		t.Fatalf("the session got %q", got)
+	}
+}

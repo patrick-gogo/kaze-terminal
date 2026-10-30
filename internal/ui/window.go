@@ -553,6 +553,9 @@ func (win *window) frame(gtx layout.Context) error {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
 	} else if active != nil {
 		win.paneEvents(gtx, cw, ch) // before the session: a pane sits over it
+		if win.fl.refocus {
+			win.fl.refocus, win.wantFocus = false, true // its filters are up now
+		}
 		win.termEvents(gtx, win.mainView(active), cw, ch)
 	}
 	if win.mgr.Empty() {
@@ -607,7 +610,7 @@ func (win *window) frame(gtx layout.Context) error {
 		system.ActionInputOp(system.ActionMove).Add(ops)
 		area.Pop()
 	}
-	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Search, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
+	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Search, win.bar.Scratch, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
 		if r.Empty() {
 			continue
 		}
@@ -796,6 +799,7 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 	d := barDims{
 		buttonW: gtx.Dp(46), gearW: gtx.Dp(46), toggleW: gtx.Dp(46), markW: gtx.Dp(30),
 		searchMin: gtx.Dp(160), searchMax: gtx.Dp(460), searchH: gtx.Dp(24),
+		scratchW: gtx.Dp(40),
 	}
 	win.bar = layoutBar(size, d, true)
 	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
@@ -812,6 +816,13 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 		}
 	}
 	win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized) // empty buttons are skipped
+	if r := win.bar.Scratch; !r.Empty() {
+		col := th.CapGlyph
+		if win.caption.hover == capScratch {
+			paint.FillShape(ops, th.CapHover, clip.Rect(r).Op())
+		}
+		fillGlyph(ops, col, r, scratchGlyph(gtx, r))
+	}
 	if r := win.bar.Search; !r.Empty() {
 		key := formatShortcut(runtime.GOOS, win.binds["palette"])
 		win.ui.layoutSearch(gtx, r, d.searchH, key, win.caption.hover == capSearch)
@@ -837,6 +848,8 @@ func (win *window) captionEvent(e pointer.Event) {
 		win.toggleSidebar()
 	case capSearch:
 		win.openPalette()
+	case capScratch:
+		win.toggleScratch()
 	default:
 		win.perform(actionFor(c, win.maximized))
 	}
@@ -1115,6 +1128,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.nextWaiting()
 	case actPalette:
 		win.togglePalette()
+	case actScratch:
+		win.toggleScratch()
 	case actPaste:
 		if v, ok := win.keyView(); ok {
 			gtx.Execute(clipboard.ReadCmd{Tag: v.tag})

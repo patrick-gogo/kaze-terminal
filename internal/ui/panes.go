@@ -73,6 +73,7 @@ type floats struct {
 	shown   []tabs.TabID // tabs marked visible last frame
 	views   []paneView   // drawn last frame, front last; input uses them
 	redraws int          // frames pane gestures asked for; tests count them
+	refocus bool         // the pane with the keyboard was just drawn: focus it once its filters are up
 }
 
 func (f *floats) set(session tabs.TabID) *paneSet {
