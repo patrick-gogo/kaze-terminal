@@ -158,6 +158,10 @@ type window struct {
 	claude     claudeState // the Claude section's setup check and dialog
 
 	runs map[uint64]*wsRun // workspace runs with a tab still open; UI goroutine only
+	// frameRuns is sideRuns built once for the frame being drawn, so the sidebar
+	// and the status bar share it; nil outside drawing, where callers build fresh.
+	frameRuns *[]sideRun
+
 	wsr  wsRunner
 	side sideUI // the sidebar; UI goroutine only
 	wsp  wsPage // the Workspaces section: its list and the open draft; UI goroutine only
@@ -244,12 +248,12 @@ func (win *window) loop() error {
 	for {
 		switch e := win.w.Event().(type) {
 		case app.DestroyEvent:
-			if win.bench != nil {
-				win.benchScreen()
-				win.bench.Close(privateMB())
-			}
-			win.shutdown()
+			win.finish()
 			return e.Err
+		case *app.ClosingEvent:
+			if win.closing() {
+				return nil
+			}
 		case app.ConfigEvent:
 			win.onConfig(e)
 		case app.FrameEvent:
@@ -275,6 +279,30 @@ func (win *window) loop() error {
 			}
 		}
 	}
+}
+
+// exitOnClosing ends kaze when its window closes rather than when Gio destroys
+// it. On macOS DestroyEvent waits for AppKit to free the view, which may never
+// happen, so a closed window would leave kaze and its shells running.
+var exitOnClosing = runtime.GOOS == "darwin"
+
+// closing handles a window close: where exitOnClosing, it shuts kaze down and
+// reports true, so the loop returns.
+func (win *window) closing() bool {
+	if !exitOnClosing {
+		return false
+	}
+	win.finish()
+	return true
+}
+
+// finish writes the bench summary, if any, and closes the listener and every shell.
+func (win *window) finish() {
+	if win.bench != nil {
+		win.benchScreen()
+		win.bench.Close(privateMB())
+	}
+	win.shutdown()
 }
 
 // frameOrShutdown is frame, closing the listener and the shells when it fails.
@@ -445,6 +473,11 @@ func (win *window) setCursorHidden(h bool) {
 	}
 }
 
+// echoWait caps how long a frame that sent input waits for the shell's echo.
+// Small next to a 16.7ms frame, and only paid when nothing answers (a password
+// prompt), so idle windows and output-only frames never wait.
+const echoWait = 3 * time.Millisecond
+
 func (win *window) frame(gtx layout.Context) error {
 	barH, statusH, pad := gtx.Dp(38), gtx.Dp(24), gtx.Dp(8)
 	if !win.custom {
@@ -558,6 +591,8 @@ func (win *window) frame(gtx layout.Context) error {
 		area.Pop()
 	}
 
+	runs := win.sideRuns()
+	win.frameRuns = &runs
 	win.drawSide(gtx, sideRect)
 
 	if win.set.shown {
@@ -573,6 +608,7 @@ func (win *window) frame(gtx layout.Context) error {
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
 	dots := win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	win.frameRuns = nil
 	win.serverDots = dots.Add(image.Pt(0, size.Y-statusH))
 	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
@@ -846,7 +882,17 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 	if win.bench != nil {
 		batch = win.benchBatch(gtx, t, batch, ch)
 	}
+	win.routeAndWait(gtx, t, batch, cw, ch)
+}
+
+// routeAndWait routes the frame's input to t and, when that wrote to the shell,
+// waits up to echoWait for its echo. A shell answers a key well under a
+// millisecond later; without the wait this frame is drawn first and the echo
+// waits a whole screen refresh (16.7ms at 60Hz) for the next one.
+func (win *window) routeAndWait(gtx layout.Context, t *tabs.Tab, batch []event.Event, cw, ch int) {
+	mark := t.Session.EchoMark()
 	win.route(gtx, batch, cw, ch)
+	t.Session.WaitEcho(mark, echoWait)
 }
 
 // route delivers one frame's terminal input to the active tab.

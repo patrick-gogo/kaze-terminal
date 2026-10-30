@@ -186,7 +186,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		s.st.filter, s.st.ed = s.ed.Text(), &s.ed
 		s.st.renaming, s.st.ren = s.renaming, &s.ren
 		in.Filter = s.st.filter
-		in.Runs = win.sideRuns()
+		in.Runs = win.curRuns()
 		m := buildSide(in)
 		s.st.shown = 0
 		if a := win.mgr.Active(); a != nil {

@@ -171,6 +171,14 @@ func sessionOrder(m sideModel) []tabs.TabID {
 	return ids
 }
 
+// curRuns is this frame's runs while it is drawn, else a fresh sideRuns.
+func (win *window) curRuns() []sideRun {
+	if win.frameRuns != nil {
+		return *win.frameRuns
+	}
+	return win.sideRuns()
+}
+
 // sideRuns lists the open workspace runs by id; a run with no member tab open is left out.
 func (win *window) sideRuns() []sideRun {
 	ids := make([]uint64, 0, len(win.runs))
