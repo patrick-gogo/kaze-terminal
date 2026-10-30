@@ -490,6 +490,7 @@ func (win *window) frame(gtx layout.Context) error {
 
 	win.barEvents(gtx)
 	win.sideEvents(gtx)
+	win.filterEvents(gtx)
 	win.toastEvents(gtx)
 	win.bannerEvents(gtx)
 	active := win.mgr.Active()
@@ -755,9 +756,12 @@ func (win *window) barEvents(gtx layout.Context) {
 	}
 }
 
-// focusTarget is who gets the keyboard: a settings text field, the settings page
-// or the terminal.
+// focusTarget is who gets the keyboard: the sidebar's filter field, a settings
+// text field, the settings page or the terminal.
 func (win *window) focusTarget() event.Tag {
+	if win.side.filtering && !win.side.hidden {
+		return &win.side.ed
+	}
 	if win.set.shown {
 		if f := win.set.fields[win.set.editing]; f != nil && win.set.editing != "" {
 			return &f.ed
@@ -926,6 +930,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 	switch e.Kind {
 	case pointer.Press:
 		win.wantFocus = true
+		win.side.filtering = false // the filter keeps its text and gives the keyboard back
 		win.w.Invalidate()
 		btn := pressedButton(win.held, e.Buttons)
 		first := win.held == 0

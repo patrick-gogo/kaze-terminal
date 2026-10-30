@@ -302,6 +302,7 @@ func (win *window) settingsPointer(e pointer.Event) {
 		return
 	}
 	win.wantFocus = true
+	win.side.filtering = false
 	win.set.editing = "" // a press the page gets is off every field's editor
 	p := e.Position.Round()
 	for i, n := range win.set.nav {

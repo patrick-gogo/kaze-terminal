@@ -8,11 +8,13 @@ import (
 	"unicode/utf8"
 
 	"gioui.org/f32"
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 )
@@ -34,6 +36,7 @@ type sideState struct {
 	hover      tabs.TabID      // row showing its ×
 	scroll     int             // px the session list is scrolled
 	filter     string          // as typed, for the placeholder/clear state
+	ed         *widget.Editor  // the filter's editor; nil draws the text without a caret
 	buttons    bool            // macOS: toggle and gear sit in the sidebar's top row
 	runFolded  map[uint64]bool // workspace runs whose header is folded
 }
@@ -64,6 +67,7 @@ type sideHits struct {
 	toggle, gear            image.Rectangle
 	list                    image.Rectangle // the scrollable area, for wheel events
 	scrollMax               int
+	noMatches               bool // the filter hides every session
 }
 
 // fitSide draws s at size within room px, cut with a trailing "…" when it is longer.
@@ -158,8 +162,12 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 	if st.filter != "" {
 		ftxt, fcol = st.filter, th.ActiveFG
 	}
-	fCall, fSize := c.fitSide(gtx, ftxt, 12, h.filter.Dx()-2*gap, fcol)
-	place(ops, fCall, image.Pt(h.filter.Min.X+gap, h.filter.Min.Y+(fieldH-fSize.Y)/2))
+	if st.ed == nil {
+		fCall, fSize := c.fitSide(gtx, ftxt, 12, h.filter.Dx()-2*gap, fcol)
+		place(ops, fCall, image.Pt(h.filter.Min.X+gap, h.filter.Min.Y+(fieldH-fSize.Y)/2))
+	} else {
+		c.filterEditor(gtx, st, h.filter, ftxt, fcol, gap)
+	}
 	prr := clip.UniformRRect(h.plus, gtx.Dp(7))
 	paint.FillShape(ops, th.Border, clip.Stroke{Path: prr.Path(ops), Width: float32(max(gtx.Dp(1), 1))}.Op())
 	pCall, pSize := c.label(gtx, "+", 14, th.Muted)
@@ -207,6 +215,28 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 	return h
 }
 
+// filterEditor draws the filter's editor in r, or the placeholder while it is empty.
+func (c *chrome) filterEditor(gtx layout.Context, st sideState, r image.Rectangle, ph string, phCol color.NRGBA, gap int) {
+	ops, th := gtx.Ops, c.th
+	_, line := c.label(gtx, "Ag", 12, th.ActiveFG)
+	at := image.Pt(r.Min.X+gap, r.Min.Y+(r.Dy()-line.Y)/2)
+	if st.ed.Len() == 0 {
+		call, _ := c.fitSide(gtx, ph, 12, r.Dx()-2*gap, phCol)
+		place(ops, call, at)
+	}
+	rec := op.Record(ops)
+	paint.ColorOp{Color: th.ActiveFG}.Add(ops)
+	fg := rec.Stop()
+	rec = op.Record(ops)
+	paint.ColorOp{Color: tint(th.Accent, 0x55)}.Add(ops)
+	sel := rec.Stop()
+	eg := gtx
+	eg.Constraints = layout.Exact(image.Pt(max(r.Dx()-2*gap, 1), line.Y))
+	t := op.Offset(at).Push(ops)
+	st.ed.Layout(eg, c.shaper, font.Font{Typeface: chromeFace}, 12, fg, sel)
+	t.Pop()
+}
+
 func fillGlyph(ops *op.Ops, col color.NRGBA, r image.Rectangle, glyph clip.Op) {
 	cl := clip.Rect(r).Push(ops)
 	paint.FillShape(ops, col, glyph)
@@ -230,6 +260,11 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 	}
 	total += len(m.Loose) * rowH
 	h.scrollMax = max(0, total-h.list.Dy())
+	if total == 0 && st.filter != "" && !h.list.Empty() {
+		h.noMatches = true
+		call, sz := c.label(gtx, "No matches", 12, th.Muted)
+		place(ops, call, image.Pt(h.list.Min.X+pad+gap, h.list.Min.Y+gtx.Dp(12)-sz.Y/2))
+	}
 	scroll := min(max(st.scroll, 0), h.scrollMax)
 
 	if h.list.Empty() {

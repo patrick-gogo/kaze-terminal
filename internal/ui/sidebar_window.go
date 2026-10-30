@@ -4,13 +4,17 @@ import (
 	"image"
 	"slices"
 
+	"gioui.org/io/clipboard"
 	"gioui.org/io/event"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 
+	kinput "github.com/patrick-gogo/kaze-terminal/internal/input"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 )
 
@@ -24,14 +28,17 @@ const (
 // sideUI is the window's sidebar: the state the drawing needs, the folds kept
 // while kaze runs and where the last frame put things. UI goroutine only.
 type sideUI struct {
-	st      sideState
-	folded  map[string]bool // repo groups the owner folded, by key
-	hidden  bool            // off in the settings, or the window is too narrow
-	hits    sideHits        // sidebar-local, like the pointer events on tag
-	at      image.Point     // the sidebar's top-left in the window
-	tag     int             // pointer events on the sidebar or the rail
-	reveal  bool            // scroll the shown row into view next frame
-	redraws int             // frames the sidebar's pointer input asked for; tests count them
+	st        sideState
+	folded    map[string]bool // repo groups the owner folded, by key
+	hidden    bool            // off in the settings, or the window is too narrow
+	hits      sideHits        // sidebar-local, like the pointer events on tag
+	at        image.Point     // the sidebar's top-left in the window
+	tag       int             // pointer events on the sidebar or the rail
+	reveal    bool            // scroll the shown row into view next frame
+	redraws   int             // frames the sidebar's pointer input asked for; tests count them
+	ed        widget.Editor   // the filter field
+	filtering bool            // the filter field has the keyboard
+	filters   []event.Filter  // the filter's own keys, built once
 }
 
 // isMember reports whether t belongs to an open workspace run; members are not sessions.
@@ -145,6 +152,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		s.hits = win.ui.layoutRail(sg, r.Size())
 	} else {
 		in := win.sideIn()
+		s.st.filter, s.st.ed = s.ed.Text(), &s.ed
 		in.Filter = s.st.filter
 		in.Runs = win.sideRuns()
 		m := buildSide(in)
@@ -232,6 +240,88 @@ func (win *window) sideEvents(gtx layout.Context) {
 	}
 }
 
+// filterEvents runs the filter's own keys before its editor sees them: Esc clears
+// it and gives the keyboard back, Enter shows the first match, and kaze's Ctrl /
+// Cmd shortcuts still work. Everything else goes to the editor.
+func (win *window) filterEvents(gtx layout.Context) {
+	s := &win.side
+	s.ed.SingleLine, s.ed.Submit = true, true
+	if s.filters == nil {
+		s.filters = []event.Filter{
+			key.Filter{Focus: &s.ed, Name: key.NameEscape, Optional: allMods},
+			key.Filter{Focus: &s.ed, Name: key.NameTab, Optional: allMods},
+		}
+		for sc := range win.km {
+			if sc.Mods&(key.ModCtrl|key.ModCommand) != 0 {
+				s.filters = append(s.filters, key.Filter{Focus: &s.ed, Name: sc.Name, Required: sc.Mods})
+			}
+		}
+	}
+	for {
+		ev, ok := gtx.Event(s.filters...)
+		if !ok {
+			break
+		}
+		if e, ok := ev.(key.Event); ok && e.State == key.Press && !win.bench.IgnoreInput() && win.filterKey(gtx, e) {
+			return // a shortcut ran; the layout drains what is left
+		}
+	}
+	// Layout drains Update itself and would drop a change still queued; take it first.
+	for {
+		ev, ok := s.ed.Update(gtx)
+		if !ok {
+			return
+		}
+		switch ev.(type) {
+		case widget.ChangeEvent:
+			win.ui.fit(s.ed.Text()) // loads a fallback font for any rune the bundled ones lack
+			s.st.scroll = 0
+			win.sideRedraw()
+		case widget.SubmitEvent:
+			win.filterEnter()
+		}
+	}
+}
+
+// filterKey handles one key filterEvents caught; it reports whether a kaze shortcut ran.
+func (win *window) filterKey(gtx layout.Context, e key.Event) bool {
+	if a, ok := win.km[kinput.Shortcut{Name: e.Name, Mods: e.Modifiers}]; ok {
+		switch a {
+		case actPaste:
+			gtx.Execute(clipboard.ReadCmd{Tag: &win.side.ed})
+		case actCopy:
+			win.writeClipboard(gtx, win.side.ed.SelectedText())
+		default:
+			win.runShortcut(gtx, a)
+			return true
+		}
+		return false
+	}
+	if e.Name == key.NameEscape {
+		win.side.ed.SetText("")
+		win.leaveFilter()
+	}
+	return false
+}
+
+// leaveFilter gives the keyboard back to the shown session or the settings page.
+func (win *window) leaveFilter() {
+	win.side.filtering = false
+	win.wantFocus = true
+	win.sideRedraw()
+}
+
+// filterEnter shows the first session the filter leaves visible and gives it the keyboard.
+func (win *window) filterEnter() {
+	in := win.sideIn()
+	in.Filter = win.side.ed.Text()
+	in.Runs = win.sideRuns()
+	if ids := sessionOrder(buildSide(in)); len(ids) > 0 {
+		win.selectSession(ids[0])
+	}
+	win.leaveFilter()
+}
+
 // sideRedraw asks for one frame for a change the sidebar's input made.
 func (win *window) sideRedraw() {
 	win.side.redraws++
@@ -280,6 +370,7 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons) {
 	}
 	h := &win.side.hits
 	win.wantFocus = true
+	win.side.filtering = primary && p.In(h.filter) // any other click leaves the field
 	defer win.sideRedraw()
 	switch {
 	case p.In(h.toggle):
@@ -306,7 +397,7 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons) {
 		}
 		return
 	case p.In(h.filter):
-		return // typing in the filter comes with its own focus handling
+		return // the frame gives the field the keyboard
 	}
 	for _, r := range h.rows {
 		if p.In(r.rect) {
