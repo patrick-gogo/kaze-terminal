@@ -309,6 +309,6 @@ Exact sizes and spacing, the sidebar's minimum window width before it auto-hides
 
 1. **6a** Sidebar replacing the tab strip, repo groups, filter, the workspaces section (clicking a member makes it the main view until 6d), keys.
 2. **6b** Agent awareness: the prompt hook and its settings check, running state, command and title on rows, lines added/removed, next-waiting.
-3. **6c** `kaze status`, chips and timed checks.
+3. **6c** `kaze status`, chips and timed checks. **Parked** by the owner on 2026-10-30 (no work until they say so); 6d and 6e go ahead without it.
 4. **6d** Floating panes and the scratch shell.
 5. **6e** The palette, the skill catalog, kaze actions in the palette, and the Commands settings section.
