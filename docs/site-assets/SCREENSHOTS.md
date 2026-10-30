@@ -2,7 +2,7 @@
 
 Native macOS window captures taken October 29, 2026, from Kaze 0.6, main build 849b494.
 
-- `kaze-terminal.png`: real shell output from git, Go tests, and a directory listing; the workspace member menu is open.
+- `kaze-terminal.png`: retaken October 30, 2026 from a demo `todo-api` project in a throwaway home folder (demo git author, example.com module): `make check` runs git log, Go tests and ls. No personal or work names appear.
 - `kaze-workspaces.png`: the Workspaces section displaying a saved demo recipe. Its commands are configuration, not evidence that Claude was run.
 - `kaze-about.png`: the About section displaying the logo and build information.
 
