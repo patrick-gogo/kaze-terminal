@@ -628,6 +628,7 @@ func (win *window) frame(gtx layout.Context) error {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
 		win.wsr.hits = win.wsr.hits[:0]
 	} else {
+		win.rend.SetFocused(win.viewFocused(0))
 		win.drawTerminal(gtx, active, termRect, grid, &sel)
 		win.drawWsBanner(gtx, active, termRect) // after the terminal, so it takes the clicks it covers
 		panes = win.paneViews(gtx, termRect, cw, ch)

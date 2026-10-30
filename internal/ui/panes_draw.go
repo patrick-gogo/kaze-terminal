@@ -232,7 +232,7 @@ func (win *window) drawPanes(gtx layout.Context, views []paneView) {
 		lk := win.paneLook(p, v.tab, i == len(views)-1)
 		p.hits = win.ui.layoutPane(gtx, p.hits.outer, lk)
 		rend := win.paneRend(p.id)
-		rend.SetFocused(win.focused && win.fl.keys == p.id)
+		rend.SetFocused(win.viewFocused(p.id))
 		sel := win.checkSel(v.tab)
 		g := clip.Rect(v.grid.Intersect(p.hits.body)).Push(ops)
 		off := op.Offset(v.grid.Min).Push(ops)
@@ -258,6 +258,12 @@ func (win *window) drawPanes(gtx layout.Context, views []paneView) {
 		}
 		paneEdges(gtx, p)
 	}
+}
+
+// viewFocused reports whether the view of pane id (0: the session) draws the
+// focused cursor: only the one with the keyboard, while the window has focus.
+func (win *window) viewFocused(id tabs.TabID) bool {
+	return win.focused && win.fl.keys == id
 }
 
 // paneRend is pane id's own renderer: one renderer per drawn tab, because a
@@ -315,9 +321,9 @@ func (win *window) syncVisible(views []paneView) {
 
 // scratchGlyph is a small terminal prompt centred in r: a chevron and an underscore.
 func scratchGlyph(gtx layout.Context, r image.Rectangle) clip.Op {
-	s := float32(min(r.Dx(), r.Dy()))
+	s := float32(min(r.Dx(), r.Dy(), gtx.Dp(28)))
 	cx, cy := float32(r.Min.X)+float32(r.Dx())/2, float32(r.Min.Y)+float32(r.Dy())/2
-	u, w := s*0.11, max(float32(gtx.Dp(1))*1.4, 1)
+	u, w := s*0.085, max(float32(gtx.Dp(1))*1.4, 1)
 	var p clip.Path
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Pt(cx-3*u, cy-2*u))

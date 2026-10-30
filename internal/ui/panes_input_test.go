@@ -292,3 +292,15 @@ func TestSwitchingSessionsReturnsTheKeyboard(t *testing.T) {
 		t.Fatalf("keys %d, focus target %v", win.fl.keys, win.focusTarget())
 	}
 }
+
+func TestOnlyTheViewWithTheKeyboardLooksFocused(t *testing.T) {
+	win, _, r, _, _, m1, _ := floatOne(t)
+	sideFrame(t, win, r)
+	if win.viewFocused(0) || !win.viewFocused(m1.ID) {
+		t.Fatalf("session focused %v, pane focused %v", win.viewFocused(0), win.viewFocused(m1.ID))
+	}
+	win.setFocused(false)
+	if win.viewFocused(m1.ID) {
+		t.Fatal("an unfocused window still shows a focused pane")
+	}
+}
