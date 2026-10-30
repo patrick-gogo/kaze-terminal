@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-29, after Plan 5b (Workspaces) was built on `feature/workspaces`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-30, after the Workspaces UI round 2 was built on `feat/workspaces-ui`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -30,6 +30,8 @@ Last updated: 2026-10-29, after Plan 5b (Workspaces) was built on `feature/works
 - **Claude setup check** (`internal/claudesetup`): inspects the Stop hook, the Notification hook and the status line in `~/.claude/settings.json` (OK / missing / broken / taken). Fix and Replace only after a confirm dialog, with a timestamped `.bak` copy first; other entries are never touched.
 - **`kaze --version`** (`internal/version`) prints the version and build commit without opening a window.
 - Not done: the Windows app icon, the notification card redesign.
+
+**Workspaces UI round 2 is built** on `feat/workspaces-ui` (spec `docs/superpowers/specs/2026-10-30-kaze-workspaces-ui-design.md`, plan `docs/superpowers/plans/2026-10-30-kaze-workspaces-ui.md`): a two-pane workspace editor (tab list left, selected tab right, next unused color, red problem marks), a native folder picker (`internal/pick`: AppleScript `choose folder` on macOS, PowerShell `FolderBrowserDialog` on Windows; Windows not yet tried by hand), a list that shows each tab's color, folder and full command chain, a group dropdown that shows what each member runs and its status (Finished = a prompt report after the line was typed), and About / sidebar without the build line. Still owed: the Windows picker check on the laptop.
 
 **Plan 5b (Workspaces) is built** on `feature/workspaces` (decisions `docs/superpowers/specs/2026-10-29-kaze-workspaces-decisions.md`, mockups in `docs/design/`). Version 0.6:
 
