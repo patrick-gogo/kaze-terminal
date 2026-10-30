@@ -832,3 +832,97 @@ func TestSharedWorkspaceDependencyRetainsRemainingConsumers(t *testing.T) {
 		t.Fatal("cancelled member received commands")
 	}
 }
+
+// status is member i's status line text.
+func (f *runFixture) status(i int) (string, bool, bool) {
+	f.t.Helper()
+	m := f.theRun().members[i]
+	return f.win.memberStatus(m, f.win.mgr.Lookup(m.tab))
+}
+
+func (f *runFixture) wantStatus(i int, want string) {
+	f.t.Helper()
+	if got, _, _ := f.status(i); got != want {
+		f.t.Fatalf("member %d status %q, want %q", i, got, want)
+	}
+}
+
+// promptAgain makes member i's shell report one more prompt and waits for it.
+func (f *runFixture) promptAgain(i int) {
+	f.t.Helper()
+	tab := f.win.mgr.Tabs()[i]
+	tab.Session.Lock()
+	before := tab.Session.Applier().PromptSeq()
+	tab.Session.Unlock()
+	go f.st.pty(i).w.Write([]byte("\x1b]133;A\x07PS> "))
+	f.until("next prompt applied", func() bool {
+		tab.Session.Lock()
+		defer tab.Session.Unlock()
+		return tab.Session.Applier().PromptSeq() > before
+	})
+}
+
+func TestMemberStatusFollowsTheRun(t *testing.T) {
+	f := newRunFixture(t)
+	f.win.runWorkspace("ws_samurai")
+	f.wantStatus(0, "Starting")
+	f.prompt(0)
+	f.win.wsTick(f.now)
+	f.wantStatus(0, "Waiting for Docker")
+	// The fake port probe fails at once, so a port wait is checked on its state.
+	port := &wsMember{run: workspaces.TabRun{State: workspaces.Waiting, ShellReady: true, Wait: workspaces.WaitPort, Port: 8000, Line: "x"}}
+	if s, _, _ := f.win.memberStatus(port, nil); s != "Waiting for port 8000" {
+		t.Fatalf("port wait status %q", s)
+	}
+	close(f.deps.dockerUp)
+	f.until("api launched", func() bool { return f.state(0) == workspaces.Launched })
+	f.wantStatus(0, "Running")
+	f.promptAgain(0)
+	f.wantStatus(0, "Finished")
+}
+
+func TestMemberStatusConfirmAndFailed(t *testing.T) {
+	f := newRunFixture(t)
+	f.deps.portOK = true
+	close(f.deps.dockerUp)
+	f.win.runWorkspace("ws_samurai")
+	f.until("dependencies ready", func() bool { return f.theRun().members[0].run.DepReady })
+	f.st.pty(1).Close()
+	f.until("admin failed", func() bool { return f.state(1) == workspaces.Failed })
+	f.now = f.now.Add(3 * time.Second)
+	f.win.wsTick(f.now)
+	if s, needs, failed := f.status(0); s != "Confirm to run" || !needs || failed {
+		t.Fatalf("timed-out api: %q needs=%v failed=%v", s, needs, failed)
+	}
+	if s, needs, failed := f.status(1); s != "Failed" || needs || !failed {
+		t.Fatalf("exited admin: %q needs=%v failed=%v", s, needs, failed)
+	}
+}
+
+func TestMemberStatusNoCommands(t *testing.T) {
+	f := newRunFixture(t)
+	f.save(workspaces.Workspace{ID: "ws_plain", Name: "plain", Tabs: []workspaces.Tab{{ID: "t_sh", Title: "shell", Folder: f.dirs[0], Commands: []string{}, Wait: workspaces.WaitNone, Color: "cyan"}}})
+	f.win.runWorkspace("ws_plain")
+	f.wantStatus(0, "No commands")
+	f.prompt(0)
+	f.until("launched", func() bool { return f.state(0) == workspaces.Launched })
+	f.promptAgain(0)
+	f.wantStatus(0, "No commands")
+}
+
+func TestMemberStatusStaysRunningWithoutPrompts(t *testing.T) {
+	f := newRunFixture(t)
+	f.deps.portOK = true
+	close(f.deps.dockerUp)
+	f.win.runWorkspace("ws_samurai")
+	f.prompt(1)
+	f.until("admin launched", func() bool { return f.state(1) == workspaces.Launched })
+	tab := f.win.mgr.Tabs()[1]
+	go f.st.pty(1).w.Write([]byte("ready in 300ms\r\n\x1b]0;vite\x07"))
+	f.until("output applied", func() bool {
+		tab.Session.Lock()
+		defer tab.Session.Unlock()
+		return tab.Session.Applier().Title() == "vite"
+	})
+	f.wantStatus(1, "Running")
+}

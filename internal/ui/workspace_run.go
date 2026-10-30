@@ -34,7 +34,9 @@ type wsRun struct {
 type wsMember struct {
 	tab        tabs.TabID // 0 when the shell could not start
 	title      string
-	dir        string // where its shell started, for the group menu
+	dir        string   // where its shell started, for the group menu
+	cmds       []string // its recipe commands, for the group menu
+	promptAt   uint64   // the shell's prompt reports when its line was typed; a later one means it finished
 	run        workspaces.TabRun
 	hideBanner bool // the owner dismissed a failure banner
 }
@@ -184,7 +186,7 @@ func (win *window) launch(ws workspaces.Workspace, plan []wsPlan, warns []string
 	now := win.wsNow()
 	var first tabs.TabID
 	for i, p := range plan {
-		m := &wsMember{title: p.tab.Title, dir: p.dir, run: workspaces.TabRun{Line: p.line, Wait: p.tab.Wait, Port: p.tab.Port, Started: now}}
+		m := &wsMember{title: p.tab.Title, dir: p.dir, cmds: p.tab.Commands, run: workspaces.TabRun{Line: p.line, Wait: p.tab.Wait, Port: p.tab.Port, Started: now}}
 		run.members = append(run.members, m)
 		opts := tabs.StartOpts{
 			Dir: p.dir, Title: p.tab.Title, Color: p.tab.Color,
@@ -311,6 +313,7 @@ func (win *window) wsEvent(m *wsMember, t *tabs.Tab, e workspaces.Event) {
 	if m.run.Event(e) {
 		res := term.Closed
 		if t != nil {
+			m.promptAt = promptCount(t.Session)
 			res = t.Session.Submit([]byte(m.run.Line + "\r"))
 		}
 		if res != term.Accepted {
@@ -323,6 +326,13 @@ func (win *window) wsEvent(m *wsMember, t *tabs.Tab, e workspaces.Event) {
 	if win.w != nil {
 		win.w.Invalidate()
 	}
+}
+
+// promptCount is how many prompt markers (OSC 7 or OSC 133;A) the shell has sent.
+func promptCount(s *term.Session) uint64 {
+	s.Lock()
+	defer s.Unlock()
+	return s.Applier().CwdSeq() + s.Applier().PromptSeq()
 }
 
 // promptSeen reports the shell's first prompt marker: an OSC 7 folder report
