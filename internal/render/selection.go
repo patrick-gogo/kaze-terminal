@@ -42,7 +42,7 @@ func (s Selection) Contains(p Point) bool {
 // rowWidth is the cell count of an absolute row. Scrollback lines keep the width they had when scrolled off.
 func rowWidth(scr *screen.Screen, row int) int {
 	if row < scr.ScrollbackLen() {
-		return len(scr.ScrollbackLine(row))
+		return scr.ScrollbackWidth(row)
 	}
 	cols, _ := scr.Size()
 	return cols

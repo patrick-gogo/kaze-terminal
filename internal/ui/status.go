@@ -36,7 +36,7 @@ type locEntry struct {
 
 func (win *window) statusParts() statusParts {
 	p := statusParts{Right: win.statusText(len(win.mgr.Tabs()))}
-	for _, r := range win.sideRuns() {
+	for _, r := range win.curRuns() {
 		for _, m := range r.Members {
 			p.Servers = append(p.Servers, serverDot{Down: m.Down, Up: !m.Down && m.Status == "Running"})
 		}

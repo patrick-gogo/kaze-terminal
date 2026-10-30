@@ -16,9 +16,9 @@ import (
 func filterWindow(t *testing.T) (*window, *recStarter, *input.Router, [3]*tabs.Tab) {
 	t.Helper()
 	win, st := sideWindow(t, true)
-	a := openIn(t, win, `C:\code\alpha\ticket33`)
-	b := openIn(t, win, `C:\code\alpha\other`)
-	c := openIn(t, win, `C:\code\beta\misc`)
+	a := openIn(t, win, osPath("/code/alpha/ticket33"))
+	b := openIn(t, win, osPath("/code/alpha/other"))
+	c := openIn(t, win, osPath("/code/beta/misc"))
 	win.mgr.SetActive(a.ID)
 	r := new(input.Router)
 	sideFrame(t, win, r)

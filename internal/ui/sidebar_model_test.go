@@ -81,10 +81,11 @@ func TestSideNoFolderReportIsLoose(t *testing.T) {
 }
 
 func TestSideFolderIsTildeShortened(t *testing.T) {
-	in := sideIn([]*tabs.Tab{sideTab(1, "a")}, map[tabs.TabID]locEntry{1: {cwd: `C:\home\proj`}})
-	in.Home = `C:\home`
+	proj, home := osPath("/home/proj"), osPath("/home")
+	in := sideIn([]*tabs.Tab{sideTab(1, "a")}, map[tabs.TabID]locEntry{1: {cwd: proj}})
+	in.Home = home
 	m := buildSide(in)
-	if got, want := m.Loose[0].Folder, tildeHome(`C:\home\proj`, `C:\home`); got != want || got == `C:\home\proj` {
+	if got, want := m.Loose[0].Folder, tildeHome(proj, home); got != want || got == proj {
 		t.Fatalf("folder %q, want %q", got, want)
 	}
 }
