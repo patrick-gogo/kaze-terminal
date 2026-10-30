@@ -149,7 +149,7 @@ func (win *window) listRows() []settingRow {
 			{kind: ctlButton, id: "ws.delete", text: "Delete", arg: i},
 		}}
 		for _, t := range w.Tabs {
-			row.lines = append(row.lines, truncateMiddle(win.memberLine(t), 100))
+			row.members = append(row.members, win.listMember(t))
 		}
 		rows = append(rows, row)
 	}
@@ -157,19 +157,16 @@ func (win *window) listRows() []settingRow {
 	return append(rows, win.startupRow())
 }
 
-// memberLine is one recipe tab in the list: title, folder, commands and wait.
-func (win *window) memberLine(t workspaces.Tab) string {
-	parts := []string{t.Title, tildeHome(t.Folder, win.home)}
-	if len(t.Commands) > 0 {
-		parts = append(parts, strings.Join(t.Commands, " → "))
-	}
+// listMember is one recipe tab in the list: color, title, folder, commands and wait.
+func (win *window) listMember(t workspaces.Tab) rowMember {
+	m := rowMember{color: t.Color, title: cleanText(t.Title), folder: cleanText(tildeHome(t.Folder, win.home)), cmds: t.Commands}
 	switch t.Wait {
 	case workspaces.WaitDocker:
-		parts = append(parts, "after Docker is up")
+		m.tag = "after Docker"
 	case workspaces.WaitPort:
-		parts = append(parts, fmt.Sprintf("after port %d answers", t.Port))
+		m.tag = fmt.Sprintf("after port %d", t.Port)
 	}
-	return cleanText(strings.Join(parts, "   "))
+	return m
 }
 
 func plural(n int, what string) string {

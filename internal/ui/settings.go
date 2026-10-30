@@ -38,6 +38,8 @@ type settingsState struct {
 	controls []control
 	nav      []navHit
 	texts    []string // every string drawn, so tests can read the page
+	// memberFolderX is where each list member's folder starts, so tests can check the columns.
+	memberFolderX []int
 
 	build    string            // the build line, read when the page opens
 	sections []settingsSection // nil means defaultSections; tests swap in their own
@@ -59,7 +61,16 @@ type settingRow struct {
 	label, hint string
 	lines       []string // extra lines between the label and the hint (the setup check)
 	ctrls       []ctrl
-	block       bool // the controls sit under the label across the pane (theme swatches)
+	block       bool        // the controls sit under the label across the pane (theme swatches)
+	members     []rowMember // a workspace's tabs, drawn as a table under the label; controls go below
+}
+
+// rowMember is one workspace tab in the list: its color, title, folder, commands
+// in order, and what it waits for ("" for nothing).
+type rowMember struct {
+	color, title, folder string
+	cmds                 []string
+	tag                  string
 }
 
 // settingsSection is one entry of the page's menu. rows builds its content each
@@ -410,6 +421,7 @@ func tint(col color.NRGBA, a uint8) color.NRGBA {
 func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	s := &win.set
 	s.controls, s.nav, s.texts = s.controls[:0], s.nav[:0], s.texts[:0]
+	s.memberFolderX = s.memberFolderX[:0]
 	p := &page{gtx: gtx, c: win.ui, win: win, st: s, col: win.ui.pageColors()}
 	ops := gtx.Ops
 	cl := clip.Rect(r).Push(ops)
@@ -707,6 +719,9 @@ func (p *page) rows(r image.Rectangle, y int, rows []settingRow) int {
 
 // row draws one row from y and returns where the next starts.
 func (p *page) row(r image.Rectangle, y int, row settingRow) int {
+	if len(row.members) > 0 {
+		return p.memberRow(r, y, row)
+	}
 	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
 	paint.FillShape(ops, col.line, clip.Rect(image.Rect(r.Min.X, y, r.Max.X, y+1)).Op())
 	lc, ls := p.text(row.label, 13, col.fg)

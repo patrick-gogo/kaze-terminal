@@ -127,7 +127,7 @@ func TestWorkspacesIsASection(t *testing.T) {
 		t.Fatal("the nav still says coming next")
 	}
 	f.wantText("docker compose up -d → " + `.\venv\Scripts\Activate.ps1`)
-	f.wantText("after port 8000 answers")
+	f.wantText("after port 8000")
 }
 
 func TestWorkspaceListStates(t *testing.T) {
@@ -945,5 +945,60 @@ func TestOpeningAndClosingTheEditorDropsFocus(t *testing.T) {
 	f.press("ws.cancel", 0)
 	if f.win.set.focus != -1 {
 		t.Fatalf("focus %d after closing the editor, want none", f.win.set.focus)
+	}
+}
+
+func TestListMembersShowCommandsWithoutCutting(t *testing.T) {
+	f := newRunFixture(t)
+	f.win.opt.Config = config.Default()
+	long := []string{"docker compose up -d", "source venv/bin/activate", "python manage.py migrate --noinput", "python manage.py runserver 0.0.0.0:8000", "echo ready"}
+	f.save(workspaces.Workspace{ID: "ws_w", Name: "work", Tabs: []workspaces.Tab{{ID: "t_api", Title: "api", Folder: f.dirs[0], Commands: long, Wait: workspaces.WaitDocker, Color: "cyan"}}})
+	f.win.openSettings()
+	f.win.selectSection(wsIndex(t))
+	f.draw()
+	for _, c := range long {
+		if !slices.ContainsFunc(f.win.set.texts, func(s string) bool { return strings.Contains(s, c) }) {
+			t.Fatalf("no drawn line holds the whole command %q: %q", c, f.win.set.texts)
+		}
+	}
+	for _, s := range f.win.set.texts {
+		if strings.Contains(s, "…") {
+			t.Fatalf("a list line was cut: %q", s)
+		}
+	}
+}
+
+func TestListMemberTags(t *testing.T) {
+	f := newWSPage(t)
+	f.wantText("after Docker")
+	f.wantText("after port 8000")
+	if f.has("after Docker is up") || slices.ContainsFunc(f.win.set.texts, func(s string) bool { return strings.Contains(s, "answers") }) {
+		t.Fatalf("old long tags still drawn: %q", f.win.set.texts)
+	}
+}
+
+func TestListMembersAlign(t *testing.T) {
+	f := newWSPage(t)
+	xs := f.win.set.memberFolderX
+	if len(xs) != len(samuraiTabs) {
+		t.Fatalf("%d member folders drawn, want %d", len(xs), len(samuraiTabs))
+	}
+	for i, x := range xs {
+		if x != xs[0] {
+			t.Fatalf("member %d folder starts at x %d, member 0 at %d", i, x, xs[0])
+		}
+	}
+}
+
+// A line that continues ends in " →", and that arrow must fit too.
+func TestChainLinesFitWithTheirArrow(t *testing.T) {
+	win, _ := alertWindow(t, 1)
+	p := &page{gtx: pageContext(800, 600), c: win.ui, st: &win.set, col: win.ui.pageColors()}
+	cmds := []string{"docker compose up -d", "source venv/bin/activate", "python manage.py migrate"}
+	_, s := p.c.label(p.gtx, "docker compose up -d → source venv/bin/activate", 12, p.col.fg)
+	for _, l := range p.chain(cmds, 12, s.X) {
+		if _, ls := p.c.label(p.gtx, l, 12, p.col.fg); ls.X > s.X {
+			t.Fatalf("line %q is %dpx wide, more than %d", l, ls.X, s.X)
+		}
 	}
 }
