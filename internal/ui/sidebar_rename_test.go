@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"gioui.org/f32"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -53,7 +54,7 @@ func startRename(t *testing.T, win *window, r *input.Router, id tabs.TabID) {
 	t.Helper()
 	dblClick(t, win, r, rowHit(t, win, id).title)
 	if win.side.renaming != id || win.focusTarget() != &win.side.ren || !r.Source().Focused(&win.side.ren) {
-		t.Fatalf("double click: renaming %d, want %d", win.side.renaming, id)
+		t.Fatalf("double click: renaming %d, want %d (target ren %v, focused %v, rename rect %v)", win.side.renaming, id, win.focusTarget() == &win.side.ren, r.Source().Focused(&win.side.ren), win.side.hits.rename)
 	}
 }
 
@@ -185,4 +186,49 @@ func TestShortcutWhileRenamingEndsIt(t *testing.T) {
 		t.Fatalf("names %v, want the typed name saved", win.names)
 	}
 	typedReaches(t, win, r, st.ptys[3], "x")
+}
+
+// A renamed row scrolled out of the list ends the rename, so keys reach the terminal.
+func TestRenameEndsWhenItsRowScrollsAway(t *testing.T) {
+	win, st := sideWindow(t, true)
+	var first *tabs.Tab
+	for i := range 20 {
+		tab := openIn(t, win, "")
+		if i == 0 {
+			first = tab
+		}
+	}
+	win.mgr.SetActive(first.ID)
+	r := new(input.Router)
+	sideFrame(t, win, r)
+	startRename(t, win, r, first.ID)
+	retype(t, win, r, "api work")
+	at := sidePt(win, centre(win.side.hits.list))
+	r.Queue(pointer.Event{Kind: pointer.Scroll, Source: pointer.Mouse, Position: at, Scroll: f32.Pt(0, 1<<16)})
+	sideFrame(t, win, r)
+	sideFrame(t, win, r)
+	if win.side.renaming != 0 || win.names[first.ID] != "api work" {
+		t.Fatalf("after scrolling the row away: renaming %d, names %v", win.side.renaming, win.names)
+	}
+	typedReaches(t, win, r, st.ptys[0], "x")
+}
+
+// A renamed row the filter stops matching ends the rename, so keys reach the terminal.
+func TestRenameEndsWhenItsRowIsFilteredOut(t *testing.T) {
+	win, st, r, tb := filterWindow(t)
+	win.deliver(promptMsg(int(tb[0].ID), "/ship-ticket", ""), t0)
+	focusFilter(t, win, r)
+	typeFilter(t, win, r, "ship") // matches only the command
+	if !hasRow(win, tb[0].ID) || hasRow(win, tb[1].ID) {
+		t.Fatalf("setup: rows %+v", win.side.hits.rows)
+	}
+	startRename(t, win, r, tb[0].ID)
+	retype(t, win, r, "api work")
+	report(t, tb[0], `C:\code\alpha\ticket33`) // Claude left: the command and the match go
+	sideFrame(t, win, r)
+	sideFrame(t, win, r)
+	if win.side.renaming != 0 || hasRow(win, tb[0].ID) {
+		t.Fatalf("after the row was filtered out: renaming %d", win.side.renaming)
+	}
+	typedReaches(t, win, r, st.ptys[0], "x")
 }

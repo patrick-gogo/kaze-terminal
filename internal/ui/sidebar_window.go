@@ -208,6 +208,10 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		}
 		call.Add(ops)
 		s.hits = h
+		if s.renaming != 0 && h.rename.Empty() {
+			// Gio drops focus from an editor it no longer lays out; give the keyboard back.
+			win.endRename(true)
+		}
 		s.st.scroll = min(max(s.st.scroll, 0), h.scrollMax)
 	}
 	area := clip.Rect{Max: r.Size()}.Push(ops)

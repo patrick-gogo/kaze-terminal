@@ -342,17 +342,14 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			{r.Folder, 11, th.Muted, 31},
 			{r.Branch, 11, th.Branch, 46},
 		} {
+			if i == 0 {
+				c.rowTitle(gtx, r, st, h, titleBand, fg) // even empty, it may hold the rename editor
+				continue
+			}
 			if ln.s == "" {
 				continue
 			}
-			if i == 0 {
-				c.rowTitle(gtx, r, st, h, titleBand, fg)
-				continue
-			}
-			rm := room
-			if i > 0 {
-				rm = rect.Max.X - gap - tx // only the title shares its line with the ×
-			}
+			rm := rect.Max.X - gap - tx // only the title shares its line with the ×
 			if i == 2 && word != "" {
 				rm -= wordW + gap
 			}
