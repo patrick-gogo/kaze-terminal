@@ -147,6 +147,7 @@ type window struct {
 	acct    notify.Usage              // plan limits (no Ctx); UI goroutine only
 	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
 	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
+	names   map[tabs.TabID]string     // row names the owner gave; UI goroutine only
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
@@ -368,7 +369,7 @@ func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 }
 
 func (win *window) newTab() {
-	win.dropFilter()
+	win.dropSideEdit()
 	win.hideSettings() // the new tab is shown
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
@@ -496,6 +497,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.dotsEvents(gtx)
 	win.sideEvents(gtx)
 	win.filterEvents(gtx)
+	win.renameEvents(gtx)
 	win.toastEvents(gtx)
 	win.bannerEvents(gtx)
 	active := win.mgr.Active()
@@ -770,9 +772,12 @@ func (win *window) barEvents(gtx layout.Context) {
 	}
 }
 
-// focusTarget is who gets the keyboard: the sidebar's filter field, a settings
+// focusTarget is who gets the keyboard: the sidebar's rename or filter field, a settings
 // text field, the settings page or the terminal.
 func (win *window) focusTarget() event.Tag {
+	if win.side.renaming != 0 && !win.side.hidden {
+		return &win.side.ren
+	}
 	if win.side.filtering && !win.side.hidden {
 		return &win.side.ed
 	}
@@ -960,7 +965,7 @@ func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m
 	switch e.Kind {
 	case pointer.Press:
 		win.wantFocus = true
-		win.side.filtering = false // the filter keeps its text and gives the keyboard back
+		win.dropSideEdit() // the filter keeps its text, a rename is saved
 		win.w.Invalidate()
 		btn := pressedButton(win.held, e.Buttons)
 		first := win.held == 0

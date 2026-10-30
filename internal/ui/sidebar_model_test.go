@@ -276,3 +276,92 @@ func TestExitedMemberReadsStoppedNotRunning(t *testing.T) {
 		}
 	}
 }
+
+func TestRowTitleRule(t *testing.T) {
+	ts := []*tabs.Tab{sideTab(1, "t1"), sideTab(2, "t2"), sideTab(3, "t3"), sideTab(4, "t4"), sideTab(5, "t5")}
+	locs := map[tabs.TabID]locEntry{
+		1: {cwd: `C:\code\alpha`}, // Claude with an arg
+		2: {cwd: `C:\code\beta`},  // named
+		3: {cwd: `C:\code\gamma`}, // plain shell with a folder
+		4: {},                     // plain shell, no folder report
+		5: {cwd: `C:\code\delta`}, // Claude without an arg
+	}
+	in := sideIn(ts, locs)
+	in.Agent = func(id tabs.TabID) agentState {
+		switch id {
+		case 1, 2:
+			return agentState{claude: true, command: "/ship-ticket", arg: "V3-3348"}
+		case 5:
+			return agentState{claude: true}
+		}
+		return agentState{}
+	}
+	in.Name = func(id tabs.TabID) string {
+		if id == 2 {
+			return "api work"
+		}
+		return ""
+	}
+	m := buildSide(in)
+	want := map[tabs.TabID]string{1: "V3-3348", 2: "api work", 3: "gamma", 4: "t4", 5: "delta"}
+	for _, r := range m.Loose {
+		if r.Title != want[r.ID] {
+			t.Errorf("row %d title %q, want %q", r.ID, r.Title, want[r.ID])
+		}
+	}
+	if len(m.Loose) != 5 {
+		t.Fatalf("rows %+v", m.Loose)
+	}
+}
+
+func TestRowShowsCommandAndRunning(t *testing.T) {
+	in := sideIn([]*tabs.Tab{sideTab(1, "x")}, map[tabs.TabID]locEntry{1: {}})
+	in.Agent = func(tabs.TabID) agentState {
+		return agentState{claude: true, running: true, command: "/ship-ticket", arg: "V3-1"}
+	}
+	r := buildSide(in).Loose[0]
+	if r.Command != "/ship-ticket" || !r.Running || !r.Claude {
+		t.Fatalf("row %+v", r)
+	}
+	if w := r.stateWord(); w != "running" {
+		t.Fatalf("state word %q, want running", w)
+	}
+}
+
+func TestNeedsBeatsRunningWord(t *testing.T) {
+	for mk, want := range map[mark]string{markNeeds: "needs you", markDone: "done", markNone: "running"} {
+		r := sideRow{Running: true, Mark: mk}
+		if w := r.stateWord(); w != want {
+			t.Errorf("mark %v: word %q, want %q", mk, w, want)
+		}
+	}
+	if w := (sideRow{}).stateWord(); w != "" {
+		t.Fatalf("idle word %q", w)
+	}
+}
+
+func TestFilterMatchesCommand(t *testing.T) {
+	ts, locs := sideFixture()
+	in := sideIn(ts, locs)
+	in.Agent = func(id tabs.TabID) agentState {
+		if id == 3 {
+			return agentState{claude: true, command: "/review-mine"}
+		}
+		return agentState{}
+	}
+	in.Filter = "REVIEW"
+	m := buildSide(in)
+	if len(m.Groups) != 1 || m.Groups[0].Key != "Y" || len(m.Loose) != 0 {
+		t.Fatalf("model %+v", m)
+	}
+}
+
+func TestMembersAreNotRenamed(t *testing.T) {
+	tab := &tabs.Tab{ID: 1, Title: "api", FixedTitle: "api"}
+	in := sideIn([]*tabs.Tab{tab}, map[tabs.TabID]locEntry{1: {cwd: `C:\code\alpha`}})
+	in.Agent = func(tabs.TabID) agentState { return agentState{claude: true, arg: "V3-1"} }
+	in.Name = func(tabs.TabID) string { return "renamed" }
+	if got := buildSide(in).Loose[0].Title; got != "api" {
+		t.Fatalf("a workspace tab's title %q, want its fixed api", got)
+	}
+}

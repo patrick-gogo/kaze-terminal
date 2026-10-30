@@ -117,7 +117,7 @@ func (win *window) sections() []settingsSection {
 
 // openSettings opens the Settings tab, or shows it when it is already open.
 func (win *window) openSettings() {
-	win.dropFilter()
+	win.dropSideEdit()
 	s := &win.set
 	if !s.open {
 		s.open, s.focus = true, -1
@@ -303,7 +303,7 @@ func (win *window) settingsPointer(e pointer.Event) {
 		return
 	}
 	win.wantFocus = true
-	win.side.filtering = false
+	win.dropSideEdit()
 	win.set.editing = "" // a press the page gets is off every field's editor
 	p := e.Position.Round()
 	for i, n := range win.set.nav {

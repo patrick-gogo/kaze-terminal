@@ -183,7 +183,7 @@ func (win *window) deliver(m notify.Msg, now time.Time) {
 
 // selectTab is the one tab switch for a tab click and a toast's "Go ›".
 func (win *window) selectTab(id tabs.TabID) {
-	win.side.filtering = false
+	win.dropSideEdit()
 	win.hideSettings()
 	win.mgr.SetActive(id)
 	win.wantFocus = true

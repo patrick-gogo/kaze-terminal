@@ -11,6 +11,9 @@ import (
 type sideRow struct {
 	ID                    tabs.TabID
 	Title, Folder, Branch string
+	Command               string // the last slash command while Claude runs in the tab
+	Running, Claude       bool
+	Add, Del              int // lines added and removed in the folder's repo
 	Mark                  mark
 }
 
@@ -57,7 +60,9 @@ type sideInput struct {
 	Filter   string
 	Home     string
 	DefTitle string
-	Clean    func(string) string // drops runes the fonts lack before a title is shortened; nil keeps them
+	Clean    func(string) string         // drops runes the fonts lack before a title is shortened; nil keeps them
+	Agent    func(tabs.TabID) agentState // nil: no tab runs Claude
+	Name     func(tabs.TabID) string     // the owner's name for a row; nil or "" for none
 }
 
 // branchPrefixes are the leading segments dropped from a branch name.
@@ -76,7 +81,7 @@ func (r sideRow) matches(lowerFilter string) bool {
 	if lowerFilter == "" {
 		return true
 	}
-	for _, s := range []string{r.Title, r.Folder, r.Branch} {
+	for _, s := range []string{r.Title, r.Command, r.Folder, r.Branch} {
 		if strings.Contains(strings.ToLower(s), lowerFilter) {
 			return true
 		}
@@ -97,12 +102,19 @@ func buildSide(in sideInput) sideModel {
 			continue
 		}
 		loc := in.Loc(t)
+		var a agentState
+		if in.Agent != nil {
+			a = in.Agent(t.ID)
+		}
 		row := sideRow{
-			ID:     t.ID,
-			Title:  in.label(t),
-			Folder: tildeHome(loc.cwd, in.Home),
-			Branch: shortBranch(loc.branch),
-			Mark:   in.Mark(t.ID),
+			ID:      t.ID,
+			Title:   in.label(t, loc, a),
+			Folder:  tildeHome(loc.cwd, in.Home),
+			Branch:  shortBranch(loc.branch),
+			Command: a.command,
+			Running: a.running,
+			Claude:  a.claude,
+			Mark:    in.Mark(t.ID),
 		}
 		if loc.cwd == "" || loc.repo == "" {
 			loose = append(loose, row)
@@ -200,10 +212,73 @@ func (win *window) sideRuns() []sideRun {
 	return out
 }
 
-// label is t's row title, cleaned first so dropped runes never eat the length budget.
-func (in sideInput) label(t *tabs.Tab) string {
-	if in.Clean == nil {
-		return tabLabel(t, in.DefTitle)
+// label is t's row title by the title rule, cleaned first so dropped runes never eat
+// the length budget.
+func (in sideInput) label(t *tabs.Tab, loc locEntry, a agentState) string {
+	if s := in.ruled(t, loc, a); s != "" {
+		lt := *t
+		lt.Title = s
+		return tabLabelWith(&lt, in.DefTitle, in.clean)
 	}
-	return tabLabelWith(t, in.DefTitle, in.Clean)
+	return tabLabelWith(t, in.DefTitle, in.clean)
+}
+
+// renameText is the text a rename starts from: the title uncut and without the exit mark.
+func (in sideInput) renameText(t *tabs.Tab, loc locEntry, a agentState) string {
+	if s := in.ruled(t, loc, a); s != "" {
+		return strings.TrimSpace(in.clean(s))
+	}
+	lt := *t
+	lt.Exited = false
+	return tabLabelWith(&lt, in.DefTitle, in.clean)
+}
+
+func (in sideInput) clean(s string) string {
+	if in.Clean == nil {
+		return s
+	}
+	return in.Clean(s)
+}
+
+// ruled is the title rule's pick before the tab's own title: the owner's name, the
+// last command's argument (kept after Claude leaves), then the folder's name. A
+// workspace tab keeps its fixed title.
+func (in sideInput) ruled(t *tabs.Tab, loc locEntry, a agentState) string {
+	if t.FixedTitle != "" {
+		return ""
+	}
+	if in.Name != nil {
+		if n := in.Name(t.ID); n != "" {
+			return n
+		}
+	}
+	if a.arg != "" {
+		return a.arg
+	}
+	return folderName(loc.cwd)
+}
+
+// folderName is dir's last part for either separator; "" for a root or no folder.
+func folderName(dir string) string {
+	dir = strings.TrimRight(dir, `\/`)
+	if i := strings.LastIndexAny(dir, `\/`); i >= 0 {
+		dir = dir[i+1:]
+	}
+	if strings.HasSuffix(dir, ":") {
+		return "" // a drive root
+	}
+	return dir
+}
+
+// stateWord is the word the row's third line ends with: needs you and done beat running.
+func (r sideRow) stateWord() string {
+	switch {
+	case r.Mark == markNeeds:
+		return "needs you"
+	case r.Mark == markDone:
+		return "done"
+	case r.Running:
+		return "running"
+	}
+	return ""
 }
