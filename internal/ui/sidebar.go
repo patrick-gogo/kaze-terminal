@@ -41,6 +41,7 @@ type sideState struct {
 	renaming   tabs.TabID      // the row whose title is ren, 0 for none
 	ren        *widget.Editor  // the rename editor
 	buttons    bool            // macOS: toggle and gear sit in the sidebar's top row
+	nextKey    string          // the "Next waiting" button's key, "" for none
 	runFolded  map[uint64]bool // workspace runs whose header is folded
 }
 
@@ -71,6 +72,7 @@ type sideHits struct {
 	settings, settingsClose image.Rectangle
 	plus, filter            image.Rectangle
 	toggle, gear            image.Rectangle
+	next                    image.Rectangle // the "Next waiting" button
 	list                    image.Rectangle // the scrollable area, for wheel events
 	rename                  image.Rectangle // the rename editor, empty while none is drawn
 	scrollMax               int
@@ -231,13 +233,36 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 		secH = min(secH+gtx.Dp(6), max(size.Y/2, 0))
 		secTop = size.Y - secH
 	}
-	h.list = image.Rect(0, min(y, secTop), size.X-1, secTop)
+	// The "Next waiting" button sits just above the workspaces section.
+	nextH := gtx.Dp(30)
+	listBot := max(secTop-nextH, 0)
+	h.list = image.Rect(0, min(y, listBot), size.X-1, listBot)
+	if secTop-nextH >= y {
+		h.next = image.Rect(pad, listBot+gtx.Dp(2), size.X-1-pad, secTop-gtx.Dp(2))
+		c.sideNext(gtx, h.next, st.nextKey)
+	}
 
 	c.sideList(gtx, &h, m, st, closeCall, closeSize)
 	if len(m.Runs) > 0 {
 		c.sideRuns(gtx, &h, m, st, secTop, size, closeCall, closeSize)
 	}
 	return h
+}
+
+// sideNext draws the "Next waiting" button in r with its key on the right.
+func (c *chrome) sideNext(gtx layout.Context, r image.Rectangle, keyText string) {
+	ops, th := gtx.Ops, c.th
+	gap := gtx.Dp(8)
+	paint.FillShape(ops, th.Border, clip.Stroke{Path: clip.UniformRRect(r, gtx.Dp(7)).Path(ops), Width: float32(max(gtx.Dp(1), 1))}.Op())
+	kx := r.Max.X - gap
+	if keyText != "" {
+		kCall, kSize := c.label(gtx, keyText, 10, th.Muted)
+		kx -= kSize.X
+		place(ops, kCall, image.Pt(kx, r.Min.Y+(r.Dy()-kSize.Y)/2))
+		kx -= gap
+	}
+	call, sz := c.fitSide(gtx, "Next waiting", 12, kx-r.Min.X-gap, th.ActiveFG)
+	place(ops, call, image.Pt(r.Min.X+gap, r.Min.Y+(r.Dy()-sz.Y)/2))
 }
 
 // lineEditor draws a sidebar text field's editor in r, gap in from its left, and ph

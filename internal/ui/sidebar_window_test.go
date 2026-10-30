@@ -710,3 +710,73 @@ func TestSideTabChangesGroupOnNewReport(t *testing.T) {
 		t.Fatalf("groups %+v, want a moved to Y", g)
 	}
 }
+
+// needsWindow opens n sessions and marks the ones at needs as waiting on the owner.
+func needsWindow(t *testing.T, n int, needs ...int) (*window, []tabs.TabID) {
+	t.Helper()
+	win, _ := sideWindow(t, true)
+	var ids []tabs.TabID
+	for range n {
+		ids = append(ids, openIn(t, win, "").ID)
+	}
+	win.alerts.marks = map[tabs.TabID]mark{}
+	for _, i := range needs {
+		win.alerts.marks[ids[i]] = markNeeds
+	}
+	win.mgr.SetActive(ids[0])
+	return win, ids
+}
+
+func TestNextWaitingCycles(t *testing.T) {
+	win, ids := needsWindow(t, 4, 1, 3)
+	for i, want := range []tabs.TabID{ids[1], ids[3], ids[1]} {
+		win.nextWaiting()
+		if got := win.mgr.Active().ID; got != want {
+			t.Fatalf("press %d showed %d, want %d", i+1, got, want)
+		}
+	}
+}
+
+func TestNextWaitingNoneShowsNotice(t *testing.T) {
+	win, ids := needsWindow(t, 3)
+	win.mgr.SetActive(ids[1])
+	win.nextWaiting()
+	if win.notice != "Nothing is waiting on you." || !win.noticeUntil.After(time.Now()) {
+		t.Fatalf("notice %q until %v", win.notice, win.noticeUntil)
+	}
+	if got := win.mgr.Active().ID; got != ids[1] {
+		t.Fatalf("shown tab changed to %d", got)
+	}
+}
+
+func TestNextWaitingButton(t *testing.T) {
+	win, ids := needsWindow(t, 3, 2)
+	var r input.Router
+	sideFrame(t, win, &r)
+	h := win.side.hits
+	if h.next.Empty() {
+		t.Fatal("no Next waiting button was drawn")
+	}
+	if h.next.Overlaps(h.list) {
+		t.Fatalf("button %v overlaps the list %v", h.next, h.list)
+	}
+	sideClick(win, &r, h.next, pointer.ButtonPrimary)
+	sideFrame(t, win, &r)
+	if got := win.mgr.Active().ID; got != ids[2] {
+		t.Fatalf("click showed %d, want %d", got, ids[2])
+	}
+}
+
+func TestNextWaitingButtonSitsAboveWorkspaces(t *testing.T) {
+	win, _ := needsWindow(t, 2, 1)
+	openMember(t, win, "api")
+	var r input.Router
+	sideFrame(t, win, &r)
+	h := win.side.hits
+	if h.next.Empty() || len(h.members) == 0 {
+		t.Fatalf("button %v members %d", h.next, len(h.members))
+	}
+	if h.next.Max.Y > h.members[0].rect.Min.Y {
+		t.Fatalf("button %v is not above the workspaces section (first member %v)", h.next, h.members[0].rect)
+	}
+}

@@ -937,6 +937,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.openSettings()
 	case actToggleSidebar:
 		win.toggleSidebar()
+	case actNextWaiting:
+		win.nextWaiting()
 	case actPaste:
 		if win.shownTab() != nil {
 			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})

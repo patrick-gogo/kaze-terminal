@@ -194,6 +194,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		}
 		s.st.settings, s.st.settingsOn = win.set.open, win.set.shown
 		s.st.buttons = !win.custom
+		s.st.nextKey = win.nextWaitingKey()
 		rec := op.Record(ops)
 		h := win.ui.layoutSidebar(sg, m, s.st, r.Size())
 		call := rec.Stop()
@@ -531,6 +532,11 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 			win.newTab()
 		}
 		return
+	case p.In(h.next):
+		if primary {
+			win.nextWaiting()
+		}
+		return
 	case p.In(h.filter):
 		return // the frame gives the field the keyboard
 	}
@@ -593,4 +599,47 @@ func flip[K comparable](m map[K]bool, k K) {
 	} else {
 		m[k] = true
 	}
+}
+
+// nextWaiting shows the next session after the shown one that needs the owner,
+// wrapping; with none it only says so in the status bar.
+func (win *window) nextWaiting() {
+	order := win.sessionIDs()
+	from := -1
+	if a := win.mgr.Active(); a != nil {
+		from = slices.Index(order, a.ID)
+	}
+	for i := 1; i <= len(order); i++ {
+		id := order[(from+i+len(order))%len(order)]
+		if win.alerts.markOf(id) == markNeeds {
+			win.selectSession(id)
+			return
+		}
+	}
+	win.note("Nothing is waiting on you.")
+	win.w.Invalidate()
+}
+
+// nextWaitingKey is the bound shortcut's text for the button, "" when unbound.
+func (win *window) nextWaitingKey() string {
+	for sc, a := range win.km {
+		if a == actNextWaiting {
+			return shortcutText(sc)
+		}
+	}
+	return ""
+}
+
+// shortcutText writes a shortcut the way the platform names it, like Ctrl+Shift+J or Cmd+J.
+func shortcutText(sc kinput.Shortcut) string {
+	var parts []string
+	for _, m := range []struct {
+		bit  key.Modifiers
+		name string
+	}{{key.ModCtrl, "Ctrl"}, {key.ModAlt, "Alt"}, {key.ModShift, "Shift"}, {key.ModCommand, "Cmd"}, {key.ModSuper, "Super"}} {
+		if sc.Mods&m.bit != 0 {
+			parts = append(parts, m.name)
+		}
+	}
+	return strings.Join(append(parts, string(sc.Name)), "+")
 }

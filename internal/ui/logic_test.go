@@ -262,3 +262,18 @@ func TestToggleSidebarDefaults(t *testing.T) {
 		t.Error("toggle_sidebar does not map to actToggleSidebar")
 	}
 }
+
+func TestNextWaitingDefaults(t *testing.T) {
+	if got := defaultBindings("windows")["next_waiting"]; got != (input.Shortcut{Name: "J", Mods: key.ModCtrl | key.ModShift}) {
+		t.Errorf("windows next_waiting = %+v, want ctrl+shift+J", got)
+	}
+	if got := defaultBindings("darwin")["next_waiting"]; got != (input.Shortcut{Name: "J", Mods: key.ModCommand}) {
+		t.Errorf("darwin next_waiting = %+v, want cmd+J", got)
+	}
+	if !config.KnownActions["next_waiting"] {
+		t.Error("next_waiting is not a known action")
+	}
+	if actionByName["next_waiting"] != actNextWaiting || actNextWaiting == actNone {
+		t.Error("next_waiting does not map to actNextWaiting")
+	}
+}
