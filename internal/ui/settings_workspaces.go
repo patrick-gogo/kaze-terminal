@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/patrick-gogo/kaze-terminal/internal/pick"
 	"github.com/patrick-gogo/kaze-terminal/internal/workspaces"
 )
 
@@ -19,6 +21,9 @@ var wsColors = []string{"cyan", "magenta", "yellow", "green", "blue", "red"}
 
 // statFolder looks a draft folder up on disk; tests count the lookups.
 var statFolder = os.Stat
+
+// pickFolder opens the system folder picker; tests swap in a fake.
+var pickFolder = pick.Folder
 
 var wsWaits = []workspaces.Wait{workspaces.WaitNone, workspaces.WaitDocker, workspaces.WaitPort}
 
@@ -31,6 +36,20 @@ type wsPage struct {
 	dialog  wsDialog
 	del     string // the workspace the delete dialog is about
 	then    func() // what leaving was going to do, once the unsaved-changes question is answered
+
+	picking bool          // a folder picker is open; only one at a time
+	picked  chan wsPicked // its answer, sent from the picker's goroutine
+
+	flagged []int // keys of the tabs the last frame marked as having a problem
+}
+
+// wsPicked is a folder picker's answer for one tab of one draft.
+type wsPicked struct {
+	draft *wsDraft
+	key   int
+	path  string
+	ok    bool
+	err   error
 }
 
 type wsDialog int
@@ -49,6 +68,7 @@ type wsDraft struct {
 	nameID   string // the name field's id, unique to this draft
 	isNew    bool
 	tabs     []*wsDraftTab
+	sel      int                  // the key of the tab shown for editing
 	base     workspaces.Workspace // the draft as opened, to tell unsaved changes
 	doc      workspaces.Document  // the file the draft was opened from, which Save replaces
 	rev      workspaces.Revision
@@ -76,7 +96,7 @@ type wsDraftCmd struct {
 func workspacesSection() settingsSection {
 	return settingsSection{
 		title: "Workspaces", hint: "A workspace opens a set of tabs in one click.",
-		rows: wsRows, act: wsAct, show: (*window).loadWorkspaces, dialog: wsDialogBox, leave: wsLeave,
+		rows: wsRows, draw: wsDraw, act: wsAct, show: (*window).loadWorkspaces, dialog: wsDialogBox, leave: wsLeave,
 	}
 }
 
@@ -98,6 +118,7 @@ func (win *window) loadWorkspaces() {
 }
 
 func wsRows(win *window) []settingRow {
+	win.drainPicked()
 	if d := win.wsp.draft; d != nil {
 		return win.editorRows(d)
 	}
@@ -128,7 +149,7 @@ func (win *window) listRows() []settingRow {
 			{kind: ctlButton, id: "ws.delete", text: "Delete", arg: i},
 		}}
 		for _, t := range w.Tabs {
-			row.lines = append(row.lines, truncateMiddle(win.memberLine(t), 100))
+			row.members = append(row.members, win.listMember(t))
 		}
 		rows = append(rows, row)
 	}
@@ -136,19 +157,16 @@ func (win *window) listRows() []settingRow {
 	return append(rows, win.startupRow())
 }
 
-// memberLine is one recipe tab in the list: title, folder, commands and wait.
-func (win *window) memberLine(t workspaces.Tab) string {
-	parts := []string{t.Title, tildeHome(t.Folder, win.home)}
-	if len(t.Commands) > 0 {
-		parts = append(parts, strings.Join(t.Commands, " → "))
-	}
+// listMember is one recipe tab in the list: color, title, folder, commands and wait.
+func (win *window) listMember(t workspaces.Tab) rowMember {
+	m := rowMember{color: t.Color, title: cleanText(t.Title), folder: cleanText(tildeHome(t.Folder, win.home)), cmds: t.Commands}
 	switch t.Wait {
 	case workspaces.WaitDocker:
-		parts = append(parts, "after Docker is up")
+		m.tag = "after Docker"
 	case workspaces.WaitPort:
-		parts = append(parts, fmt.Sprintf("after port %d answers", t.Port))
+		m.tag = fmt.Sprintf("after port %d", t.Port)
 	}
-	return cleanText(strings.Join(parts, "   "))
+	return m
 }
 
 func plural(n int, what string) string {
@@ -326,6 +344,39 @@ func (d *wsDraft) tabByKey(k int) (int, *wsDraftTab) {
 	return -1, nil
 }
 
+// selected is the tab being edited: the one d.sel names, else the first.
+func (d *wsDraft) selected() (int, *wsDraftTab) {
+	if i, t := d.tabByKey(d.sel); t != nil {
+		return i, t
+	}
+	return 0, d.tabs[0]
+}
+
+// fieldTab is the key of the tab a field id belongs to, or 0.
+func (d *wsDraft) fieldTab(id string) int {
+	var k int
+	var what string
+	if n, _ := fmt.Sscanf(id, "ws.tab.%d.%s", &k, &what); n == 2 {
+		return k
+	}
+	if n, _ := fmt.Sscanf(id, "ws.cmd.%d", &k); n == 1 {
+		if t, _ := d.cmdByKey(k); t != nil {
+			return t.key
+		}
+	}
+	return 0
+}
+
+// nextColor is the first recipe color no tab uses yet; with all six taken they cycle.
+func nextColor(tabs []*wsDraftTab) string {
+	for _, c := range wsColors {
+		if !slices.ContainsFunc(tabs, func(t *wsDraftTab) bool { return t.color == c }) {
+			return c
+		}
+	}
+	return wsColors[len(tabs)%len(wsColors)]
+}
+
 func (d *wsDraft) cmdByKey(k int) (*wsDraftTab, int) {
 	for _, t := range d.tabs {
 		for j, c := range t.cmds {
@@ -351,88 +402,110 @@ func newDraft(ws *workspaces.Workspace, doc workspaces.Document, rev workspaces.
 		}
 	}
 	d.base = d.workspace()
+	d.sel = d.tabs[0].key
 	return d
 }
 
+// editorRows is the whole editor as plain rows: the header, the selected tab and the footer.
 func (win *window) editorRows(d *wsDraft) []settingRow {
+	ed := win.editorParts(d)
+	rows := append(ed.head, ed.tab...)
+	rows = append(rows, settingRow{ctrls: []ctrl{addTabCtrl(d)}})
+	return append(rows, ed.foot...)
+}
+
+// wsEditor is the editor split for its two panes: head and foot span the page,
+// tab is the selected tab's details.
+type wsEditor struct {
+	head, tab, foot []settingRow
+	errs            wsErrors
+}
+
+func addTabCtrl(d *wsDraft) ctrl {
+	return ctrl{kind: ctlButton, id: "ws.addtab", text: "+ Add tab", dead: len(d.tabs) >= workspaces.MaxTabs}
+}
+
+func (win *window) editorParts(d *wsDraft) wsEditor {
 	errs := win.draftErrors(d)
 	title := "Edit workspace"
 	if d.isNew {
 		title = "New workspace"
 	}
-	rows := []settingRow{
+	ed := wsEditor{errs: errs, head: []settingRow{
 		{label: title, hint: "Changes are a draft until you press Save. Saving never runs anything."},
 		{label: "Name", ctrls: []ctrl{{kind: ctlText, id: d.nameID, val: d.name, placeholder: "my-project", err: errs.name, width: 260,
 			set: func(s string) { d.name = s }}}},
-	}
+	}}
 	kind := workspaces.KindOf(win.opt.Shell)
-	for i, t := range d.tabs {
-		k := t.key
-		tid := func(what string) string { return fmt.Sprintf("ws.tab.%d.%s", k, what) }
-		// Edits look the tab up by key: it may have moved or gone since this frame.
-		tab := func(f func(*wsDraftTab)) {
-			if _, t := d.tabByKey(k); t != nil {
-				f(t)
-			}
+	i, t := d.selected()
+	k := t.key
+	tid := func(what string) string { return fmt.Sprintf("ws.tab.%d.%s", k, what) }
+	// Edits look the tab up by key: it may have moved or gone since this frame.
+	tab := func(f func(*wsDraftTab)) {
+		if _, t := d.tabByKey(k); t != nil {
+			f(t)
 		}
-		head := settingRow{label: fmt.Sprintf("Tab %d", i+1), ctrls: []ctrl{
+	}
+	name := strings.TrimSpace(t.title)
+	if name == "" {
+		name = "Untitled tab"
+	}
+	rows := []settingRow{
+		{label: cleanText(name), ctrls: []ctrl{
 			{kind: ctlButton, id: tid("up"), text: "↑", dead: i == 0},
 			{kind: ctlButton, id: tid("down"), text: "↓", dead: i == len(d.tabs)-1},
 			{kind: ctlButton, id: tid("rm"), text: "Remove", dead: len(d.tabs) == 1},
-		}}
-		rows = append(rows, head,
-			settingRow{label: "Title", ctrls: []ctrl{{kind: ctlText, id: tid("title"), val: t.title, placeholder: "api", err: errs.of(k, "title"), width: 260,
-				set: func(s string) { tab(func(t *wsDraftTab) { t.title = s }) }}}},
-		)
-		folderErr := errs.of(k, "folder")
-		if folderErr == "" && errs.missing[k] {
-			folderErr = "This folder does not exist yet; Run stops here until it does."
-		}
-		rows = append(rows, settingRow{label: "Folder", ctrls: []ctrl{{kind: ctlText, id: tid("folder"), val: t.folder, placeholder: folderHint(), err: folderErr, width: 360,
-			set: func(s string) { tab(func(t *wsDraftTab) { t.folder = s }) }}}})
-		for j, c := range t.cmds {
-			ck := c.key
-			label := ""
-			if j == 0 {
-				label = "Commands"
-			}
-			var err string
-			if j == 0 {
-				err = errs.of(k, "commands")
-			}
-			rows = append(rows, settingRow{label: label, ctrls: []ctrl{
-				{kind: ctlText, id: fmt.Sprintf("ws.cmd.%d", ck), val: c.text, placeholder: "npm run dev", err: err, width: 300,
-					set: func(s string) {
-						if t, j := d.cmdByKey(ck); t != nil {
-							t.cmds[j].text = s
-						}
-					}},
-				{kind: ctlButton, id: fmt.Sprintf("ws.cmd.%d.rm", ck), text: "Remove"},
-			}})
-		}
-		rows = append(rows, previewRow(kind, win.opt.Shell, t, len(t.cmds) < workspaces.MaxCommands, tid("addcmd")))
-		colors := make([]ctrl, len(wsColors))
-		for ci, name := range wsColors {
-			colors[ci] = ctrl{kind: ctlColor, id: tid("color"), text: name, arg: ci, on: t.color == name}
-		}
-		rows = append(rows,
-			settingRow{label: "Color", ctrls: colors},
-			settingRow{label: "Wait for", hint: "Before its commands are typed", ctrls: []ctrl{{kind: ctlSegmented, id: tid("wait"),
-				options: []string{"None", "Docker", "Port"}, selected: slices.Index(wsWaits, t.wait)}}},
-		)
-		if t.wait == workspaces.WaitPort {
-			rows = append(rows, settingRow{label: "Port", hint: "On this computer (localhost)", ctrls: []ctrl{{kind: ctlText, id: tid("port"), val: t.port, placeholder: "8000",
-				err: errs.of(k, "port"), width: 100, set: func(s string) { tab(func(t *wsDraftTab) { t.port = s }) }}}})
-		}
+		}},
+		{label: "Title", ctrls: []ctrl{{kind: ctlText, id: tid("title"), val: t.title, placeholder: "api", err: errs.of(k, "title"), width: 260,
+			set: func(s string) { tab(func(t *wsDraftTab) { t.title = s }) }}}},
 	}
-	add := settingRow{ctrls: []ctrl{{kind: ctlButton, id: "ws.addtab", text: "+ Add tab", dead: len(d.tabs) >= workspaces.MaxTabs}}}
-	if errs.tabs != "" {
-		add.lines = []string{errs.tabs}
+	folderErr := errs.of(k, "folder")
+	if folderErr == "" && errs.missing[k] {
+		folderErr = "This folder does not exist yet; Run stops here until it does."
 	}
-	return append(rows, add, settingRow{ctrls: []ctrl{
+	rows = append(rows, settingRow{label: "Folder", ctrls: []ctrl{{kind: ctlText, id: tid("folder"), val: t.folder, placeholder: folderHint(), err: folderErr, width: 300,
+		set: func(s string) { tab(func(t *wsDraftTab) { t.folder = s }) }},
+		{kind: ctlButton, id: tid("pick"), text: "Choose…", dead: win.wsp.picking}}})
+	for j, c := range t.cmds {
+		ck := c.key
+		var err string
+		if j == 0 {
+			err = errs.of(k, "commands")
+		}
+		rows = append(rows, settingRow{label: fmt.Sprintf("Command %d", j+1), ctrls: []ctrl{
+			{kind: ctlText, id: fmt.Sprintf("ws.cmd.%d", ck), val: c.text, placeholder: "npm run dev", err: err, width: 300,
+				set: func(s string) {
+					if t, j := d.cmdByKey(ck); t != nil {
+						t.cmds[j].text = s
+					}
+				}},
+			{kind: ctlButton, id: fmt.Sprintf("ws.cmd.%d.rm", ck), text: "×"},
+		}})
+	}
+	rows = append(rows, previewRow(kind, win.opt.Shell, t, len(t.cmds) < workspaces.MaxCommands, tid("addcmd")))
+	colors := make([]ctrl, len(wsColors))
+	for ci, name := range wsColors {
+		colors[ci] = ctrl{kind: ctlColor, id: tid("color"), text: name, arg: ci, on: t.color == name}
+	}
+	rows = append(rows,
+		settingRow{label: "Color", ctrls: colors},
+		settingRow{label: "Wait for", hint: "Before its commands are typed", ctrls: []ctrl{{kind: ctlSegmented, id: tid("wait"),
+			options: []string{"None", "Docker", "Port"}, selected: slices.Index(wsWaits, t.wait)}}},
+	)
+	if t.wait == workspaces.WaitPort {
+		rows = append(rows, settingRow{label: "Port", hint: "On this computer (localhost)", ctrls: []ctrl{{kind: ctlText, id: tid("port"), val: t.port, placeholder: "8000",
+			err: errs.of(k, "port"), width: 100, set: func(s string) { tab(func(t *wsDraftTab) { t.port = s }) }}}})
+	}
+	ed.tab = rows
+	foot := settingRow{ctrls: []ctrl{
 		{kind: ctlButton, id: "ws.cancel", text: "Cancel"},
 		{kind: ctlButton, id: "ws.save", text: "Save", strong: true, dead: errs.any},
-	}})
+	}}
+	if errs.tabs != "" {
+		foot.lines = []string{errs.tabs}
+	}
+	ed.foot = []settingRow{foot}
+	return ed
 }
 
 // previewRow shows the one line typed into the tab once its prompt is ready.
@@ -580,6 +653,7 @@ func (win *window) setDraft(d *wsDraft) {
 		win.editField("")
 	}
 	win.wsp.draft = d
+	win.set.focus = -1 // every control changes, so a clicked one's place means nothing now
 }
 
 // draftAct runs the editor's own controls; false means id is not one of them.
@@ -587,6 +661,7 @@ func (win *window) draftAct(d *wsDraft, id string, arg int) bool {
 	switch id {
 	case "ws.cancel":
 		win.wsp.draft = nil
+		win.set.focus = -1
 		win.loadWorkspaces()
 		return true
 	case "ws.save":
@@ -594,8 +669,14 @@ func (win *window) draftAct(d *wsDraft, id string, arg int) bool {
 		return true
 	case "ws.addtab":
 		if len(d.tabs) < workspaces.MaxTabs {
-			t := d.addTab(workspaces.Tab{ID: workspaces.NewTabID(), Color: wsColors[len(d.tabs)%len(wsColors)]})
+			t := d.addTab(workspaces.Tab{ID: workspaces.NewTabID(), Color: nextColor(d.tabs)})
+			d.sel = t.key
 			win.editField(fmt.Sprintf("ws.tab.%d.title", t.key))
+		}
+		return true
+	case "ws.sel":
+		if _, t := d.tabByKey(arg); t != nil {
+			win.selectDraftTab(d, arg)
 		}
 		return true
 	}
@@ -625,8 +706,16 @@ func (win *window) draftAct(d *wsDraft, id string, arg int) bool {
 		}
 	case "rm":
 		if len(d.tabs) > 1 {
+			if win.wsp.draft == d && d.fieldTab(win.set.editing) == k {
+				win.editField("")
+			}
 			d.tabs = slices.Delete(d.tabs, i, i+1)
+			if d.sel == k {
+				d.sel = d.tabs[min(i, len(d.tabs)-1)].key
+			}
 		}
+	case "pick":
+		win.pickFolderFor(d, t)
 	case "addcmd":
 		if len(t.cmds) < workspaces.MaxCommands {
 			c := &wsDraftCmd{key: d.key()}
@@ -643,6 +732,68 @@ func (win *window) draftAct(d *wsDraft, id string, arg int) bool {
 		}
 	}
 	return true
+}
+
+// selectDraftTab shows tab key for editing; a field of another tab gives up the keyboard.
+func (win *window) selectDraftTab(d *wsDraft, key int) {
+	if f := d.fieldTab(win.set.editing); f != 0 && f != key {
+		win.editField("")
+	}
+	d.sel = key
+}
+
+// pickFolderFor opens the system folder picker for tab t, starting in its folder
+// when that exists, else the home folder. The answer arrives through drainPicked.
+func (win *window) pickFolderFor(d *wsDraft, t *wsDraftTab) {
+	p := &win.wsp
+	if p.picking {
+		return
+	}
+	start := win.home
+	if dir, err := workspaces.ExpandFolder(t.folder, win.home); err == nil {
+		if st, err := statFolder(dir); err == nil && st.IsDir() {
+			start = dir
+		}
+	}
+	if p.picked == nil {
+		p.picked = make(chan wsPicked, 1)
+	}
+	p.picking = true
+	ch, w, key := p.picked, win.w, t.key
+	go func() {
+		path, ok, err := pickFolder(start)
+		ch <- wsPicked{draft: d, key: key, path: path, ok: ok, err: err}
+		if w != nil {
+			w.Invalidate()
+		}
+	}()
+}
+
+// drainPicked applies a folder picker's answer to the tab it was opened for. An
+// answer for a tab or draft that is gone since is dropped.
+func (win *window) drainPicked() {
+	p := &win.wsp
+	if p.picked == nil {
+		return
+	}
+	select {
+	case r := <-p.picked:
+		p.picking = false
+		if r.err != nil {
+			win.note("Could not open the folder picker: " + r.err.Error())
+			return
+		}
+		if !r.ok || p.draft != r.draft {
+			return
+		}
+		if _, t := r.draft.tabByKey(r.key); t != nil {
+			t.folder = tildeHome(r.path, win.home)
+			if strings.TrimSpace(t.title) == "" {
+				t.title = filepath.Base(r.path)
+			}
+		}
+	default:
+	}
 }
 
 // saveDraft writes the draft into the file it was opened from. A file changed
@@ -676,6 +827,7 @@ func (win *window) saveDraft() bool {
 		return false
 	}
 	p.draft = nil
+	win.set.focus = -1
 	win.loadWorkspaces()
 	win.note("Saved " + strings.TrimSpace(ws.Name) + ". Tabs already running keep the old recipe; the next Run uses this one.")
 	return true

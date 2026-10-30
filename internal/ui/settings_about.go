@@ -20,7 +20,7 @@ const aboutRepository = "https://github.com/patrick-gogo/kaze-terminal"
 
 // The name under the logo: kaze (風) is Japanese for "wind".
 const (
-	aboutName    = "風 · \"wind\""
+	aboutName    = "風・\"wind\""
 	aboutTagline = "Light, fast, and out of the way."
 )
 
@@ -68,7 +68,7 @@ func drawAbout(p *page, r image.Rectangle, win *window) int {
 		}
 		win.note("Build details copied")
 	}
-	y := r.Min.Y + max(gtx.Dp(24), (r.Dy()-gtx.Dp(320))/2)
+	y := r.Min.Y + max(gtx.Dp(24), (r.Dy()-gtx.Dp(300))/2)
 	logoPx, wordSize := gtx.Dp(94), unit.Sp(52)
 	if r.Dx() < gtx.Dp(300) {
 		logoPx, wordSize = gtx.Dp(52), 30
@@ -97,8 +97,6 @@ func drawAbout(p *page, r image.Rectangle, win *window) int {
 	textIn(aboutTagline, 11, p.col.muted)
 	y += gtx.Dp(22)
 	text("Version "+version.Number, 14)
-	y += gtx.Dp(6)
-	text(win.set.build, 11)
 	y += gtx.Dp(6)
 	text(runtime.GOOS+" / "+runtime.GOARCH+" · Go + Gio", 11)
 	y += gtx.Dp(12)

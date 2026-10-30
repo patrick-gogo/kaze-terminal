@@ -5,9 +5,11 @@ import (
 	"image"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gioui.org/io/input"
 	"gioui.org/io/key"
@@ -87,7 +89,7 @@ func (f *runFixture) has(s string) bool { return pageHas(f.win, s) }
 
 func (f *runFixture) wantText(s string) {
 	f.t.Helper()
-	if !f.has(s) {
+	if !strings.Contains(strings.Join(f.win.set.texts, " "), s) {
 		f.t.Fatalf("page lacks %q: %q", s, f.win.set.texts)
 	}
 }
@@ -125,7 +127,7 @@ func TestWorkspacesIsASection(t *testing.T) {
 		t.Fatal("the nav still says coming next")
 	}
 	f.wantText("docker compose up -d → " + `.\venv\Scripts\Activate.ps1`)
-	f.wantText("after port 8000 answers")
+	f.wantText("after port 8000")
 }
 
 func TestWorkspaceListStates(t *testing.T) {
@@ -241,6 +243,7 @@ func TestInvalidFieldBlocksSave(t *testing.T) {
 	}
 	f.typeInto(f.nameID(), "samurai")
 	k := f.tabKey(1)
+	f.sel(1)
 	f.typeInto(tabID(k, "folder"), "relative")
 	f.wantText("Folder must be a full path")
 	f.typeInto(tabID(k, "folder"), f.dirs[1])
@@ -263,6 +266,7 @@ func TestPortFieldOnlyForPortWait(t *testing.T) {
 	if _, ok := f.win.set.fields[tabID(k0, "port")]; ok {
 		t.Fatal("a Docker tab shows a port field")
 	}
+	f.sel(3)
 	if f.win.fieldText(tabID(k3, "port")) != "8000" {
 		t.Fatalf("port field %q", f.win.fieldText(tabID(k3, "port")))
 	}
@@ -428,18 +432,22 @@ func TestEditorTabAndCommandOps(t *testing.T) {
 	if titles() != "api,admin,storefront,extra,api logs" {
 		t.Fatalf("after up: %s", titles())
 	}
+	f.sel(0)
 	f.press(tabID(f.tabKey(0), "down"), 0)
 	if titles() != "admin,api,storefront,extra,api logs" {
 		t.Fatalf("after down: %s", titles())
 	}
+	f.sel(0)
 	if c, _ := f.ctl(tabID(f.tabKey(0), "up"), 0); !c.dead {
 		t.Fatal("the first tab can move up")
 	}
+	f.sel(3)
 	f.press(tabID(f.tabKey(3), "rm"), 0)
 	if titles() != "admin,api,storefront,api logs" {
 		t.Fatalf("after remove: %s", titles())
 	}
 	k := f.tabKey(0)
+	f.sel(0)
 	f.press(tabID(k, "addcmd"), 0)
 	cmds := d.tabs[0].cmds
 	if len(cmds) != 2 || f.win.set.editing != fmt.Sprintf("ws.cmd.%d", cmds[1].key) {
@@ -631,5 +639,399 @@ func TestUndoInANewDraftKeepsItsOwnText(t *testing.T) {
 	frame()
 	if d.name != "" || f.win.fieldText(b) != "" {
 		t.Fatalf("Ctrl+Z in draft B brought back %q (field %q)", d.name, f.win.fieldText(b))
+	}
+}
+
+// sel selects draft tab i, as a click on its row in the tab list would.
+func (f *runFixture) sel(i int) {
+	f.t.Helper()
+	wsAct(f.win, "ws.sel", f.tabKey(i))
+	f.draw()
+}
+
+func TestEditorSelectsFirstTabAndSwitches(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	if d.sel != f.tabKey(0) {
+		t.Fatalf("selected %d after Edit, want the first tab %d", d.sel, f.tabKey(0))
+	}
+	f.sel(2)
+	if d.sel != f.tabKey(2) {
+		t.Fatalf("selected %d, want tab 2's %d", d.sel, f.tabKey(2))
+	}
+	for i := range d.tabs {
+		_, has := f.win.set.fields[tabID(f.tabKey(i), "title")]
+		if has != (i == 2) {
+			t.Fatalf("tab %d title field shown: %v; only the selected tab's fields show", i, has)
+		}
+	}
+}
+
+func TestAddTabTakesNextUnusedColorAndIsSelected(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	for i, c := range []string{"cyan", "magenta", "yellow", "green"} {
+		d.tabs[i].color = c
+	}
+	f.press("ws.addtab", 0)
+	nt := d.tabs[len(d.tabs)-1]
+	if nt.color != "blue" || d.sel != nt.key || f.win.set.editing != tabID(nt.key, "title") {
+		t.Fatalf("new tab color %q, selected %v, editing %q", nt.color, d.sel == nt.key, f.win.set.editing)
+	}
+}
+
+func TestNextColorCyclesWhenAllAreUsed(t *testing.T) {
+	var tabs []*wsDraftTab
+	for _, c := range wsColors {
+		tabs = append(tabs, &wsDraftTab{color: c})
+	}
+	if got := nextColor(tabs); got != wsColors[0] {
+		t.Fatalf("nextColor with all six used = %q, want %q", got, wsColors[0])
+	}
+}
+
+func TestSwitchingTabsKeepsTypedText(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	id := tabID(f.tabKey(0), "title")
+	f.win.editField(id)
+	f.typeInto(id, "api-2")
+	f.sel(1)
+	if f.win.set.editing == id {
+		t.Fatal("tab 0's title still has the keyboard after selecting tab 1")
+	}
+	f.sel(0)
+	if got := f.win.wsp.draft.tabs[0].title; got != "api-2" || f.win.fieldText(id) != "api-2" {
+		t.Fatalf("title %q / field %q after switching away and back", got, f.win.fieldText(id))
+	}
+}
+
+func TestRemovingSelectedTabSelectsNeighbor(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	f.sel(3)
+	f.press(tabID(f.tabKey(3), "rm"), 0)
+	if len(d.tabs) != 3 || d.sel != f.tabKey(2) {
+		t.Fatalf("%d tabs, selected %d, want the new last tab %d", len(d.tabs), d.sel, f.tabKey(2))
+	}
+	f.sel(1)
+	f.press(tabID(f.tabKey(1), "rm"), 0)
+	if d.sel != f.tabKey(1) {
+		t.Fatalf("after removing the middle tab, selected %d, want the tab now at its place %d", d.sel, f.tabKey(1))
+	}
+}
+
+// fakePicker stands in for the system folder dialog: each call reports its
+// start folder and waits for the test to answer.
+type fakePicker struct {
+	starts chan string
+	answer chan string // "" means cancel
+}
+
+func usePicker(t *testing.T) *fakePicker {
+	t.Helper()
+	fp := &fakePicker{starts: make(chan string, 4), answer: make(chan string, 4)}
+	old := pickFolder
+	pickFolder = func(start string) (string, bool, error) {
+		fp.starts <- start
+		select {
+		case p := <-fp.answer:
+			return p, p != "", nil
+		case <-time.After(2 * time.Second):
+			return "", false, nil
+		}
+	}
+	t.Cleanup(func() { pickFolder = old })
+	return fp
+}
+
+// settle draws until the picker's answer has been applied, for at most 2s.
+func (f *runFixture) settlePick() {
+	f.t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for f.win.wsp.picking {
+		if time.Now().After(deadline) {
+			f.t.Fatal("the picker's answer never arrived")
+		}
+		time.Sleep(5 * time.Millisecond)
+		f.draw()
+	}
+}
+
+func TestPickFillsFolderTildeAndEmptyTitle(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.press("ws.addtab", 0)
+	d := f.win.wsp.draft
+	nt := d.tabs[len(d.tabs)-1]
+	f.press(tabID(nt.key, "pick"), 0)
+	if start := <-fp.starts; start != f.win.home {
+		t.Fatalf("picker started in %q, want the home folder %q for an empty field", start, f.win.home)
+	}
+	fp.answer <- filepath.Join(f.win.home, "work", "frontend")
+	f.settlePick()
+	want := "~" + string(filepath.Separator) + filepath.Join("work", "frontend")
+	if nt.folder != want || f.win.fieldText(tabID(nt.key, "folder")) != want || nt.title != "frontend" {
+		t.Fatalf("folder %q field %q title %q, want %q and title frontend", nt.folder, f.win.fieldText(tabID(nt.key, "folder")), nt.title, want)
+	}
+	// A title the owner typed stays.
+	f.sel(0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	if start := <-fp.starts; start != f.dirs[0] {
+		t.Fatalf("picker started in %q, want the tab's folder %q", start, f.dirs[0])
+	}
+	fp.answer <- filepath.Join(f.win.home, "other")
+	f.settlePick()
+	if d.tabs[0].title != "api" {
+		t.Fatalf("picking a folder changed the typed title to %q", d.tabs[0].title)
+	}
+}
+
+func TestPickCancelChangesNothing(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	before := f.win.wsp.draft.tabs[0].folder
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	<-fp.starts
+	fp.answer <- ""
+	f.settlePick()
+	if got := f.win.wsp.draft.tabs[0].folder; got != before {
+		t.Fatalf("cancel changed the folder to %q", got)
+	}
+}
+
+func TestPickResultForRemovedTabIsDropped(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	d := f.win.wsp.draft
+	f.sel(2)
+	k := f.tabKey(2)
+	f.press(tabID(k, "pick"), 0)
+	<-fp.starts
+	f.press(tabID(k, "rm"), 0)
+	var before []string
+	for _, tb := range d.tabs {
+		before = append(before, tb.folder)
+	}
+	fp.answer <- filepath.Join(f.win.home, "elsewhere")
+	f.settlePick()
+	for i, tb := range d.tabs {
+		if tb.folder != before[i] {
+			t.Fatalf("tab %d folder became %q after its neighbour's picker answered", i, tb.folder)
+		}
+	}
+}
+
+func TestPickResultAfterTheDraftClosedIsDropped(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	<-fp.starts
+	f.press("ws.cancel", 0)
+	f.press("ws.edit", 0)
+	reopened := f.win.wsp.draft.tabs[0].folder
+	fp.answer <- filepath.Join(f.win.home, "elsewhere")
+	f.settlePick()
+	if got := f.win.wsp.draft.tabs[0].folder; got != reopened {
+		t.Fatalf("an answer for the closed draft landed in the new one: %q", got)
+	}
+}
+
+func TestSecondPickWhileOpenDoesNothing(t *testing.T) {
+	fp := usePicker(t)
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	f.press(tabID(f.tabKey(0), "pick"), 0)
+	<-fp.starts
+	select {
+	case <-fp.starts:
+		t.Fatal("a second picker opened while the first was up")
+	case <-time.After(50 * time.Millisecond):
+	}
+	fp.answer <- ""
+	f.settlePick()
+}
+
+// ctlsOf is every control with id this frame.
+func (f *runFixture) ctlsOf(id string) []control {
+	var out []control
+	for _, c := range f.win.set.controls {
+		if c.id == id {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func TestEditorListShowsEveryTabWithCommandCount(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	for _, s := range []string{"api", "admin", "storefront", "api logs", "2 commands", "1 command"} {
+		f.wantText(s)
+	}
+	items := f.ctlsOf("ws.sel")
+	if len(items) != 4 {
+		t.Fatalf("%d tab list items, want 4", len(items))
+	}
+	title, ok := f.ctl(tabID(f.tabKey(0), "title"), 0)
+	if !ok {
+		t.Fatal("no title field for the selected tab")
+	}
+	for i, it := range items {
+		if it.arg != f.tabKey(i) || it.rect.Max.X > title.rect.Min.X {
+			t.Fatalf("item %d (arg %d) at %v is not left of the title field %v", i, it.arg, it.rect, title.rect)
+		}
+	}
+}
+
+func TestEditorMarksTabsWithProblems(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.sel(2)
+	f.typeInto(tabID(f.tabKey(2), "title"), "")
+	f.sel(0)
+	if !slices.Equal(f.win.wsp.flagged, []int{f.tabKey(2)}) {
+		t.Fatalf("flagged tabs %v, want only tab 2's key %d", f.win.wsp.flagged, f.tabKey(2))
+	}
+}
+
+func TestEditorShowsChooseAndNumberedCommands(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	if c, ok := f.ctl(tabID(f.tabKey(0), "pick"), 0); !ok || c.kind != ctlButton {
+		t.Fatal("no Choose… button for the folder")
+	}
+	f.wantText("Choose…")
+	f.wantText("Command 1")
+	f.wantText("Command 2")
+	f.wantText("×")
+	if f.has("Tab 1") {
+		t.Fatal(`the old "Tab 1" heading is still drawn`)
+	}
+}
+
+func TestEditorStacksWhenNarrow(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	narrow := image.Rect(0, 38, 700, 4000)
+	f.win.drawSettings(pageContext(narrow.Dx(), narrow.Max.Y+24), narrow)
+	title, ok := f.ctl(tabID(f.tabKey(0), "title"), 0)
+	if !ok {
+		t.Fatal("no title field")
+	}
+	for _, it := range f.ctlsOf("ws.sel") {
+		if it.rect.Max.Y > title.rect.Min.Y {
+			t.Fatalf("list item %v is not above the title field %v in a narrow page", it.rect, title.rect)
+		}
+	}
+}
+
+// Opening or closing the editor replaces every control, so the clicked button's
+// focus must not land on whatever control now has its place.
+func TestOpeningAndClosingTheEditorDropsFocus(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	if f.win.set.focus != -1 {
+		t.Fatalf("focus %d after opening the editor, want none", f.win.set.focus)
+	}
+	f.press("ws.cancel", 0)
+	if f.win.set.focus != -1 {
+		t.Fatalf("focus %d after closing the editor, want none", f.win.set.focus)
+	}
+}
+
+func TestListMembersShowCommandsWithoutCutting(t *testing.T) {
+	f := newRunFixture(t)
+	f.win.opt.Config = config.Default()
+	long := []string{"docker compose up -d", "source venv/bin/activate", "python manage.py migrate --noinput", "python manage.py runserver 0.0.0.0:8000", "echo ready"}
+	f.save(workspaces.Workspace{ID: "ws_w", Name: "work", Tabs: []workspaces.Tab{{ID: "t_api", Title: "api", Folder: f.dirs[0], Commands: long, Wait: workspaces.WaitDocker, Color: "cyan"}}})
+	f.win.openSettings()
+	f.win.selectSection(wsIndex(t))
+	f.draw()
+	for _, c := range long {
+		if !slices.ContainsFunc(f.win.set.texts, func(s string) bool { return strings.Contains(s, c) }) {
+			t.Fatalf("no drawn line holds the whole command %q: %q", c, f.win.set.texts)
+		}
+	}
+	for _, s := range f.win.set.texts {
+		if strings.Contains(s, "…") {
+			t.Fatalf("a list line was cut: %q", s)
+		}
+	}
+}
+
+func TestListMemberTags(t *testing.T) {
+	f := newWSPage(t)
+	f.wantText("after Docker")
+	f.wantText("after port 8000")
+	if f.has("after Docker is up") || slices.ContainsFunc(f.win.set.texts, func(s string) bool { return strings.Contains(s, "answers") }) {
+		t.Fatalf("old long tags still drawn: %q", f.win.set.texts)
+	}
+}
+
+func TestListMembersAlign(t *testing.T) {
+	f := newWSPage(t)
+	xs := f.win.set.memberFolderX
+	if len(xs) != len(samuraiTabs) {
+		t.Fatalf("%d member folders drawn, want %d", len(xs), len(samuraiTabs))
+	}
+	for i, x := range xs {
+		if x != xs[0] {
+			t.Fatalf("member %d folder starts at x %d, member 0 at %d", i, x, xs[0])
+		}
+	}
+}
+
+// A line that continues ends in " →", and that arrow must fit too.
+func TestChainLinesFitWithTheirArrow(t *testing.T) {
+	win, _ := alertWindow(t, 1)
+	p := &page{gtx: pageContext(800, 600), c: win.ui, st: &win.set, col: win.ui.pageColors()}
+	cmds := []string{"docker compose up -d", "source venv/bin/activate", "python manage.py migrate"}
+	_, s := p.c.label(p.gtx, "docker compose up -d → source venv/bin/activate", 12, p.col.fg)
+	for _, l := range p.chain(cmds, 12, s.X) {
+		if _, ls := p.c.label(p.gtx, l, 12, p.col.fg); ls.X > s.X {
+			t.Fatalf("line %q is %dpx wide, more than %d", l, ls.X, s.X)
+		}
+	}
+}
+
+func TestWorkspaceListLongTitleKeepsFolderInsidePane(t *testing.T) {
+	f := newWSPage(t)
+	f.win.wsp.doc.Workspaces[0].Tabs[0].Title = strings.Repeat("W", workspaces.MaxNameRunes)
+	f.draw()
+	for _, x := range f.win.set.memberFolderX {
+		if x+f.win.set.pane.Dx()*3/10+16 >= f.win.set.pane.Max.X {
+			t.Fatalf("folder starts at %d and leaves no visible command column in pane %v", x, f.win.set.pane)
+		}
+	}
+}
+
+func TestEditorFolderControlsFitIntermediateWidth(t *testing.T) {
+	for _, width := range []int{600, 700, 820, 900} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			f := newWSPage(t)
+			f.press("ws.edit", 0)
+			f.win.wsp.draft.tabs[0].folder = filepath.Join(t.TempDir(), "missing")
+			r := image.Rect(0, 38, width, 4000)
+			f.win.drawSettings(pageContext(r.Dx(), r.Max.Y+24), r)
+			for _, what := range []string{"folder", "pick"} {
+				c, ok := f.ctl(tabID(f.tabKey(0), what), 0)
+				if !ok {
+					t.Fatalf("missing %s", what)
+				}
+				if c.rect.Min.X < f.win.set.pane.Min.X || c.rect.Max.X > f.win.set.pane.Max.X {
+					t.Fatalf("%s at %v outside pane %v", what, c.rect, f.win.set.pane)
+				}
+			}
+			f.wantText("This folder does not exist yet; Run stops here until it does.")
+		})
 	}
 }

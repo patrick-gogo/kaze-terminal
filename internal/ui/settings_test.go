@@ -307,7 +307,8 @@ func TestBlinkStopsWhileSettingsShown(t *testing.T) {
 	}
 }
 
-func TestVersionBlockShowsBuild(t *testing.T) {
+// The sidebar footer shows the version only; the build is in Copy build info.
+func TestVersionBlockShowsVersionWithoutBuild(t *testing.T) {
 	old := readBuild
 	t.Cleanup(func() { readBuild = old })
 	readBuild = func() (*debug.BuildInfo, bool) {
@@ -324,8 +325,8 @@ func TestVersionBlockShowsBuild(t *testing.T) {
 		t.Fatalf("texts %q lack the version", texts)
 	}
 	all := strings.Join(texts, " ")
-	if !strings.Contains(all, "build abcdef1") {
-		t.Fatalf("texts %q lack the build line", texts)
+	if strings.Contains(all, "abcdef1") {
+		t.Fatalf("texts %q still show the build line", texts)
 	}
 	for _, want := range []string{"Appearance", "Workspaces", "Claude", "About", "Later:"} {
 		if !strings.Contains(all, want) {

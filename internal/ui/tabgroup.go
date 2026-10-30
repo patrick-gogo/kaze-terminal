@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"gioui.org/io/event"
@@ -48,8 +49,9 @@ type groupMenu struct {
 }
 
 type menuRow struct {
-	id          tabs.TabID
-	rect, close image.Rectangle
+	id             tabs.TabID
+	rect, close    image.Rectangle
+	detail, status string // the second line as drawn: what the member runs and how far it got
 }
 
 func (b barHits) groupAt(p image.Point) (uint64, bool) {
@@ -463,8 +465,8 @@ func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) 
 	c, ops := win.ui, gtx.Ops
 	th := c.th
 	size := gtx.Constraints.Max
-	pad, rowH, hdH := gtx.Dp(6), gtx.Dp(30), gtx.Dp(28)
-	w := max(min(gtx.Dp(330), size.X-gtx.Dp(16)), 0)
+	pad, rowH, hdH := gtx.Dp(6), gtx.Dp(46), gtx.Dp(28)
+	w := max(min(gtx.Dp(380), size.X-gtx.Dp(16)), 0)
 	x, drawn := 0, false
 	for _, h := range c.hits.groups {
 		if h.run == g.run {
@@ -544,7 +546,7 @@ func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) 
 		case i == g.kb:
 			paint.FillShape(ops, th.Border, clip.UniformRRect(r, gtx.Dp(7)).Op(ops))
 		}
-		mid := r.Min.Y + rowH/2
+		mid := r.Min.Y + gtx.Dp(16)
 		cx := r.Min.X + gtx.Dp(10)
 		if i < 9 {
 			kCall, kSize := c.label(gtx, strconv.Itoa(i+1), 11, th.Muted)
@@ -574,12 +576,35 @@ func (win *window) drawGroupMenu(gtx layout.Context, list []*tabs.Tab, top int) 
 		text := clip.Rect(image.Rect(cx, r.Min.Y, max(right, cx), r.Max.Y)).Push(ops)
 		tCall, tSize := c.label(gtx, c.tabLabelFit(t, win.defTitle), 12, th.ToastFG)
 		place(ops, tCall, image.Pt(cx, mid-tSize.Y/2))
-		if m := win.memberOf(t); m != nil && m.dir != "" {
+		m := win.memberOf(t)
+		if m != nil && m.dir != "" {
 			fCall, fSize := c.label(gtx, shortFolder(m.dir), 11, th.Muted)
 			place(ops, fCall, image.Pt(cx+tSize.X+gap, mid-fSize.Y/2))
 		}
 		text.Pop()
-		g.rows = append(g.rows, menuRow{id: t.ID, rect: r.Intersect(viewport), close: closeRect.Intersect(viewport)})
+		row := menuRow{id: t.ID, rect: r.Intersect(viewport), close: closeRect.Intersect(viewport)}
+		if m != nil {
+			// Second line: what the member runs, and how far it got at the right.
+			mid2 := r.Min.Y + gtx.Dp(32)
+			st, needs, failed := win.memberStatus(m, t)
+			stCol := th.Muted
+			switch {
+			case needs:
+				stCol = th.Needs
+			case failed:
+				stCol = th.UsageHigh
+			}
+			sCall, sSize := c.label(gtx, st, 11, stCol)
+			sx := r.Max.X - gtx.Dp(10) - sSize.X
+			place(ops, sCall, image.Pt(sx, mid2-sSize.Y/2))
+			row.status = st
+			if len(m.cmds) > 0 {
+				row.detail = cleanText(strings.Join(m.cmds, " → "))
+				dCall, dSize := c.fitLabel(gtx, row.detail, max(sx-gap-cx, 0), th.Muted)
+				place(ops, dCall, image.Pt(cx, mid2-dSize.Y/2))
+			}
+		}
+		g.rows = append(g.rows, row)
 		y += rowH
 		i++
 	}

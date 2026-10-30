@@ -38,6 +38,8 @@ type settingsState struct {
 	controls []control
 	nav      []navHit
 	texts    []string // every string drawn, so tests can read the page
+	// memberFolderX is where each list member's folder starts, so tests can check the columns.
+	memberFolderX []int
 
 	build    string            // the build line, read when the page opens
 	sections []settingsSection // nil means defaultSections; tests swap in their own
@@ -59,7 +61,16 @@ type settingRow struct {
 	label, hint string
 	lines       []string // extra lines between the label and the hint (the setup check)
 	ctrls       []ctrl
-	block       bool // the controls sit under the label across the pane (theme swatches)
+	block       bool        // the controls sit under the label across the pane (theme swatches)
+	members     []rowMember // a workspace's tabs, drawn as a table under the label; controls go below
+}
+
+// rowMember is one workspace tab in the list: its color, title, folder, commands
+// in order, and what it waits for ("" for nothing).
+type rowMember struct {
+	color, title, folder string
+	cmds                 []string
+	tag                  string
 }
 
 // settingsSection is one entry of the page's menu. rows builds its content each
@@ -410,6 +421,7 @@ func tint(col color.NRGBA, a uint8) color.NRGBA {
 func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	s := &win.set
 	s.controls, s.nav, s.texts = s.controls[:0], s.nav[:0], s.texts[:0]
+	s.memberFolderX = s.memberFolderX[:0]
 	p := &page{gtx: gtx, c: win.ui, win: win, st: s, col: win.ui.pageColors()}
 	ops := gtx.Ops
 	cl := clip.Rect(r).Push(ops)
@@ -651,9 +663,7 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 
 	// Version block, kept at the bottom unless the menu needs the room.
 	vc, vs := p.text("kaze "+version.Number, 12, col.fg)
-	lines := p.wrap(p.st.build, 11, textW)
-	_, ls := p.c.label(gtx, "build", 11, col.dim)
-	blockH := gtx.Dp(12) + vs.Y + len(lines)*ls.Y
+	blockH := gtx.Dp(12) + vs.Y
 	top := max(r.Max.Y-gtx.Dp(16)-blockH, y+gtx.Dp(14))
 	paint.FillShape(ops, col.line, clip.Rect(image.Rect(x0, top, x1, top+1)).Op())
 	y = top + gtx.Dp(12)
@@ -666,12 +676,6 @@ func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 		tx += vs.Y + gtx.Dp(6)
 	}
 	place(ops, vc, image.Pt(tx, y))
-	y += vs.Y
-	for _, line := range lines {
-		call, _ := p.text(line, 11, col.dim)
-		place(ops, call, image.Pt(x0+inner, y))
-		y += ls.Y
-	}
 }
 
 // pane draws the shown section: title, hint and its rows.
@@ -679,21 +683,31 @@ func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) int {
 	if sec.draw != nil {
 		return sec.draw(p, r, win)
 	}
-	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
-	y := r.Min.Y
-	call, size := p.text(sec.title, 16, col.title)
-	place(ops, call, image.Pt(r.Min.X, y))
-	y += size.Y + gtx.Dp(4)
-	if sec.hint != "" {
-		call, size = p.text(sec.hint, 12, col.dim)
-		place(ops, call, image.Pt(r.Min.X, y))
-		y += size.Y
-	}
-	y += gtx.Dp(16)
+	y := p.heading(r, sec.title, sec.hint)
 	if sec.rows == nil {
 		return y
 	}
-	for _, row := range sec.rows(win) {
+	return p.rows(r, y, sec.rows(win))
+}
+
+// heading draws a section's title and hint and returns where its rows start.
+func (p *page) heading(r image.Rectangle, title, hint string) int {
+	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
+	y := r.Min.Y
+	call, size := p.text(title, 16, col.title)
+	place(ops, call, image.Pt(r.Min.X, y))
+	y += size.Y + gtx.Dp(4)
+	if hint != "" {
+		call, size = p.text(hint, 12, col.dim)
+		place(ops, call, image.Pt(r.Min.X, y))
+		y += size.Y
+	}
+	return y + gtx.Dp(16)
+}
+
+// rows draws rows from y in r and returns where the next would start.
+func (p *page) rows(r image.Rectangle, y int, rows []settingRow) int {
+	for _, row := range rows {
 		if row.block {
 			y = p.blockRow(r, y, row)
 		} else {
@@ -705,6 +719,9 @@ func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) int {
 
 // row draws one row from y and returns where the next starts.
 func (p *page) row(r image.Rectangle, y int, row settingRow) int {
+	if len(row.members) > 0 {
+		return p.memberRow(r, y, row)
+	}
 	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
 	paint.FillShape(ops, col.line, clip.Rect(image.Rect(r.Min.X, y, r.Max.X, y+1)).Op())
 	lc, ls := p.text(row.label, 13, col.fg)

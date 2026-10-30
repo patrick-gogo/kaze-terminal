@@ -1,4 +1,5 @@
-// Command chime generates assets/sounds/chime.wav: a soft two-tone chime.
+// Command chime generates assets/sounds/chime.wav: a clear two-tone chime, loud
+// enough to hear over music or a call.
 // Run from the repo root: go run ./tools/chime
 package main
 
@@ -13,9 +14,9 @@ import (
 
 const (
 	rate     = 44100
-	duration = 0.4
+	duration = 0.7
 	fadeIn   = 0.005 // avoids a click at the start
-	peakDB   = -12.0
+	peakDB   = -1.0
 )
 
 func main() {
@@ -37,10 +38,10 @@ func samples() []int16 {
 	var peak float64
 	for i := range f {
 		t := float64(i) / rate
-		v := math.Sin(2*math.Pi*880*t) * math.Exp(-t*7)
+		v := math.Sin(2*math.Pi*880*t) * math.Exp(-t*4)
 		if t >= 0.1 {
 			u := t - 0.1
-			v += 0.7 * math.Sin(2*math.Pi*1320*u) * math.Exp(-u*9)
+			v += 0.7 * math.Sin(2*math.Pi*1320*u) * math.Exp(-u*5)
 		}
 		if t < fadeIn {
 			v *= t / fadeIn

@@ -501,3 +501,21 @@ func TestGroupMenuScrollKeepsHitsWithinRows(t *testing.T) {
 	drawGroupBar(win)
 	wantVisibleGroupMember(t, win, ids[0])
 }
+
+func TestGroupMenuShowsCommandsAndStatus(t *testing.T) {
+	win, _, _ := groupWindow(t)
+	run := win.runs[1]
+	run.members[1].cmds = []string{"npm install", "npm run dev"}
+	run.members[1].run.State = workspaces.Launched
+	run.members[1].run.Line = "{ npm install; } && { npm run dev; }"
+	drawGroupBar(win)
+	win.barPress(pressPt(centre(chipOf(t, win).rect)))
+	drawGroupBar(win)
+	r := win.grp.rows[1]
+	if r.detail != "npm install → npm run dev" || r.status != "Running" {
+		t.Fatalf("admin row: detail %q status %q", r.detail, r.status)
+	}
+	if r := win.grp.rows[0]; r.detail != "" || r.status != "No commands" {
+		t.Fatalf("api row with no commands: detail %q status %q", r.detail, r.status)
+	}
+}

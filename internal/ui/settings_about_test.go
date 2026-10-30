@@ -25,10 +25,14 @@ func TestAboutSectionShowsBuildAcrossThemes(t *testing.T) {
 		win.applyTheme(th)
 		win.drawSettings(pageContext(800, 600), image.Rect(0, 38, 800, 576))
 		text := strings.Join(win.set.texts, "\n")
-		for _, want := range []string{"kaze", aboutName, aboutTagline, "Version " + version.Number, win.set.build, "MIT License"} {
+		for _, want := range []string{"kaze", aboutName, aboutTagline, "Version " + version.Number, "MIT License"} {
 			if !strings.Contains(text, want) {
 				t.Errorf("%s missing %q", th.Key, want)
 			}
+		}
+		// Neither the About page nor the sidebar footer shows the build line.
+		if strings.Contains(text, "abc1234") || strings.Contains(text, "Oct 29") {
+			t.Errorf("%s still shows the build line", th.Key)
 		}
 	}
 }

@@ -205,15 +205,21 @@ zero or more command lines, a color and something to wait for first. Running a w
 its tabs in one go, each in its folder with its commands typed for you, so a project with an
 API, a front end and a log tail starts with one click.
 
-Make one under Settings > Workspaces: **+ New workspace**, then add tabs. For each tab:
+Make one under Settings > Workspaces: **+ New workspace**, then add tabs. The editor has two
+panes: the workspace's tabs on the left (color dot, title, how many commands; a red dot marks a
+tab with a problem) and the selected tab on the right. **+ Add tab** adds one in the next unused
+color. For each tab:
 
-- **Title** and **folder** (a text field; there is no Browse button yet).
-- **Commands:** one line per row.
+- **Title** and **folder.** **Choose…** opens the system folder picker (Finder's on macOS,
+  Explorer's on Windows) and fills in an empty title from the folder's name. You can also type or
+  paste the path; folders under your home folder show as `~/...`.
+- **Commands:** one numbered line per row, run in that order.
 - **Color:** cyan, magenta, yellow, green, blue or red. It colors the tab's dot.
 - **Wait for:** Nothing, Docker, or a port. The tab's commands are held until Docker is up, or
   until something answers on that port on this machine.
 
-Nothing is saved until you press Save, and Cancel drops the draft. **Run** opens the tabs after
+The Workspaces list shows each workspace's tabs with their color, folder, commands in order and
+what they wait for. Nothing is saved until you press Save, and Cancel drops the draft. **Run** opens the tabs after
 the ones you already have. If any of the workspace's tabs is still open, the button reads
 **Go to tabs** and switches to the first one instead of opening copies.
 
@@ -225,6 +231,10 @@ While one member is shown it reads `samurai › admin`.
 
 - Click the chip to open a list of the members. Pick one with a click, with the number keys 1 to
   9, or with the arrows and Enter. Esc or a click outside closes the list.
+- Under each member the list shows what it runs and how far it got: Starting, Waiting for Docker
+  (or a port), Confirm to run, Running, Finished, Failed, Cancelled or No commands. Finished means
+  the shell came back to its prompt (it needs the snippet from "Folder and branch in the status
+  bar"); kaze can't tell whether the commands worked.
 - A member that needs you rings its dot in amber and turns the chip's count amber, so you see it
   while the list is closed. "Done" works the same in green. Visiting the member clears it.
 - Ctrl+Tab and Ctrl+Shift+Tab step through the members one by one, like any other tabs.
@@ -429,7 +439,7 @@ Without this the folder and branch stay hidden. UNC paths (`\\server\share`) are
 
 kaze marks a tab and shows a small toast when Claude Code in that tab needs you (a permission
 prompt or a question) or has finished its turn. Click "Go ›" on the toast to switch to the tab.
-"Needs you" plays a soft chime (unless you're already looking at that tab); "done" is silent
+"Needs you" plays a chime (unless you're already looking at that tab); "done" is silent
 unless you turn on `chime_done`. While kaze is minimized, its taskbar button flashes (Windows).
 
 kaze learns about this from Claude Code hooks that run `kaze notify`. Add them to your Claude
