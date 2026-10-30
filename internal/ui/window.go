@@ -120,12 +120,14 @@ type window struct {
 	bf    benchFrame
 
 	// Title bar: kaze draws its own caption buttons where custom is set (Windows).
-	custom    bool
-	bar       barLayout // where the last frame put the toggle, drag area and buttons
-	caption   captionState
-	capTag    *int
-	maximized bool                // from the last ConfigEvent, so the button shows the real state
-	performFn func(system.Action) // replaces win.w.Perform in tests
+	custom     bool
+	bar        barLayout // where the last frame put the toggle, drag area and buttons
+	caption    captionState
+	capTag     *int
+	dotsTag    *int
+	serverDots image.Rectangle     // the status bar's dots in window pixels; empty when none
+	maximized  bool                // from the last ConfigEvent, so the button shows the real state
+	performFn  func(system.Action) // replaces win.w.Perform in tests
 
 	// Alerts from Claude Code hooks (kaze notify).
 	srv         *notify.Server  // nil when the listener could not start
@@ -489,6 +491,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.mgr.ResizeAll(cols, rows)
 
 	win.barEvents(gtx)
+	win.dotsEvents(gtx)
 	win.sideEvents(gtx)
 	win.filterEvents(gtx)
 	win.toastEvents(gtx)
@@ -559,7 +562,8 @@ func (win *window) frame(gtx layout.Context) error {
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
-	win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	dots := win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	win.serverDots = dots.Add(image.Pt(0, size.Y-statusH))
 	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
 	}
@@ -567,6 +571,12 @@ func (win *window) frame(gtx layout.Context) error {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so the notice goes away on an idle window
 	}
 	st.Pop()
+
+	if !win.serverDots.Empty() {
+		area := clip.Rect(win.serverDots).Push(ops)
+		event.Op(ops, win.dotsTag)
+		area.Pop()
+	}
 
 	// Toasts float over the terminal, above the status bar; drawn last so they take clicks first.
 	if next, _ := win.alerts.expire(gtx.Now); !next.IsZero() {
@@ -769,6 +779,22 @@ func (win *window) focusTarget() event.Tag {
 		return &win.set.tag
 	}
 	return win.termTag
+}
+
+// dotsEvents shows a run member when the status bar's server dots are clicked.
+func (win *window) dotsEvents(gtx layout.Context) {
+	if win.dotsTag == nil {
+		win.dotsTag = new(int) // before the first draw, so its filter is up when the first click comes
+	}
+	for {
+		ev, ok := gtx.Event(pointer.Filter{Target: win.dotsTag, Kinds: pointer.Press})
+		if !ok {
+			return
+		}
+		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
+			win.showServer()
+		}
+	}
 }
 
 func (win *window) toastEvents(gtx layout.Context) {

@@ -185,6 +185,10 @@ func (win *window) launch(ws workspaces.Workspace, plan []wsPlan, warns []string
 	win.runs[run.id] = run
 	now := win.wsNow()
 	var first tabs.TabID
+	var shown tabs.TabID // the session in front before the run opened its tabs
+	if a := win.mgr.Active(); a != nil {
+		shown = a.ID
+	}
 	for i, p := range plan {
 		m := &wsMember{title: p.tab.Title, dir: p.dir, cmds: p.tab.Commands, run: workspaces.TabRun{Line: p.line, Wait: p.tab.Wait, Port: p.tab.Port, Started: now}}
 		run.members = append(run.members, m)
@@ -209,8 +213,11 @@ func (win *window) launch(ws workspaces.Workspace, plan []wsPlan, warns []string
 			first = t.ID
 		}
 	}
-	if first != 0 {
-		win.selectTab(first) // later results never steal focus
+	switch {
+	case shown != 0 && win.mgr.Has(shown):
+		win.selectTab(shown) // running servers must not pull the owner off their session
+	case first != 0:
+		win.selectTab(first) // nothing was shown (startup): show the first member
 	}
 	win.startProbes(run)
 	if win.w != nil {

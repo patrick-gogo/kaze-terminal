@@ -179,10 +179,11 @@ func (win *window) sideRuns() []sideRun {
 				mem.Color = t.Color
 				mem.Mark = win.alerts.markOf(t.ID)
 			}
-			if text == "Finished" {
-				mem.Status = "stopped"
+			exited := t != nil && t.Exited
+			if text == "Finished" || (exited && text == "Running") {
+				mem.Status = "stopped" // an exited shell is not running, whatever its run said
 			}
-			mem.Down = text == "Finished" || failed || (t != nil && t.Exited)
+			mem.Down = text == "Finished" || failed || exited
 			if mem.Down {
 				sr.Down++
 			}

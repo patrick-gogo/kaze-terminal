@@ -236,3 +236,26 @@ func TestSideRunsFromWindowRuns(t *testing.T) {
 		t.Fatalf("gone %+v", r.Members[3])
 	}
 }
+
+func TestExitedMemberReadsStoppedNotRunning(t *testing.T) {
+	win, st := sideWindow(t, true)
+	m := openMember(t, win, "api")
+	win.runs[1].members[0].run = workspaces.TabRun{Line: "x", State: workspaces.Launched}
+	if got := win.sideRuns()[0].Members[0].Status; got != "Running" {
+		t.Fatalf("live member reads %q, want Running", got)
+	}
+	st.ptys[0].Close()
+	for deadline := time.Now().Add(3 * time.Second); ; time.Sleep(time.Millisecond) {
+		win.mgr.Tabs() // refreshes Exited
+		if m.Exited {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("shell exit never seen")
+		}
+	}
+	mem := win.sideRuns()[0].Members[0]
+	if mem.Status != "stopped" || !mem.Down {
+		t.Fatalf("exited member %+v, want stopped and down", mem)
+	}
+}

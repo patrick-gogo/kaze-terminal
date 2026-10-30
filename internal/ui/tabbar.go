@@ -272,7 +272,8 @@ func captionGlyph(gtx layout.Context, btn captionButton, r image.Rectangle, maxi
 }
 
 // layoutStatus draws the status bar: folder and branch on the left, the rest on the right.
-func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) {
+// It returns the server dots' rect in bar-local pixels, empty when there are none.
+func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) image.Rectangle {
 	ops := gtx.Ops
 	width := gtx.Constraints.Max.X
 	pad := gtx.Dp(14)
@@ -283,6 +284,10 @@ func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) {
 	right := width - size.X - pad // where the right-hand text starts
 	if ux := c.layoutUsage(gtx, p.Usage, right-gtx.Dp(16), height); ux >= 0 {
 		right = ux
+	}
+	dots, dx := c.layoutServers(gtx, p.Servers, right-gtx.Dp(16), height)
+	if dx >= 0 {
+		right = dx
 	}
 
 	avail := right - 2*pad // room left of the right-hand text, with a gap
@@ -312,6 +317,7 @@ func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) {
 	if p.Branch != "" && x+bsize.X <= right-pad {
 		place(ops, bcall, image.Pt(x, (height-bsize.Y)/2))
 	}
+	return dots
 }
 
 // layoutUsage draws the usage segments ending at end and returns where they
@@ -346,4 +352,34 @@ func (c *chrome) layoutUsage(gtx layout.Context, segs []usage.Segment, end, heig
 		x += p.size.X
 	}
 	return start
+}
+
+// layoutServers draws one dot per run member and the word "servers", ending at
+// end. It returns the drawn rect and where it starts, or -1 when there are none
+// or they do not fit.
+func (c *chrome) layoutServers(gtx layout.Context, ds []serverDot, end, height int) (image.Rectangle, int) {
+	if len(ds) == 0 {
+		return image.Rectangle{}, -1
+	}
+	call, size := c.label(gtx, "servers", 11, c.th.StatusFG)
+	d, gap := gtx.Dp(7), gtx.Dp(4)
+	x := end - (len(ds)*(d+gap) + size.X)
+	if x < gtx.Dp(14) {
+		return image.Rectangle{}, -1
+	}
+	start := x
+	y := (height - d) / 2
+	for _, s := range ds {
+		col := c.th.Muted
+		switch {
+		case s.Down:
+			col = c.th.UsageHigh
+		case s.Up:
+			col = c.memberColor("green")
+		}
+		paint.FillShape(gtx.Ops, col, clip.UniformRRect(image.Rect(x, y, x+d, y+d), d/2).Op(gtx.Ops))
+		x += d + gap
+	}
+	place(gtx.Ops, call, image.Pt(x, (height-size.Y)/2))
+	return image.Rect(start, 0, end, height), start
 }

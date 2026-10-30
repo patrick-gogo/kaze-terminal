@@ -19,7 +19,11 @@ import (
 type statusParts struct {
 	Folder, Branch, Right string
 	Usage                 []usage.Segment // Claude usage, drawn right-aligned before Right
+	Servers               []serverDot     // one per workspace run member, drawn before Usage
 }
+
+// serverDot is one run member's status dot: red when Down, green when Up, muted otherwise.
+type serverDot struct{ Down, Up bool }
 
 // locEntry is the branch and repo found for one tab at one folder report.
 type locEntry struct {
@@ -32,6 +36,11 @@ type locEntry struct {
 
 func (win *window) statusParts() statusParts {
 	p := statusParts{Right: win.statusText(len(win.mgr.Tabs()))}
+	for _, r := range win.sideRuns() {
+		for _, m := range r.Members {
+			p.Servers = append(p.Servers, serverDot{Down: m.Down, Up: !m.Down && m.Status == "Running"})
+		}
+	}
 	t := win.mgr.Active()
 	if win.opt.Config.ShowUsage {
 		p.Usage = win.usageSegments(t, time.Now())
@@ -158,4 +167,29 @@ func truncateLeft(s string, max int) string {
 // leftover space is trimmed so the name stays flush.
 func (c *chrome) branchLabel(branch string) string {
 	return strings.TrimLeft(c.fit("⎇ "+branch), " ")
+}
+
+// showServer shows the first down run member, or the first member when none is down.
+func (win *window) showServer() {
+	var first, down tabs.TabID
+	for _, r := range win.sideRuns() {
+		for _, m := range r.Members {
+			if m.ID == 0 || !win.mgr.Has(m.ID) {
+				continue
+			}
+			if first == 0 {
+				first = m.ID
+			}
+			if m.Down && down == 0 {
+				down = m.ID
+			}
+		}
+	}
+	if down == 0 {
+		down = first
+	}
+	if down != 0 {
+		win.selectTab(down)
+		win.w.Invalidate()
+	}
 }
