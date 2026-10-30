@@ -117,6 +117,7 @@ func (win *window) sections() []settingsSection {
 
 // openSettings opens the Settings tab, or shows it when it is already open.
 func (win *window) openSettings() {
+	win.dropFilter()
 	s := &win.set
 	if !s.open {
 		s.open, s.focus = true, -1

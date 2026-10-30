@@ -37,6 +37,7 @@ type sideRun struct {
 	Run     uint64
 	Name    string
 	Down    int
+	Mark    mark // the strongest member mark, needs over done
 	Members []sideMember
 }
 
@@ -180,12 +181,15 @@ func (win *window) sideRuns() []sideRun {
 				mem.Mark = win.alerts.markOf(t.ID)
 			}
 			exited := t != nil && t.Exited
-			if text == "Finished" || (exited && text == "Running") {
-				mem.Status = "stopped" // an exited shell is not running, whatever its run said
+			if text == "Finished" || (exited && !failed) {
+				mem.Status = "stopped" // an exited shell is not starting or waiting, whatever its run said
 			}
 			mem.Down = text == "Finished" || failed || exited
 			if mem.Down {
 				sr.Down++
+			}
+			if mem.Mark == markNeeds || mem.Mark == markDone && sr.Mark == markNone {
+				sr.Mark = mem.Mark
 			}
 			sr.Members = append(sr.Members, mem)
 		}

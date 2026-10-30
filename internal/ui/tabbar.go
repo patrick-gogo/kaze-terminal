@@ -375,7 +375,7 @@ func (c *chrome) layoutServers(gtx layout.Context, ds []serverDot, end, height i
 		case s.Down:
 			col = c.th.UsageHigh
 		case s.Up:
-			col = c.memberColor("green")
+			col = c.th.Done // the same green as the section's "all up"
 		}
 		paint.FillShape(gtx.Ops, col, clip.UniformRRect(image.Rect(x, y, x+d, y+d), d/2).Op(gtx.Ops))
 		x += d + gap

@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"slices"
+	"strings"
 
 	"gioui.org/io/clipboard"
 	"gioui.org/io/event"
@@ -38,6 +39,7 @@ type sideUI struct {
 	redraws   int             // frames the sidebar's pointer input asked for; tests count them
 	ed        widget.Editor   // the filter field
 	filtering bool            // the filter field has the keyboard
+	narrow    bool            // the window is too narrow for the sidebar
 	filters   []event.Filter  // the filter's own keys, built once
 }
 
@@ -110,8 +112,13 @@ func (win *window) afterClose(id tabs.TabID) tabs.TabID {
 	return 0
 }
 
-// toggleSidebar shows or hides the sidebar and saves the choice.
+// toggleSidebar shows or hides the sidebar and saves the choice. While only the
+// window's width hides it, flipping the setting would change nothing visible, so it is a no-op.
 func (win *window) toggleSidebar() {
+	if win.side.narrow && win.opt.Config.Sidebar {
+		return
+	}
+	win.dropFilter()
 	on := !win.opt.Config.Sidebar
 	win.opt.Config.Sidebar = on
 	win.side.st.hover = 0
@@ -121,8 +128,12 @@ func (win *window) toggleSidebar() {
 // sideWidth is how wide the sidebar (or the macOS rail) is in a window this wide,
 // and sets hidden. A narrow window hides it without touching the setting.
 func (win *window) sideWidth(gtx layout.Context, width int) int {
-	on := win.opt.Config.Sidebar && width >= gtx.Dp(minSideWindow)
+	win.side.narrow = width < gtx.Dp(minSideWindow)
+	on := win.opt.Config.Sidebar && !win.side.narrow
 	win.side.hidden = !on
+	if !on {
+		win.dropFilter() // an invisible field must not keep the keyboard
+	}
 	w := 0
 	switch {
 	case on:
@@ -240,9 +251,8 @@ func (win *window) sideEvents(gtx layout.Context) {
 	}
 }
 
-// filterEvents runs the filter's own keys before its editor sees them: Esc clears
-// it and gives the keyboard back, Enter shows the first match, and kaze's Ctrl /
-// Cmd shortcuts still work. Everything else goes to the editor.
+// filterEvents takes Esc, Enter and kaze's Ctrl / Cmd shortcuts before the editor,
+// which gets every other key.
 func (win *window) filterEvents(gtx layout.Context) {
 	s := &win.side
 	s.ed.SingleLine, s.ed.Submit = true, true
@@ -304,6 +314,15 @@ func (win *window) filterKey(gtx layout.Context, e key.Event) bool {
 	return false
 }
 
+// dropFilter gives the keyboard back from the filter field, keeping its text, when
+// the main view changes or the sidebar goes away.
+func (win *window) dropFilter() {
+	if win.side.filtering {
+		win.side.filtering = false
+		win.wantFocus = true
+	}
+}
+
 // leaveFilter gives the keyboard back to the shown session or the settings page.
 func (win *window) leaveFilter() {
 	win.side.filtering = false
@@ -311,13 +330,16 @@ func (win *window) leaveFilter() {
 	win.sideRedraw()
 }
 
-// filterEnter shows the first session the filter leaves visible and gives it the keyboard.
+// filterEnter shows the first session the filter leaves visible and gives it the
+// keyboard; on an empty filter it only gives the keyboard back.
 func (win *window) filterEnter() {
 	in := win.sideIn()
 	in.Filter = win.side.ed.Text()
 	in.Runs = win.sideRuns()
-	if ids := sessionOrder(buildSide(in)); len(ids) > 0 {
-		win.selectSession(ids[0])
+	if strings.TrimSpace(in.Filter) != "" {
+		if ids := sessionOrder(buildSide(in)); len(ids) > 0 {
+			win.selectSession(ids[0])
+		}
 	}
 	win.leaveFilter()
 }
@@ -336,13 +358,8 @@ func (win *window) sidePointer(e pointer.Event) {
 	switch e.Kind {
 	case pointer.Move, pointer.Enter, pointer.Leave:
 		var hover tabs.TabID
-		if e.Kind != pointer.Leave {
-			for _, r := range s.hits.rows {
-				if p.In(r.rect) {
-					hover = r.id
-					break
-				}
-			}
+		if r, ok := s.hits.lineAt(p); ok && e.Kind != pointer.Leave {
+			hover = r.id
 		}
 		if hover != s.st.hover {
 			s.st.hover = hover
@@ -361,8 +378,8 @@ func (win *window) sidePointer(e pointer.Event) {
 	}
 }
 
-// sidePress handles a click: a row shows its session, its × or a middle click
-// closes it; headers fold; + opens a session; a member becomes the main view.
+// sidePress handles a click: a row or member line shows its tab, its × or a middle
+// click closes it; headers fold; + opens a session.
 func (win *window) sidePress(p image.Point, b pointer.Buttons) {
 	primary, middle := b.Contain(pointer.ButtonPrimary), b.Contain(pointer.ButtonTertiary)
 	if !primary && !middle {
@@ -399,16 +416,14 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons) {
 	case p.In(h.filter):
 		return // the frame gives the field the keyboard
 	}
-	for _, r := range h.rows {
-		if p.In(r.rect) {
-			switch {
-			case middle, p.In(r.close):
-				win.closeTab(r.id)
-			default:
-				win.selectTab(r.id)
-			}
-			return
+	if r, ok := h.lineAt(p); ok {
+		switch {
+		case middle, p.In(r.close):
+			win.closeTab(r.id)
+		default:
+			win.selectTab(r.id)
 		}
+		return
 	}
 	if !primary {
 		return
@@ -431,12 +446,18 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons) {
 			return
 		}
 	}
-	for _, m := range h.members {
-		if p.In(m.rect) {
-			win.selectTab(m.id)
-			return
+}
+
+// lineAt is the session row or workspace member line under p.
+func (h *sideHits) lineAt(p image.Point) (sideRowHit, bool) {
+	for _, list := range [2][]sideRowHit{h.rows, h.members} {
+		for _, r := range list {
+			if p.In(r.rect) {
+				return r, true
+			}
 		}
 	}
+	return sideRowHit{}, false
 }
 
 // flip folds k, or unfolds it by forgetting it.

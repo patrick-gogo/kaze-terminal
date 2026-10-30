@@ -44,6 +44,7 @@ type sideState struct {
 type sideRowHit struct {
 	id          tabs.TabID
 	rect, close image.Rectangle
+	mark        mark // the alert dot a member line drew
 }
 
 type sideKeyHit struct {
@@ -54,6 +55,7 @@ type sideKeyHit struct {
 type sideRunHit struct {
 	run  uint64
 	rect image.Rectangle
+	mark mark // the alert dot a folded header drew
 }
 
 // sideHits is where the last sidebar frame drew things, for clicks and the wheel.
@@ -210,7 +212,7 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 
 	c.sideList(gtx, &h, m, st, closeCall, closeSize)
 	if len(m.Runs) > 0 {
-		c.sideRuns(gtx, &h, m, st, secTop, size)
+		c.sideRuns(gtx, &h, m, st, secTop, size, closeCall, closeSize)
 	}
 	return h
 }
@@ -406,10 +408,11 @@ func (c *chrome) sideGroupHeader(gtx layout.Context, g sideGroup, st sideState, 
 }
 
 // sideRuns draws the workspaces section from secTop to the bottom: a header, then per
-// run its name with all up / N down and one line per member.
-func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideState, secTop int, size image.Point) {
+// run its name with all up / N down and one line per member, with its alert dot and,
+// while hovered, its ×.
+func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideState, secTop int, size image.Point, closeCall op.CallOp, closeSize image.Point) {
 	ops, th := gtx.Ops, c.th
-	pad, gap := gtx.Dp(8), gtx.Dp(8)
+	pad, gap, hitPad := gtx.Dp(8), gtx.Dp(8), gtx.Dp(4)
 	hdH, memH := gtx.Dp(26), gtx.Dp(24)
 	right := size.X - 1
 	area := image.Rect(0, secTop, right, size.Y)
@@ -443,6 +446,12 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			sCall, sSize := c.label(gtx, state, 11, scol)
 			sx := hd.Max.X - gap - sSize.X
 			place(ops, sCall, image.Pt(sx, hd.Min.Y+(hdH-sSize.Y)/2))
+			hit := sideRunHit{run: run.Run, rect: hd}
+			if folded && run.Mark != markNone {
+				// Folded, the members' lines are gone, so the header carries their strongest mark.
+				sx = c.alertDot(gtx, sx, hd.Min.Y+hdH/2, run.Mark)
+				hit.mark = run.Mark
+			}
 			chev := "▾"
 			if folded {
 				chev = "›"
@@ -452,7 +461,7 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			nx := hd.Min.X + gap + cSize.X + gap
 			nCall, nSize := c.fitSide(gtx, run.Name, 12, sx-gap-nx, th.ActiveFG)
 			place(ops, nCall, image.Pt(nx, hd.Min.Y+(hdH-nSize.Y)/2))
-			h.runs = append(h.runs, sideRunHit{run: run.Run, rect: hd})
+			h.runs = append(h.runs, hit)
 		}
 		if folded {
 			continue
@@ -485,18 +494,30 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 			} else if mem.Mark == markNeeds {
 				scol = th.Needs
 			}
+			hit := sideRowHit{id: mem.ID, rect: r}
+			end, mid := r.Max.X-gap, r.Min.Y+memH/2
+			if st.hover == mem.ID && mem.ID != 0 {
+				cx := end - closeSize.X
+				place(ops, closeCall, image.Pt(cx, mid-closeSize.Y/2))
+				hit.close = image.Rect(cx-hitPad, r.Min.Y, r.Max.X, r.Max.Y)
+				end = cx - gap
+			}
 			sCall, sSize := c.label(gtx, mem.Status, 11, scol)
-			sx := r.Max.X - gap - sSize.X
-			place(ops, sCall, image.Pt(sx, r.Min.Y+(memH-sSize.Y)/2))
+			sx := end - sSize.X
+			place(ops, sCall, image.Pt(sx, mid-sSize.Y/2))
+			if mem.Mark != markNone {
+				sx = c.alertDot(gtx, sx, mid, mem.Mark)
+				hit.mark = mem.Mark
+			}
 			tx := bar.Max.X + gap
 			fg := th.Folder
 			if on {
 				fg = th.ActiveFG
 			}
 			tCall, tSize := c.fitSide(gtx, mem.Title, 12, sx-gap-tx, fg)
-			place(ops, tCall, image.Pt(tx, r.Min.Y+(memH-tSize.Y)/2))
+			place(ops, tCall, image.Pt(tx, mid-tSize.Y/2))
 			if mem.ID != 0 {
-				h.members = append(h.members, sideRowHit{id: mem.ID, rect: r})
+				h.members = append(h.members, hit)
 			}
 		}
 	}
@@ -567,13 +588,11 @@ func (c *chrome) badgeColor(m mark) color.NRGBA {
 	return c.th.Muted
 }
 
-// memberDot draws a member's color dot, ringed in its alert color.
-func (c *chrome) memberDot(gtx layout.Context, d image.Rectangle, col string, mk mark) {
-	ops := gtx.Ops
-	paint.FillShape(ops, c.memberColor(col), clip.Ellipse(d).Op(ops))
-	if mk != markNone {
-		in := gtx.Dp(2)
-		ring := image.Rect(d.Min.X-in, d.Min.Y-in, d.Max.X+in, d.Max.Y+in)
-		paint.FillShape(ops, c.badgeColor(mk), clip.Stroke{Path: clip.Ellipse(ring).Path(ops), Width: float32(max(gtx.Dp(1), 1))}.Op())
-	}
+// alertDot draws a mark's dot centred on mid, ending a gap left of right, and
+// returns its left edge.
+func (c *chrome) alertDot(gtx layout.Context, right, mid int, mk mark) int {
+	d, gap := gtx.Dp(6), gtx.Dp(6)
+	x := right - gap - d
+	paint.FillShape(gtx.Ops, c.badgeColor(mk), clip.Ellipse(image.Rect(x, mid-d/2, x+d, mid-d/2+d)).Op(gtx.Ops))
+	return x
 }

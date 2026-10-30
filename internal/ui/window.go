@@ -367,6 +367,7 @@ func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 }
 
 func (win *window) newTab() {
+	win.dropFilter()
 	win.hideSettings() // the new tab is shown
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
@@ -585,7 +586,7 @@ func (win *window) frame(gtx layout.Context) error {
 	if win.dialogShown() {
 		win.ui.toastHits = win.ui.toastHits[:0] // the confirm dialog answers every click; toasts wait
 	} else {
-		win.drawToasts(gtx, size.Y, statusH, barH)
+		win.drawToasts(gtx, termRect)
 	}
 	for _, h := range win.ui.toastHits {
 		area := clip.Rect(h.rect).Push(ops)

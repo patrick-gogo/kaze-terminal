@@ -166,12 +166,16 @@ func (win *window) deliver(m notify.Msg, now time.Time) {
 	if t := win.shownTab(); t != nil {
 		active = t.ID
 	}
+	if t := win.mgr.Lookup(tabs.TabID(m.Tab)); t != nil {
+		win.staleBranch(t) // a background row has no other reason to re-read its branch
+	}
 	win.alerts.doneToast = win.opt.Config.DoneToast
 	win.alerts.apply(m, active, win.focused, win.mgr.Has, now)
 }
 
 // selectTab is the one tab switch for a tab click and a toast's "Go ›".
 func (win *window) selectTab(id tabs.TabID) {
+	win.side.filtering = false
 	win.hideSettings()
 	win.mgr.SetActive(id)
 	win.wantFocus = true
@@ -228,10 +232,10 @@ func (c *chrome) fitLabel(gtx layout.Context, s string, room int, col color.NRGB
 	return call, sz
 }
 
-// drawToasts draws the toasts bottom-right between the title bar and the status
-// bar, newest on top, and records where they are for clicks. When the room is
-// short the oldest cards are left out; when it is too narrow, all of them.
-func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
+// drawToasts draws the toasts bottom-right of area, the terminal's part of the window
+// right of the sidebar, newest on top, and records where they are for clicks. When the
+// room is short the oldest cards are left out; when it is too narrow, all of them.
+func (win *window) drawToasts(gtx layout.Context, area image.Rectangle) {
 	c := win.ui
 	c.toastHits = c.toastHits[:0]
 	list := win.alerts.list()
@@ -243,11 +247,10 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 		titles[t.ID] = tabLabelWith(t, win.defTitle, c.fit)
 	}
 	ops := gtx.Ops
-	width := gtx.Constraints.Max.X
 	margin, gap := gtx.Dp(14), gtx.Dp(8)
 	padX, padY, inner := gtx.Dp(12), gtx.Dp(10), gtx.Dp(10)
 	dot, radius, line := gtx.Dp(7), gtx.Dp(10), max(gtx.Dp(1), 1)
-	maxW := max(min(gtx.Dp(460), width-2*margin), 0)
+	maxW := max(min(gtx.Dp(460), area.Dx()-2*margin), 0)
 
 	goCall, goSz := c.label(gtx, "Go ›", 12, c.th.ToastGo)
 	xCall, xSz := c.label(gtx, "×", 12, c.th.Muted)
@@ -255,7 +258,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	tail := inner + goSz.X + inner + xSz.X + padX
 	textRoom := maxW - lead - tail
 	if textRoom < gtx.Dp(24) {
-		return // too narrow for a readable card; the tab marks still show
+		return // too narrow for a readable card; the sidebar's marks still show
 	}
 
 	type card struct {
@@ -266,7 +269,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 		titleSz, restSz image.Point
 		w, h            int
 	}
-	top, bottom := barH+gap, height-statusH-gtx.Dp(16)
+	top, bottom := area.Min.Y+gap, area.Max.Y-gtx.Dp(16)
 	var cards []card
 	total := 0
 	for _, t := range list {
@@ -293,7 +296,7 @@ func (win *window) drawToasts(gtx layout.Context, height, statusH, barH int) {
 	}
 	y := bottom - (total - gap)
 	for _, k := range cards {
-		r := image.Rect(width-margin-k.w, y, width-margin, y+k.h)
+		r := image.Rect(area.Max.X-margin-k.w, y, area.Max.X-margin, y+k.h)
 		paint.FillShape(ops, c.th.ToastLine, clip.UniformRRect(r, radius).Op(ops))
 		paint.FillShape(ops, c.th.ToastBG, clip.UniformRRect(r.Inset(line), max(radius-line, 0)).Op(ops))
 		mid := r.Min.Y + k.h/2

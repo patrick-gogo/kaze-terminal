@@ -10,6 +10,7 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/f32"
+	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 
@@ -197,7 +198,7 @@ func TestGoSwitchesTab(t *testing.T) {
 	win, _ := alertWindow(t, 3)
 	target := win.mgr.Tabs()[2].ID
 	win.alerts.apply(notify.Msg{Tab: int(target), Kind: notify.KindNeeds}, win.mgr.Active().ID, true, only(3), t0)
-	win.drawToasts(barContext(1000), 600, 24, 38)
+	win.drawToasts(barContext(1000), toastArea(1000, 600, 24))
 	if len(win.ui.toastHits) != 1 {
 		t.Fatalf("%d toast hit areas, want 1", len(win.ui.toastHits))
 	}
@@ -227,7 +228,7 @@ func TestToastCloseDismisses(t *testing.T) {
 	first := win.mgr.Active().ID
 	target := win.mgr.Tabs()[1].ID
 	win.alerts.apply(notify.Msg{Tab: int(target), Kind: notify.KindNeeds}, first, true, only(2), t0)
-	win.drawToasts(barContext(1000), 600, 24, 38)
+	win.drawToasts(barContext(1000), toastArea(1000, 600, 24))
 	c := win.ui.toastHits[0].closeRect
 	win.toastEvent(pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: f32.Pt(float32(c.Min.X+2), float32(c.Min.Y+2))})
 	if win.mgr.Active().ID != first || len(win.alerts.list()) != 0 || win.alerts.markOf(target) != markNeeds {
@@ -406,7 +407,7 @@ func TestToastsSitAboveStatusBarBottomRight(t *testing.T) {
 		win.alerts.apply(notify.Msg{Tab: int(tb.ID), Kind: notify.KindNeeds, Reason: strings.Repeat("long reason ", 20)}, win.mgr.Active().ID, true, only(4), t0)
 	}
 	const w, h, statusH = 400, 600, 24
-	win.drawToasts(barContext(w), h, statusH, 38)
+	win.drawToasts(barContext(w), toastArea(w, h, statusH))
 	hits := win.ui.toastHits
 	if len(hits) != 3 {
 		t.Fatalf("%d toasts drawn, want 3", len(hits))
@@ -461,7 +462,7 @@ func TestNarrowWindowKeepsTextOffTheButtons(t *testing.T) {
 	target.Session.Unlock()
 	win.alerts.apply(notify.Msg{Tab: int(target.ID), Kind: notify.KindNeeds, Reason: "why"}, win.mgr.Active().ID, true, only(2), t0)
 	for _, w := range []int{0, 10, 60, 120, 200, 320} {
-		win.drawToasts(barContext(w), 600, 24, 38)
+		win.drawToasts(barContext(w), toastArea(w, 600, 24))
 		for _, h := range win.ui.toastHits {
 			if h.rect.Min.X < 0 || h.rect.Max.X > w {
 				t.Fatalf("width %d: toast %v outside the window", w, h.rect)
@@ -480,7 +481,7 @@ func TestShortWindowDropsCardsAboveTheBar(t *testing.T) {
 	}
 	newest := win.mgr.Tabs()[3].ID
 	for _, h := range []int{40, 62, 110, 150} {
-		win.drawToasts(barContext(800), h, 24, 38)
+		win.drawToasts(barContext(800), toastArea(800, h, 24))
 		for i, th := range win.ui.toastHits {
 			if th.rect.Min.Y < 38 || th.rect.Max.Y > h-24 {
 				t.Fatalf("height %d: toast %d at %v leaves the room between bar and status", h, i, th.rect)
@@ -490,7 +491,7 @@ func TestShortWindowDropsCardsAboveTheBar(t *testing.T) {
 			t.Fatalf("height %d: kept tab %d on top, want the newest %d", h, hits[0].id, newest)
 		}
 	}
-	win.drawToasts(barContext(800), 600, 24, 38)
+	win.drawToasts(barContext(800), toastArea(800, 600, 24))
 	if len(win.ui.toastHits) != 3 {
 		t.Fatal("a tall window lost toasts")
 	}
@@ -512,5 +513,34 @@ func TestFrameErrorShutsTheListener(t *testing.T) {
 	}
 	if err := notify.Send(srv.Addr(), srv.Token(), notify.Msg{Tab: 1, Kind: notify.KindDone}, 500*time.Millisecond); err == nil {
 		t.Fatal("the listener still accepts after the frame failed")
+	}
+}
+
+// toastArea is the terminal area frame gives a w x h window with a 38px bar and no sidebar.
+func toastArea(w, h, statusH int) image.Rectangle {
+	return image.Rectangle{Min: image.Pt(0, 38), Max: image.Pt(w, max(h-statusH, 38))}
+}
+
+// Toasts sit over the terminal, right of the sidebar, never over it.
+func TestToastsStayRightOfTheSidebar(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	a := openIn(t, win, "")
+	b := openIn(t, win, "")
+	c := openIn(t, win, "")
+	win.mgr.SetActive(a.ID)
+	b.Session.Lock()
+	b.Session.Applier().OSC([]byte("0;" + strings.Repeat("W", 60)))
+	b.Session.Unlock()
+	win.alerts.apply(notify.Msg{Tab: int(b.ID), Kind: notify.KindNeeds, Reason: strings.Repeat("long reason ", 20)}, a.ID, true, only(3), t0)
+	win.alerts.apply(notify.Msg{Tab: int(c.ID), Kind: notify.KindNeeds}, a.ID, true, only(3), t0)
+	var r input.Router
+	sizedFrame(t, win, &r, 640, 600)
+	if win.side.hidden || len(win.ui.toastHits) == 0 {
+		t.Fatalf("640 wide: sidebar hidden %v, %d toasts", win.side.hidden, len(win.ui.toastHits))
+	}
+	for i, h := range win.ui.toastHits {
+		if h.rect.Min.X < sidebarW || h.rect.Max.X > 640 {
+			t.Fatalf("toast %d at %v covers the %ddp sidebar or leaves the window", i, h.rect, sidebarW)
+		}
 	}
 }

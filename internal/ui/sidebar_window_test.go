@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/io/event"
@@ -15,6 +16,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/config"
+	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/vt"
 )
@@ -559,5 +561,152 @@ func TestShortFolderKeepsTheLastTwoParts(t *testing.T) {
 	}
 	if got := shortFolder(""); got != "" {
 		t.Fatalf("empty folder became %q", got)
+	}
+}
+
+func memberHit(t *testing.T, win *window, id tabs.TabID) sideRowHit {
+	t.Helper()
+	for _, h := range win.side.hits.members {
+		if h.id == id {
+			return h
+		}
+	}
+	t.Fatalf("no member line for tab %d in %+v", id, win.side.hits.members)
+	return sideRowHit{}
+}
+
+func TestHoveredMemberShowsAnXAndMiddleClickCloses(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	a := openIn(t, win, "")
+	m := openMember(t, win, "api")
+	n := openMember(t, win, "web")
+	win.runs[1].cancel = func() {} // closing members can settle or end the run
+	win.mgr.SetActive(a.ID)
+	var r input.Router
+	sideFrame(t, win, &r)
+	if !memberHit(t, win, m.ID).close.Empty() {
+		t.Fatal("a member line shows a × without hover")
+	}
+	r.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, Position: sidePt(win, centre(memberHit(t, win, m.ID).rect))})
+	sideFrame(t, win, &r)
+	sideFrame(t, win, &r) // draws the × the hover asked for
+	if win.side.st.hover != m.ID {
+		t.Fatalf("hover %d over the member line, want %d", win.side.st.hover, m.ID)
+	}
+	x := memberHit(t, win, m.ID).close
+	if x.Empty() {
+		t.Fatal("a hovered member line shows no ×")
+	}
+	sideClick(win, &r, x, pointer.ButtonPrimary)
+	sideFrame(t, win, &r)
+	if win.mgr.Has(m.ID) || win.mgr.Active().ID != a.ID {
+		t.Fatalf("× on a member: open %v, active %d, want closed and a (%d) shown", win.mgr.Has(m.ID), win.mgr.Active().ID, a.ID)
+	}
+	sideFrame(t, win, &r)
+	sideClick(win, &r, memberHit(t, win, n.ID).rect, pointer.ButtonTertiary)
+	sideFrame(t, win, &r)
+	if win.mgr.Has(n.ID) {
+		t.Fatal("a middle click on a member line did not close it")
+	}
+}
+
+func TestMemberMarksShowOnTheirLinesAndAFoldedHeader(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	a := openIn(t, win, "")
+	m := openMember(t, win, "api")
+	n := openMember(t, win, "web")
+	win.mgr.SetActive(a.ID)
+	win.alerts.marks = map[tabs.TabID]mark{m.ID: markDone, n.ID: markNeeds}
+	if got := win.sideRuns()[0].Mark; got != markNeeds {
+		t.Fatalf("run mark %v, want needs over done", got)
+	}
+	var r input.Router
+	sideFrame(t, win, &r)
+	if got := memberHit(t, win, m.ID).mark; got != markDone {
+		t.Fatalf("api line drew mark %v, want done", got)
+	}
+	if got := memberHit(t, win, n.ID).mark; got != markNeeds {
+		t.Fatalf("web line drew mark %v, want needs", got)
+	}
+	if got := win.side.hits.runs[0].mark; got != markNone {
+		t.Fatalf("an open run header drew mark %v; its lines show the marks", got)
+	}
+	sideClick(win, &r, win.side.hits.runs[0].rect, pointer.ButtonPrimary)
+	sideFrame(t, win, &r)
+	sideFrame(t, win, &r)
+	if len(win.side.hits.runs) != 1 || win.side.hits.runs[0].mark != markNeeds {
+		t.Fatalf("folded run header hits %+v, want it marked needs", win.side.hits.runs)
+	}
+}
+
+func TestToggleInANarrowWindowChangesNothing(t *testing.T) {
+	for _, custom := range []bool{true, false} {
+		win, _ := sideWindow(t, custom)
+		openIn(t, win, "")
+		win.cfgPath = filepath.Join(t.TempDir(), "config.toml")
+		var r input.Router
+		sizedFrame(t, win, &r, 500, 600)
+		win.route(layout.Context{}, []event.Event{key.Event{Name: "B", Modifiers: key.ModCtrl | key.ModShift, State: key.Press}}, 8, 16)
+		sizedFrame(t, win, &r, 500, 600)
+		if custom {
+			click(win, win.bar.Toggle)
+		} else {
+			sideClick(win, &r, win.side.hits.toggle, pointer.ButtonPrimary)
+		}
+		sizedFrame(t, win, &r, 500, 600)
+		if !win.opt.Config.Sidebar {
+			t.Fatalf("custom %v: the toggle in a narrow window turned the setting off", custom)
+		}
+		if _, err := os.Stat(win.cfgPath); !os.IsNotExist(err) {
+			t.Fatalf("custom %v: the toggle in a narrow window wrote the config (%v)", custom, err)
+		}
+		sizedFrame(t, win, &r, 1000, 600)
+		if win.side.hidden {
+			t.Fatalf("custom %v: widening did not show the sidebar", custom)
+		}
+	}
+}
+
+// A Stop or Notification alert re-reads a background session's branch and repo.
+func TestAlertRereadsABackgroundBranch(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	a := openIn(t, win, `C:\code\X\a`)
+	b := openIn(t, win, `C:\code\X\b`)
+	win.mgr.SetActive(a.ID)
+	branch := "one"
+	win.branchFn = func(string) string { return branch }
+	var r input.Router
+	sideFrame(t, win, &r)
+	branch = "two"
+	for _, k := range []notify.Kind{notify.KindDone, notify.KindNeeds} {
+		win.deliver(notify.Msg{Tab: int(b.ID), Kind: k}, time.Unix(1000, 0))
+		var got string
+		for _, row := range buildSide(win.sideIn()).Groups[0].Rows {
+			if row.ID == b.ID {
+				got = row.Branch
+			}
+		}
+		if got != branch {
+			t.Fatalf("after a %s alert b's row reads branch %q, want %q", k, got, branch)
+		}
+		branch = "three"
+	}
+}
+
+func TestSideTabChangesGroupOnNewReport(t *testing.T) {
+	win, _ := sideWindow(t, true)
+	a := openIn(t, win, `C:\code\X\a`)
+	openIn(t, win, `C:\code\X\b`)
+	if g := buildSide(win.sideIn()).Groups; len(g) != 1 || g[0].Key != "key-X" || len(g[0].Rows) != 2 {
+		t.Fatalf("groups %+v, want both in X", g)
+	}
+	report(t, a, `C:\code\Y\a`)
+	g := buildSide(win.sideIn()).Groups
+	byKey := map[string][]sideRow{}
+	for _, x := range g {
+		byKey[x.Key] = x.Rows
+	}
+	if len(g) != 2 || len(byKey["key-Y"]) != 1 || byKey["key-Y"][0].ID != a.ID || len(byKey["key-X"]) != 1 {
+		t.Fatalf("groups %+v, want a moved to Y", g)
 	}
 }

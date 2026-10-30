@@ -258,4 +258,21 @@ func TestExitedMemberReadsStoppedNotRunning(t *testing.T) {
 	if mem.Status != "stopped" || !mem.Down {
 		t.Fatalf("exited member %+v, want stopped and down", mem)
 	}
+	// Whatever its run said, an exited shell that did not fail reads stopped; Failed stays.
+	for _, c := range []struct {
+		run  workspaces.TabRun
+		want string
+	}{
+		{workspaces.TabRun{Line: "x", State: workspaces.Waiting}, "stopped"},
+		{workspaces.TabRun{Line: "x", State: workspaces.Waiting, ShellReady: true, Wait: workspaces.WaitDocker}, "stopped"},
+		{workspaces.TabRun{Line: "x", State: workspaces.Cancelled}, "stopped"},
+		{workspaces.TabRun{Line: "x", State: workspaces.NeedsConfirmation}, "stopped"},
+		{workspaces.TabRun{State: workspaces.Waiting}, "stopped"},
+		{workspaces.TabRun{Line: "x", State: workspaces.Failed}, "Failed"},
+	} {
+		win.runs[1].members[0].run = c.run
+		if mem := win.sideRuns()[0].Members[0]; mem.Status != c.want || !mem.Down {
+			t.Fatalf("exited member with run %+v reads %+v, want %s and down", c.run, mem, c.want)
+		}
+	}
 }

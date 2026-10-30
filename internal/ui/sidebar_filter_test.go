@@ -156,3 +156,106 @@ func TestClickingTheTerminalLeavesTheFilterText(t *testing.T) {
 		t.Fatalf("filtering %v, text %q", win.side.filtering, win.side.ed.Text())
 	}
 }
+
+// shortcutFor is the key event bound to a, from the window's keymap.
+func shortcutFor(t *testing.T, win *window, a action) key.Event {
+	t.Helper()
+	for k, got := range win.km {
+		if got == a {
+			return key.Event{Name: k.Name, Modifiers: k.Mods, State: key.Press}
+		}
+	}
+	t.Fatalf("no shortcut for action %d", a)
+	return key.Event{}
+}
+
+// typedReaches types s and waits, bounded, for p to get exactly s.
+func typedReaches(t *testing.T, win *window, r *input.Router, p *recPTY, s string) {
+	t.Helper()
+	r.Queue(key.EditEvent{Text: s})
+	sideFrame(t, win, r)
+	waitSent(t, p, s)
+}
+
+func TestNewSessionWhileFilteringTakesTheKeyboard(t *testing.T) {
+	win, st, r, _ := filterWindow(t)
+	focusFilter(t, win, r)
+	typeFilter(t, win, r, "33")
+	pressKey(t, win, r, shortcutFor(t, win, actNewTab).Name, shortcutFor(t, win, actNewTab).Modifiers)
+	if win.side.filtering || win.focusTarget() != win.termTag || !r.Source().Focused(win.termTag) {
+		t.Fatalf("after the new-session shortcut: filtering %v, terminal focused %v", win.side.filtering, r.Source().Focused(win.termTag))
+	}
+	typedReaches(t, win, r, st.ptys[3], "x")
+}
+
+func TestCtrlTabWhileFilteringTakesTheKeyboard(t *testing.T) {
+	win, st, r, _ := filterWindow(t)
+	focusFilter(t, win, r)
+	pressKey(t, win, r, key.NameTab, key.ModCtrl)
+	if win.side.filtering || !r.Source().Focused(win.termTag) {
+		t.Fatalf("after Ctrl+Tab: filtering %v", win.side.filtering)
+	}
+	typedReaches(t, win, r, st.ptys[1], "x")
+}
+
+func TestToggleWhileFilteringGivesTheTerminalTheKeyboard(t *testing.T) {
+	win, st, r, tb := filterWindow(t)
+	focusFilter(t, win, r)
+	pressKey(t, win, r, "B", key.ModCtrl|key.ModShift)
+	if !win.side.hidden || win.side.filtering || !r.Source().Focused(win.termTag) {
+		t.Fatalf("after Ctrl+Shift+B: hidden %v, filtering %v", win.side.hidden, win.side.filtering)
+	}
+	if win.mgr.Active().ID != tb[0].ID {
+		t.Fatal("hiding the sidebar changed the shown session")
+	}
+	typedReaches(t, win, r, st.ptys[0], "y")
+}
+
+func TestNarrowingWhileFilteringGivesTheTerminalTheKeyboard(t *testing.T) {
+	win, st, r, _ := filterWindow(t)
+	focusFilter(t, win, r)
+	sizedFrame(t, win, r, 500, 600)
+	sizedFrame(t, win, r, 500, 600)
+	if !win.side.hidden || win.side.filtering || !r.Source().Focused(win.termTag) {
+		t.Fatalf("narrowed: hidden %v, filtering %v", win.side.hidden, win.side.filtering)
+	}
+	r.Queue(key.EditEvent{Text: "z"})
+	sizedFrame(t, win, r, 500, 600)
+	waitSent(t, st.ptys[0], "z")
+}
+
+func TestOpeningSettingsWhileFilteringFocusesThePage(t *testing.T) {
+	win, _, r, _ := filterWindow(t)
+	focusFilter(t, win, r)
+	sc := shortcutFor(t, win, actOpenSettings)
+	pressKey(t, win, r, sc.Name, sc.Modifiers)
+	if !win.set.shown || win.side.filtering || win.focusTarget() != &win.set.tag || !r.Source().Focused(&win.set.tag) {
+		t.Fatalf("after opening settings: shown %v, filtering %v", win.set.shown, win.side.filtering)
+	}
+}
+
+func TestRowClickWhileFilteringGivesTheTerminalTheKeyboard(t *testing.T) {
+	win, st, r, tb := filterWindow(t)
+	focusFilter(t, win, r)
+	sideClick(win, r, rowHit(t, win, tb[2].ID).rect, pointer.ButtonPrimary)
+	sideFrame(t, win, r)
+	sideFrame(t, win, r)
+	if win.mgr.Active().ID != tb[2].ID || win.focusTarget() != win.termTag || !r.Source().Focused(win.termTag) {
+		t.Fatalf("row click: active %d, filtering %v", win.mgr.Active().ID, win.side.filtering)
+	}
+	typedReaches(t, win, r, st.ptys[2], "x")
+}
+
+func TestEnterOnAnEmptyFilterKeepsTheShownSession(t *testing.T) {
+	win, _, r, tb := filterWindow(t)
+	win.mgr.SetActive(tb[1].ID)
+	sideFrame(t, win, r)
+	focusFilter(t, win, r)
+	pressKey(t, win, r, key.NameReturn, 0)
+	if got := win.mgr.Active().ID; got != tb[1].ID {
+		t.Fatalf("Enter on an empty filter showed %d, want the shown session %d", got, tb[1].ID)
+	}
+	if win.side.filtering || !r.Source().Focused(win.termTag) {
+		t.Fatal("Enter on an empty filter kept the keyboard in the field")
+	}
+}
