@@ -206,3 +206,30 @@ func TestRepoSelfPointingGitFile(t *testing.T) {
 		t.Fatalf("got %q, %q", key, name)
 	}
 }
+
+func TestTopOfAWorktree(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, "real", ".git", "HEAD"), "ref: refs/heads/main\n")
+	write(t, filepath.Join(root, "real", ".git", "worktrees", "w", "HEAD"), "ref: refs/heads/wt\n")
+	wt := filepath.Join(root, "wt")
+	write(t, filepath.Join(wt, ".git"), "gitdir: ../real/.git/worktrees/w\n")
+	sub := filepath.Join(wt, "a", "b")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := Top(sub); got != wt {
+		t.Fatalf("worktree top %q, want %q", got, wt)
+	}
+	if got := Top(filepath.Join(root, "real")); got != filepath.Join(root, "real") {
+		t.Fatalf("main top %q", got)
+	}
+}
+
+func TestTopOutsideARepo(t *testing.T) {
+	if got := Top(t.TempDir()); got != "" {
+		t.Fatalf("got %q", got)
+	}
+	if got := Top(""); got != "" {
+		t.Fatalf("empty dir: got %q", got)
+	}
+}
