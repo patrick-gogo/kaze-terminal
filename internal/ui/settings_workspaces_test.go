@@ -859,3 +859,91 @@ func TestSecondPickWhileOpenDoesNothing(t *testing.T) {
 	fp.answer <- ""
 	f.settlePick()
 }
+
+// ctlsOf is every control with id this frame.
+func (f *runFixture) ctlsOf(id string) []control {
+	var out []control
+	for _, c := range f.win.set.controls {
+		if c.id == id {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func TestEditorListShowsEveryTabWithCommandCount(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	for _, s := range []string{"api", "admin", "storefront", "api logs", "2 commands", "1 command"} {
+		f.wantText(s)
+	}
+	items := f.ctlsOf("ws.sel")
+	if len(items) != 4 {
+		t.Fatalf("%d tab list items, want 4", len(items))
+	}
+	title, ok := f.ctl(tabID(f.tabKey(0), "title"), 0)
+	if !ok {
+		t.Fatal("no title field for the selected tab")
+	}
+	for i, it := range items {
+		if it.arg != f.tabKey(i) || it.rect.Max.X > title.rect.Min.X {
+			t.Fatalf("item %d (arg %d) at %v is not left of the title field %v", i, it.arg, it.rect, title.rect)
+		}
+	}
+}
+
+func TestEditorMarksTabsWithProblems(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	f.sel(2)
+	f.typeInto(tabID(f.tabKey(2), "title"), "")
+	f.sel(0)
+	if !slices.Equal(f.win.wsp.flagged, []int{f.tabKey(2)}) {
+		t.Fatalf("flagged tabs %v, want only tab 2's key %d", f.win.wsp.flagged, f.tabKey(2))
+	}
+}
+
+func TestEditorShowsChooseAndNumberedCommands(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	if c, ok := f.ctl(tabID(f.tabKey(0), "pick"), 0); !ok || c.kind != ctlButton {
+		t.Fatal("no Choose… button for the folder")
+	}
+	f.wantText("Choose…")
+	f.wantText("Command 1")
+	f.wantText("Command 2")
+	f.wantText("×")
+	if f.has("Tab 1") {
+		t.Fatal(`the old "Tab 1" heading is still drawn`)
+	}
+}
+
+func TestEditorStacksWhenNarrow(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	narrow := image.Rect(0, 38, 700, 4000)
+	f.win.drawSettings(pageContext(narrow.Dx(), narrow.Max.Y+24), narrow)
+	title, ok := f.ctl(tabID(f.tabKey(0), "title"), 0)
+	if !ok {
+		t.Fatal("no title field")
+	}
+	for _, it := range f.ctlsOf("ws.sel") {
+		if it.rect.Max.Y > title.rect.Min.Y {
+			t.Fatalf("list item %v is not above the title field %v in a narrow page", it.rect, title.rect)
+		}
+	}
+}
+
+// Opening or closing the editor replaces every control, so the clicked button's
+// focus must not land on whatever control now has its place.
+func TestOpeningAndClosingTheEditorDropsFocus(t *testing.T) {
+	f := newWSPage(t)
+	f.press("ws.edit", 0)
+	if f.win.set.focus != -1 {
+		t.Fatalf("focus %d after opening the editor, want none", f.win.set.focus)
+	}
+	f.press("ws.cancel", 0)
+	if f.win.set.focus != -1 {
+		t.Fatalf("focus %d after closing the editor, want none", f.win.set.focus)
+	}
+}

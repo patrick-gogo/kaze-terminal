@@ -671,21 +671,31 @@ func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) int {
 	if sec.draw != nil {
 		return sec.draw(p, r, win)
 	}
-	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
-	y := r.Min.Y
-	call, size := p.text(sec.title, 16, col.title)
-	place(ops, call, image.Pt(r.Min.X, y))
-	y += size.Y + gtx.Dp(4)
-	if sec.hint != "" {
-		call, size = p.text(sec.hint, 12, col.dim)
-		place(ops, call, image.Pt(r.Min.X, y))
-		y += size.Y
-	}
-	y += gtx.Dp(16)
+	y := p.heading(r, sec.title, sec.hint)
 	if sec.rows == nil {
 		return y
 	}
-	for _, row := range sec.rows(win) {
+	return p.rows(r, y, sec.rows(win))
+}
+
+// heading draws a section's title and hint and returns where its rows start.
+func (p *page) heading(r image.Rectangle, title, hint string) int {
+	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
+	y := r.Min.Y
+	call, size := p.text(title, 16, col.title)
+	place(ops, call, image.Pt(r.Min.X, y))
+	y += size.Y + gtx.Dp(4)
+	if hint != "" {
+		call, size = p.text(hint, 12, col.dim)
+		place(ops, call, image.Pt(r.Min.X, y))
+		y += size.Y
+	}
+	return y + gtx.Dp(16)
+}
+
+// rows draws rows from y in r and returns where the next would start.
+func (p *page) rows(r image.Rectangle, y int, rows []settingRow) int {
+	for _, row := range rows {
 		if row.block {
 			y = p.blockRow(r, y, row)
 		} else {
