@@ -58,5 +58,5 @@ checklist and what's next. The authority for behaviour is the spec
 - Tests: `go test ./...` and `go vet ./...`. Run one package at a time when chasing a failure.
 - Windows only: Smart App Control can block freshly built test binaries or `kaze.exe`
   ("An Application Control policy has blocked this file"). Rebuild with a changed build id,
-  e.g. `go test -ldflags "-B 0x<random hex>" ./internal/<pkg>/` (`-X main.r=...` does nothing in a non-main
-  package, so its build id stays the same). Retry with a new value if it is blocked again. Don't turn Smart App Control off.
+  e.g. `go test -ldflags "-B 0x<random hex>" ./internal/<pkg>/` or `-ldflags "-X main.r=<random>"` (both change
+  the test binary's hash). Retry with a new value if it is blocked again. Don't turn Smart App Control off.
