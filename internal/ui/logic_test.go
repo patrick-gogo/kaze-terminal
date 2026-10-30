@@ -301,3 +301,38 @@ func TestPaletteKeyNotPlainCtrlK(t *testing.T) {
 		}
 	}
 }
+
+func TestScratchShellDefaults(t *testing.T) {
+	if got := defaultBindings("windows")["scratch_shell"]; got != (input.Shortcut{Name: "`", Mods: key.ModCtrl | key.ModShift}) {
+		t.Errorf("windows %+v", got)
+	}
+	if got := defaultBindings("darwin")["scratch_shell"]; got != (input.Shortcut{Name: "`", Mods: key.ModCtrl}) {
+		t.Errorf("darwin %+v", got)
+	}
+	if !config.KnownActions["scratch_shell"] || actionByName["scratch_shell"] != actScratch {
+		t.Error("scratch_shell is not a known action")
+	}
+}
+
+func TestScratchShellOverride(t *testing.T) {
+	km, warns := buildKeymap("windows", map[string]string{"scratch_shell": "ctrl+alt+s"})
+	if len(warns) != 0 || km[input.Shortcut{Name: "S", Mods: key.ModCtrl | key.ModAlt}] != actScratch {
+		t.Fatalf("warns %v", warns)
+	}
+	if sc, ok := parseShortcut("ctrl+shift+`"); !ok || sc != (input.Shortcut{Name: "`", Mods: key.ModCtrl | key.ModShift}) {
+		t.Fatalf("parsed %+v %v", sc, ok)
+	}
+}
+
+func TestScratchKeyIsAShortcutNotText(t *testing.T) {
+	for _, goos := range []string{"windows", "darwin"} {
+		km, _ := buildKeymap(goos, nil)
+		mods := key.ModCtrl | key.ModShift
+		if goos == "darwin" {
+			mods = key.ModCtrl
+		}
+		if out := routeKey(goos, km, "`", mods, term.Modes{}); out.act != actScratch || out.data != nil {
+			t.Errorf("%s: %+v", goos, out)
+		}
+	}
+}
