@@ -72,3 +72,21 @@ if (/Windows/.test(navigator.userAgent)) {
   }
   selectPlatform('windows');
 }
+
+// The download count: every release zip on GitHub, summed. Kaze's in-place
+// updates download the same zips, so they count too. Hidden until there is one.
+fetch('https://api.github.com/repos/patrick-gogo/kaze-terminal/releases?per_page=100')
+  .then(r => (r.ok ? r.json() : []))
+  .then(releases => {
+    const total = releases
+      .flatMap(r => r.assets || [])
+      .filter(a => a.name.endsWith('.zip'))
+      .reduce((n, a) => n + a.download_count, 0);
+    if (total > 0) {
+      const count = document.getElementById('download-count');
+      count.textContent = `${total.toLocaleString('en-US')} ${total === 1 ? 'download' : 'downloads'}`;
+      count.hidden = false;
+      document.getElementById('download-sep').hidden = false;
+    }
+  })
+  .catch(() => {});
