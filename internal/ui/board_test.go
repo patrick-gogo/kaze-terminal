@@ -239,7 +239,7 @@ func TestClaudeLeavingEndsItsSubagents(t *testing.T) {
 	win, id := boardWindow(t)
 	tab := win.mgr.Lookup(id)
 	deliverNow(win, promptMsg(int(id), "", ""), t0) // Claude is running in the tab
-	promptMark(t, tab) // the shell prompt is back: Claude exited
+	promptMark(t, tab)                              // the shell prompt is back: Claude exited
 	win.leaveAgents(win.mgr.Tabs())
 	if win.subs.Active(0) != 0 {
 		t.Fatalf("%d subagents still running after Claude left", win.subs.Active(0))
