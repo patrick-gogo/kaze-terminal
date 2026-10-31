@@ -35,30 +35,29 @@ type claudeDialog struct {
 
 func claudeSection() settingsSection {
 	return settingsSection{
-		title: "Claude", hint: "How kaze hears from Claude Code, and how it tells you.",
-		rows: claudeRows, act: claudeAct, show: (*window).loadClaude, dialog: claudeDialogBox,
+		title: "Agents", hint: "Alerts come from each agent’s hooks. Usage comes from Claude Code’s status line.",
+		rows: agentsRows, act: agentsAct, show: (*window).loadAgents, dialog: agentsDialogBox,
 	}
 }
 
-func claudeRows(win *window) []settingRow {
+func sharedAgentRows(win *window) []settingRow {
 	c := win.opt.Config
-	rows := append([]settingRow{{heading: "Claude Code setup"}}, win.setupRows()...)
-	return append(rows,
+	return []settingRow{
 		settingRow{heading: "Alerts"},
-		settingRow{label: "Chime when Claude needs you", hint: "Not when you're already looking at that session.", ctrls: []ctrl{
+		settingRow{label: "Chime when an agent needs you", hint: "Not when you're already looking at that session.", ctrls: []ctrl{
 			{kind: ctlButton, id: "chime_test", text: "Test", ghost: true},
 			{kind: ctlToggle, id: "chime_needs", on: c.ChimeNeeds},
 		}},
-		settingRow{label: "Chime when Claude is done", ctrls: []ctrl{{kind: ctlToggle, id: "chime_done", on: c.ChimeDone}}},
+		settingRow{label: "Chime when an agent is done", ctrls: []ctrl{{kind: ctlToggle, id: "chime_done", on: c.ChimeDone}}},
 		settingRow{label: "Flash the taskbar", hint: "When kaze is in the background", ctrls: []ctrl{{kind: ctlToggle, id: "taskbar_flash", on: c.TaskbarFlash}}},
 		settingRow{label: `"Done" toast stays for`, ctrls: []ctrl{{
 			kind: ctlSegmented, id: "done_toast", options: []string{"3s", "6s", "10s", "Until seen"},
 			selected: choiceIndex(doneToasts, c.DoneToast, 1),
 		}}},
 		settingRow{heading: "Status bar"},
-		settingRow{label: "Show usage", hint: "Claude's 5-hour and weekly limits, and this session's context.",
+		settingRow{label: "Show Claude usage in the status bar", hint: "Claude's 5-hour and weekly limits, and this session's context.",
 			ctrls: []ctrl{{kind: ctlToggle, id: "show_usage", on: c.ShowUsage}}},
-	)
+	}
 }
 
 // setupRows is the Claude Code setup check: one row per kaze entry with its

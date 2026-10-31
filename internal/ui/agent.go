@@ -9,11 +9,33 @@ import (
 
 const maxAgentArg = 40
 
-// agentState is what the hook messages say about the Claude in one tab.
+// agentState is what the hook messages say about the agent in one tab.
 type agentState struct {
 	claude, running bool
-	command, arg    string // last slash command and its first argument
+	agent           string
+	command, arg    string // last submitted command and its first argument
 	shellAt         uint64 // shellSeq(t) when the last hook message arrived
+}
+
+// agentName keeps old in-memory/test states compatible with Claude-only rows.
+func (a agentState) agentName() string {
+	if a.agent != "" {
+		return a.agent
+	}
+	if a.claude {
+		return "claude"
+	}
+	return ""
+}
+
+func agentCommand(agent, command string) string {
+	if agent == "" {
+		return command
+	}
+	if command == "" {
+		return agent
+	}
+	return agent + " · " + command
 }
 
 // agentOf is the zero value for an unknown tab.
@@ -33,20 +55,34 @@ func shellSeq(t *tabs.Tab) uint64 {
 // seq is shellSeq when the message arrived, not when a frame applies it.
 func (win *window) noteAgent(m notify.Msg, id tabs.TabID, seq uint64) {
 	a := win.agents[id]
+	agent := m.Agent
+	if agent == "" {
+		agent = "claude"
+	}
+	if m.Kind == notify.KindUsage && a.agentName() == "codex" {
+		return
+	}
+	if old := a.agentName(); old != "" && old != agent {
+		a.command, a.arg = "", ""
+	}
 	switch m.Kind {
 	case notify.KindPrompt:
-		a.claude, a.running = true, true
+		a.claude, a.running = agent == "claude", true
 		if m.Command != "" {
 			a.command = m.Command
 			a.arg = firstWord(m.Args, maxAgentArg)
 		}
 		win.alerts.visited(id) // a new prompt answers whatever the tab was waiting on
-	case notify.KindDone, notify.KindNeeds:
-		a.claude, a.running = true, false
+	case notify.KindDone, notify.KindNeeds, notify.KindInterrupt:
+		a.claude, a.running = agent == "claude", false
 	case notify.KindUsage:
 		a.claude = true
 	default:
 		return
+	}
+	a.agent = agent
+	if agent == "codex" {
+		delete(win.ctx, id)
 	}
 	a.shellAt = seq
 	if win.agents == nil {
@@ -67,15 +103,15 @@ func firstWord(s string, n int) string {
 	return f[0]
 }
 
-// leaveAgents ends Claude in tabs whose shell reported a prompt since the last
+// leaveAgents ends the agent in tabs whose shell reported a prompt since the last
 // hook message: the prompt is back. The arg stays as the row's title.
 func (win *window) leaveAgents(list []*tabs.Tab) {
 	for _, t := range list {
 		a, ok := win.agents[t.ID]
-		if !ok || !a.claude || shellSeq(t) <= a.shellAt {
+		if !ok || a.agentName() == "" || shellSeq(t) <= a.shellAt {
 			continue
 		}
-		a.claude, a.running, a.command = false, false, ""
+		a.claude, a.running, a.command, a.agent = false, false, "", ""
 		win.agents[t.ID] = a
 	}
 }

@@ -68,7 +68,9 @@ func (b *inbox) put(m notify.Msg, shell uint64) {
 	case notify.KindPrompt:
 		if m.Command == "" && p.prompt != nil {
 			// A plain prompt keeps the shown command, so carry it as delivering both would.
-			q.m.Command, q.m.Args = p.prompt.m.Command, p.prompt.m.Args
+			if q.m.Agent == p.prompt.m.Agent {
+				q.m.Command, q.m.Args = p.prompt.m.Command, p.prompt.m.Args
+			}
 		}
 		p.prompt = &q
 	}
@@ -151,7 +153,7 @@ func (win *window) onNotify(m notify.Msg) {
 		}
 		return
 	}
-	if m.Kind == notify.KindPrompt {
+	if m.Kind == notify.KindPrompt || m.Kind == notify.KindInterrupt {
 		win.inbox.put(m, shell) // state only: never a chime, flash or toast
 		if win.w != nil {
 			win.w.Invalidate()

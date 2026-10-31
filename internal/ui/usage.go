@@ -72,7 +72,7 @@ func (win *window) drainUsage() {
 	for _, r := range win.usageIn.take() {
 		win.acct.FiveHour = usage.Merge(win.acct.FiveHour, r.u.FiveHour)
 		win.acct.Week = usage.Merge(win.acct.Week, r.u.Week)
-		if !win.mgr.Has(r.tab) {
+		if !win.mgr.Has(r.tab) || win.agentOf(r.tab).agentName() == "codex" {
 			continue
 		}
 		win.noteAgent(notify.Msg{Kind: notify.KindUsage}, r.tab, r.shell)

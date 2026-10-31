@@ -21,18 +21,18 @@ func TestSettingsScrollReachesClippedClaudeSetup(t *testing.T) {
 		t.Fatalf("missing %s", id)
 		return image.Rectangle{}
 	}
-	if find("show_usage").Max.Y <= 326 {
+	if find("claude_fix").Max.Y <= 326 {
 		t.Fatal("fixture should need scrolling")
 	}
-	win.settingsPointer(pointer.Event{Kind: pointer.Scroll, Scroll: f32.Pt(0, 1000)})
+	win.settingsPointer(pointer.Event{Kind: pointer.Scroll, Scroll: f32.Pt(0, float32(find("claude_fix").Max.Y-306))})
 	draw()
-	if r := find("show_usage"); r.Min.Y < 38 || r.Max.Y > 326 {
+	if r := find("claude_fix"); r.Min.Y < 38 || r.Max.Y > 326 {
 		t.Fatalf("last control still clipped after scrolling: %v", r)
 	}
 	win.settingsPointer(pointer.Event{Kind: pointer.Scroll, Scroll: f32.Pt(0, -1000)})
 	draw()
-	if r := find("claude_fix"); r.Min.Y < 38 || r.Max.Y > 326 {
-		t.Fatalf("setup control not reachable after scrolling back: %v", r)
+	if r := find("chime_test"); r.Min.Y < 38 || r.Max.Y > 326 {
+		t.Fatalf("alert control not reachable after scrolling back: %v", r)
 	}
 }
 

@@ -25,6 +25,8 @@ const (
 	KindUsage Kind = "usage"
 	// KindPrompt reports a submitted prompt and the slash command it starts with; not an alert.
 	KindPrompt Kind = "prompt"
+	// KindInterrupt ends running without raising an alert.
+	KindInterrupt Kind = "interrupt"
 )
 
 const maxArgsRunes = 120
@@ -37,6 +39,7 @@ const (
 )
 
 type Msg struct {
+	Agent  string `json:"agent,omitempty"` // empty means Claude for old hook commands
 	Tab    int    `json:"tab"`
 	Kind   Kind   `json:"kind"`
 	Reason string `json:"reason,omitempty"`
@@ -178,8 +181,17 @@ func (s *Server) handle(c net.Conn) {
 	if subtle.ConstantTimeCompare([]byte(m.Token), []byte(s.token)) != 1 {
 		return
 	}
+	if m.Agent != "" && m.Agent != "claude" && m.Agent != "codex" {
+		return
+	}
+	if m.Kind == KindInterrupt && m.Agent != "codex" {
+		return
+	}
+	if m.Kind == KindUsage && m.Agent == "codex" {
+		return
+	}
 	switch m.Kind {
-	case KindDone, KindNeeds:
+	case KindDone, KindNeeds, KindInterrupt:
 		m.Usage = nil
 	case KindUsage:
 		if m.Usage == nil {
@@ -187,7 +199,7 @@ func (s *Server) handle(c net.Conn) {
 		}
 	case KindPrompt:
 		m.Usage, m.Reason = nil, ""
-		if !ValidCommand(m.Command) {
+		if !ValidAgentCommand(m.Command, m.Agent) {
 			m.Command = ""
 		}
 		m.Args = CleanArgs(m.Args)
@@ -204,8 +216,11 @@ func (s *Server) handle(c net.Conn) {
 
 // ValidCommand reports whether c looks like /name with a safe charset, so a
 // hostile hook cannot put escape sequences into the UI.
-func ValidCommand(c string) bool {
-	if len(c) < 2 || len(c) > 65 || c[0] != '/' {
+func ValidCommand(c string) bool { return ValidAgentCommand(c, "claude") }
+
+// ValidAgentCommand additionally accepts Codex dollar-prefixed skill names.
+func ValidAgentCommand(c, agent string) bool {
+	if len(c) < 2 || len(c) > 65 || (c[0] != '/' && !(agent == "codex" && c[0] == '$')) {
 		return false
 	}
 	for i := 1; i < len(c); i++ {

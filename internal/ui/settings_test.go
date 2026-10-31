@@ -279,7 +279,7 @@ func TestVersionBlockShowsVersionWithoutBuild(t *testing.T) {
 	if strings.Contains(all, "abcdef1") {
 		t.Fatalf("texts %q still show the build line", texts)
 	}
-	for _, want := range []string{"Appearance", "Workspaces", "Claude", "Shortcuts", "Updates", "About"} {
+	for _, want := range []string{"Appearance", "Workspaces", "Agents", "Shortcuts", "Updates", "About"} {
 		if !strings.Contains(all, want) {
 			t.Fatalf("nav lacks %q: %q", want, texts)
 		}
@@ -303,7 +303,7 @@ func TestKeyboardCanReachClaudeSection(t *testing.T) {
 		win.settingsKey(layout.Context{}, key.Event{Name: key.NameTab, State: key.Press})
 	}
 	win.settingsKey(layout.Context{}, key.Event{Name: key.NameReturn, State: key.Press})
-	if win.sections()[win.set.section].title != "Claude" {
+	if win.sections()[win.set.section].title != "Agents" {
 		t.Fatalf("keyboard left section at %q", win.sections()[win.set.section].title)
 	}
 	// Shift+Tab twice, past Workspaces, reaches Appearance.
