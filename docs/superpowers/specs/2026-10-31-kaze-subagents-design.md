@@ -158,6 +158,7 @@ Not yet confirmed on a real session. **The first plan task checks it** by captur
 - `kaze notify tool` in the main conversation for a non-Agent tool makes no connection.
 - Pairing (5.2): two Explore calls then two starts get their own descriptions in order; a start with no pending call uses the type.
 - Waiting (5.4): with `agent_id` the right subagent is marked and cleared by its next step; without it the session is marked and no subagent is.
+- Session identity (#23 Part 1): the three fields are forwarded, capped, and optional; a new `session_id` in a tab clears its running and waiting subagents but keeps Done.
 - Summaries strip control and escape characters and respect the caps.
 - No test reads or writes the owner's real `~/.claude`, `config.toml` or `workspaces.toml`.
 - Idle: no timer runs with zero running subagents.
