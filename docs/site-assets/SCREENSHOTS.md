@@ -14,6 +14,11 @@ Native macOS window captures (2200 × 1496 px, Retina) taken October 31, 2026, f
   platform, chip and license facts.
 - `kaze-settings.png`: Appearance settings with five theme cards, Midnight selected, and the live
   terminal preview.
+- `kaze-agents.png` (Kaze 0.14, taken the same day): three subagents under the `TODO-142` session in
+  the sidebar (two running, one done), one running under `dark-mode`, and the finished subagent's live
+  pane with its steps and report.
+- `kaze-board.png` (Kaze 0.14): the agents board with three running and two done subagents from three
+  sessions.
 
 How they were made:
 
@@ -24,6 +29,11 @@ How they were made:
 - The terminal output is real: `make check` (git log, Go tests, ls), git commands, and two
   `python3 -m http.server` processes with a `curl` loop that makes the API log. The Appearance
   live preview is Kaze's built-in sample, not output from an additional command.
+- The subagents in `kaze-agents.png` and `kaze-board.png` come from demo shell scripts calling
+  Kaze's real hook commands (`kaze notify tool`, `notify agent-start`, `notify agent-stop`) with
+  the same input Claude Code's hooks send; the demo home has its own `~/.claude/settings.json` with
+  kaze's hooks, so the board shows no setup hint. No subagent is shown waiting on you: Claude Code
+  runs subagents non-interactively, so they don't ask for permission themselves.
 - Claude Code was not run. The sidebar states (needs you, running, done), the slash commands and
   the alert toast come from demo shell scripts calling Kaze's real hook command (`kaze notify
   prompt`, `notify needs`, `notify done`) with the same input Claude Code's hooks send.

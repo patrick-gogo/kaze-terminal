@@ -39,6 +39,8 @@ document.querySelectorAll('[data-copy]').forEach(button => {
 
 const captures = {
   sessions: { alt: 'Kaze on macOS: a sidebar of sessions marked needs you, running and done, with an API server\'s log floating over the todo-api session', caption: 'The session sidebar with a server floating over a session' },
+  agents: { alt: 'Kaze with three Claude Code subagents listed under the TODO-142 session in the sidebar, and a live pane showing a finished subagent\'s steps and report', caption: 'Subagents under their session, with a live pane' },
+  board: { alt: 'The Kaze agents board with running and done subagents from three sessions, each card naming its task, session and current step', caption: 'The agents board, opened with Cmd+Shift+A' },
   palette: { alt: 'The Kaze palette listing a waiting session, every session and server, and demo skills', caption: 'The palette, opened with Cmd+K' },
   scratch: { alt: 'A scratch shell floating over the todo-api session, showing git status and git diff', caption: 'A scratch shell in the session\'s folder' },
   workspaces: { alt: 'The Kaze Workspaces settings page with a card for the running three-member Todo API demo workspace', caption: 'The workspace card with API, Web and Health running' },
