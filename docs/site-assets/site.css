@@ -42,3 +42,68 @@
 @media(max-width:680px){.guide{padding:10px 0 65px}.guide-grid{margin-top:30px}.guide-card{padding:20px 16px}.steps li{padding-left:36px;font-size:12.5px}}
 .changelog{padding:110px 0 10px}.releases{list-style:none;margin:44px auto 0;padding:0;max-width:860px}.release{display:grid;grid-template-columns:170px 1fr;gap:28px;padding:28px 0;border-top:1px solid var(--line)}.release:last-child{border-bottom:1px solid var(--line)}.release-meta{display:flex;flex-direction:column;align-items:flex-start;gap:8px}.version{font:600 22px/1 JetBrains,monospace;color:var(--text);letter-spacing:-.5px}.release-meta .badge{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#17131f;background:var(--accent);border-radius:999px;padding:3px 9px}.release-meta time{font-size:11px;color:#7d7889}.release-body h3{font-size:17px;font-weight:600;letter-spacing:-.3px;margin-bottom:12px}.release-body ul{margin:0;padding-left:18px;color:var(--muted);font-size:13px;line-height:1.8}.release-body li+li{margin-top:6px}.release-body b{color:#ddd6ea;font-weight:600}.all-releases{display:block;width:max-content;margin:26px auto 0;font-size:12px;color:#c4bad5;text-decoration:underline;text-underline-offset:3px}
 @media(max-width:680px){.changelog{padding:75px 0 0}.releases{margin-top:30px}.release{grid-template-columns:minmax(0,1fr);gap:12px;padding:22px 0}.release-meta{flex-direction:row;align-items:center;gap:10px}.version{font-size:19px}}
+
+/* Approved product hero and shared site frame. */
+:root{--hero-paper:#efedf5;--hero-muted:#b2abbf;--hero-accent:#b4a2f5}
+.site-page .wrap{width:min(1328px,calc(100% - 96px))}
+
+
+
+.site-page .header-inner{height:82px}
+.site-page nav{font-size:12px;gap:28px}
+.site-page .source-link{padding:8px 12px;border-color:#36303e}
+.hero-concept{display:grid;grid-template-columns:minmax(0,.88fr) minmax(0,1.62fr);gap:54px;align-items:center;text-align:left;padding:86px 0 68px;position:relative}
+.hero-intro{min-width:0;padding-bottom:24px}
+.hero-concept h1{margin:0;font-size:clamp(43px,4.5vw,65px);line-height:1.06;letter-spacing:-.035em;font-weight:600;text-wrap:balance;color:var(--hero-paper)}
+.hero-concept h1 .agents-line{display:block;white-space:nowrap;color:var(--hero-paper)}
+.hero-concept h1 .quiet-line{display:block;color:var(--hero-accent);margin-top:7px}
+.hero-concept .hero-copy{margin:27px 0 0;max-width:400px;font-size:15px;line-height:1.85;color:var(--hero-muted)}
+.hero-concept .hero-actions{justify-content:flex-start;margin-top:30px;gap:10px;flex-wrap:wrap}
+.hero-concept .button{min-height:46px;padding:12px 15px;font-size:12px;gap:8px;justify-content:center;border-radius:7px;font-weight:600}
+.hero-concept .button.primary{background:#ded4f5;color:#20172c;border-color:#ded4f5}
+.hero-concept .button.primary:hover{background:#eee6ff}
+.hero-concept .button.secondary{background:#151219;color:#e2dbea;border-color:#403747}
+.hero-concept .button.secondary:hover{background:#221c2b;border-color:#70617e}
+.hero-meta{margin-top:16px;font-size:11px;color:#b2a7c0;line-height:1.6}
+.hero-install-link{display:inline-flex;align-items:center;gap:5px;margin-top:17px;font-size:12px;color:#b2a7c0;line-height:1.7}
+.hero-install-link span{color:#ded4f0;text-decoration:underline;text-underline-offset:4px}
+.hero-install-link svg,.hero-transition svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;flex:none}
+.hero-proof{min-width:0;margin:0;scroll-margin-top:24px}
+.hero-screenshot{display:block;border:1px solid #3a3347;border-radius:10px;overflow:hidden;background:#101117;box-shadow:none;cursor:zoom-in}
+.hero-screenshot img{display:block;width:100%;height:auto;max-width:100%}
+.gallery-footer{padding-top:16px}
+.hero-proof .capture-switcher{display:flex;flex-wrap:wrap;gap:5px}
+.hero-proof .capture-switcher button{min-height:34px;padding:6px 8px;font-size:11px;color:#b7aec5;border-radius:5px}
+.hero-proof .capture-switcher button[aria-pressed=true]{color:#f0e8fb;background:#211a2d;border-color:#52416d}
+.hero-proof .capture-switcher button:hover{color:#fff;background:#211a2d}
+.hero-proof figcaption{margin:11px 0 0;text-align:left;font-size:11px;line-height:1.6;color:#c1b6cf}
+.capture-honesty{display:block;margin-top:5px;font-size:11px;color:#a59ab4}
+.capture-honesty a{color:#c4b4da;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.hero-transition{display:flex;align-items:end;justify-content:space-between;gap:24px;border-top:1px solid #292331;padding:32px 0 40px}
+.hero-transition p{font-size:25px;font-weight:500;letter-spacing:-.025em;line-height:1.4;color:#ede6f6}
+.hero-transition p span{color:#a69aae}
+.hero-transition>a{display:flex;gap:12px;align-items:center;color:#d4c5e7;font-size:12px;padding-bottom:7px}
+.site-page .feature-section{padding-top:65px}
+.site-page a:focus-visible,.site-page button:focus-visible{outline:2px solid #c5adff;outline-offset:4px}
+.site-page ::selection{background:#b4a2f5;color:#160f21}
+@media(min-width:1600px){.hero-concept{gap:72px;padding-top:100px;padding-bottom:80px}}
+@media(max-width:1150px) and (min-width:901px){.hero-concept{gap:30px;grid-template-columns:minmax(0,.95fr) minmax(0,1.2fr)}.hero-concept h1{font-size:45px}.hero-concept .hero-actions{flex-direction:column;align-items:stretch;max-width:260px}.hero-concept .hero-copy{font-size:14px}}
+@media(max-width:900px){.site-page .wrap{width:calc(100% - 48px)}.hero-concept{display:block;padding:44px 0 32px}.hero-intro{padding:0;max-width:640px}.hero-concept h1{font-size:56px;max-width:640px}.hero-concept .hero-copy{margin-top:20px;max-width:510px}.hero-concept .hero-actions{margin-top:23px}.hero-proof{margin-top:34px}.hero-transition{padding:26px 0 30px}.site-page .feature-section{padding-top:40px}}
+@media(max-width:680px){.site-page .wrap{width:calc(100% - 36px)}.site-page .header-inner{height:auto;padding-top:12px;padding-bottom:8px}.site-page .site-header nav{font-size:12px}.site-page .site-header nav>.source-link{padding:6px 10px}.hero-concept{padding-top:32px}.hero-concept h1{font-size:clamp(34px,10vw,46px);line-height:1.1;letter-spacing:-.035em;text-wrap:initial}.hero-concept h1 .quiet-line{margin-top:4px}.hero-concept .hero-copy{font-size:14px;line-height:1.8;margin-top:20px}.hero-concept .hero-copy .desktop-break{display:none}.hero-concept .hero-actions{flex-direction:column;gap:8px;align-items:stretch;margin-top:22px}.hero-concept .hero-actions .button{min-height:46px;flex:initial;font-size:13px}.hero-meta{font-size:11px;margin-top:13px}.hero-install-link{margin-top:12px;font-size:12px}.hero-proof{margin-top:28px}.hero-proof .capture-switcher{display:flex;flex-wrap:wrap;gap:5px}.hero-proof .capture-switcher button{min-height:40px;padding-inline:9px;font-size:11px}.hero-proof figcaption{font-size:11px}.capture-honesty{font-size:11px}.hero-transition{align-items:center;padding-block:24px}.hero-transition p{font-size:21px}.hero-transition>a{font-size:11px;gap:6px}.hero-screenshot{border-radius:6px}}
+@media(prefers-reduced-motion:no-preference){.hero-intro,.hero-proof{animation:hero-arrive .5s cubic-bezier(.16,1,.3,1) both}.hero-proof{animation-delay:.06s}@keyframes hero-arrive{from{opacity:.75;transform:translateY(8px)}to{opacity:1;transform:none}}}
+.hero-screenshot{aspect-ratio:2200/1440}
+.hero-screenshot img{height:100%;object-fit:contain}
+/* Full release history. */
+.changelog-archive .changelog{padding:56px 0 80px}
+.changelog-archive .section-intro{text-align:left;max-width:860px;margin:auto}
+.changelog-archive h1{font-size:clamp(40px,6vw,64px);line-height:1.1;letter-spacing:-.035em;color:#efedf5}
+.changelog-archive .section-intro p{font-size:14px;color:#b2abbf;max-width:62ch}
+.archive-back{display:inline-block;font-size:12px;color:#c4bad5;margin-bottom:28px;padding-block:8px;text-decoration:underline;text-underline-offset:4px}
+.changelog-archive .release-meta time{color:#aaa0b7}
+.changelog-archive .release-meta .badge{font-size:11px}
+.changelog-archive .release-body ul{color:#b2abbf}
+@media(max-width:680px){.changelog-archive .changelog{padding-top:28px}.changelog-archive .section-intro p{font-size:13px}}
+
+.site-page .release-meta time{color:#aaa0b7}
+.site-page .release-meta .badge{font-size:11px}
+.site-page footer p{color:#a69aae}
