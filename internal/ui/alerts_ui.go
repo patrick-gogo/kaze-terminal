@@ -219,6 +219,7 @@ func (win *window) deliver(q queued, now time.Time) {
 func (win *window) selectTab(id tabs.TabID) {
 	win.dropSideEdit()
 	win.hideSettings()
+	win.closeBoard()
 	win.mgr.SetActive(id)
 	win.wantFocus = true
 }

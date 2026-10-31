@@ -161,7 +161,7 @@ func TestShellRejectsEmptyProgram(t *testing.T) {
 }
 
 func TestKnownActionsAreTheRealOnes(t *testing.T) {
-	want := []string{"close_tab", "copy", "new_tab", "next_tab", "next_waiting", "open_settings", "palette", "paste", "prev_tab", "scratch_shell", "toggle_sidebar"}
+	want := []string{"agents_board", "close_tab", "copy", "new_tab", "next_tab", "next_waiting", "open_settings", "palette", "paste", "prev_tab", "scratch_shell", "toggle_sidebar"}
 	var got []string
 	for k := range KnownActions {
 		got = append(got, k)

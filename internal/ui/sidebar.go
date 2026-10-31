@@ -31,19 +31,21 @@ const maxSideText = 160
 
 // sideState is what the window knows that the model does not.
 type sideState struct {
-	shown      tabs.TabID      // highlighted row or member
-	settings   bool            // the pinned "Settings" row is open
-	settingsOn bool            // and shown
-	hover      tabs.TabID      // row showing its ×
-	scroll     int             // px the session list is scrolled
-	filter     string          // as typed, for the placeholder/clear state
-	ed         *widget.Editor  // the filter's editor; nil draws the text without a caret
-	renaming   tabs.TabID      // the row whose title is ren, 0 for none
-	ren        *widget.Editor  // the rename editor
-	buttons    bool            // macOS: toggle and gear sit in the sidebar's top row
-	nextKey    string          // the "Next waiting" button's key, "" for none
-	runFolded  map[uint64]bool // workspace runs whose header is folded
-	floating   tabs.TabID      // the front member pane over the shown session, highlighted like shown
+	shown         tabs.TabID      // highlighted row or member
+	settings      bool            // the pinned "Settings" row is open
+	settingsOn    bool            // and shown
+	hover         tabs.TabID      // row showing its ×
+	scroll        int             // px the session list is scrolled
+	filter        string          // as typed, for the placeholder/clear state
+	ed            *widget.Editor  // the filter's editor; nil draws the text without a caret
+	renaming      tabs.TabID      // the row whose title is ren, 0 for none
+	ren           *widget.Editor  // the rename editor
+	buttons       bool            // macOS: toggle and gear sit in the sidebar's top row
+	nextKey       string          // the "Next waiting" button's key, "" for none
+	runFolded     map[uint64]bool // workspace runs whose header is folded
+	floating      tabs.TabID      // the front member pane over the shown session, highlighted like shown
+	agentsBadge   int             // running and waiting subagents, on the Agents button
+	agentsWaiting bool            // one waits on the owner: the badge is amber
 }
 
 type sideRowHit struct {
@@ -74,6 +76,7 @@ type sideHits struct {
 	settings, settingsClose image.Rectangle
 	plus, filter            image.Rectangle
 	toggle, gear            image.Rectangle
+	agentsBtn               image.Rectangle // macOS: opens the agents board
 	palette                 image.Rectangle // macOS: opens the palette
 	scratch                 image.Rectangle // macOS: shows or hides the scratch shell
 	next                    image.Rectangle // the "Next waiting" button
@@ -165,6 +168,19 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 		h.gear = image.Rect(size.X-pad-btn, (bar-btn)/2, size.X-pad, (bar-btn)/2+btn)
 		h.palette = h.toggle.Add(image.Pt(btn+gtx.Dp(4), 0))
 		h.scratch = h.palette.Add(image.Pt(btn+gtx.Dp(4), 0))
+		h.agentsBtn = h.scratch.Add(image.Pt(btn+gtx.Dp(4), 0))
+		c.toolIcon(gtx, "agents", h.agentsBtn, th.CapGlyph)
+		if st.agentsBadge > 0 {
+			bcol := th.Accent
+			if st.agentsWaiting {
+				bcol = th.Needs
+			}
+			call, sz := c.label(gtx, strconv.Itoa(st.agentsBadge), 9, th.ActiveFG)
+			d := max(sz.Y, sz.X+gtx.Dp(6))
+			badge := image.Rect(h.agentsBtn.Max.X-d+gtx.Dp(3), h.agentsBtn.Min.Y-gtx.Dp(2), h.agentsBtn.Max.X+gtx.Dp(3), h.agentsBtn.Min.Y-gtx.Dp(2)+sz.Y)
+			paint.FillShape(ops, bcol, clip.UniformRRect(badge, badge.Dy()/2).Op(ops))
+			place(ops, call, image.Pt(badge.Min.X+(badge.Dx()-sz.X)/2, badge.Min.Y))
+		}
 		c.toolIcon(gtx, "terminal", h.scratch, th.CapGlyph)
 		c.toolIcon(gtx, "panel", h.toggle, th.CapGlyph)
 		c.toolIcon(gtx, "search", h.palette, th.CapGlyph)

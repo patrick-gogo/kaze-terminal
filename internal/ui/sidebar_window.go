@@ -203,6 +203,8 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		}
 		s.st.buttons = !win.custom
 		s.st.nextKey = win.nextWaitingKey()
+		_, waiting, _ := win.subs.Board()
+		s.st.agentsBadge, s.st.agentsWaiting = win.subs.Active(0), len(waiting) > 0 || len(win.subs.SessionWaits()) > 0
 		rec := op.Record(ops)
 		h := win.ui.layoutSidebar(sg, m, s.st, r.Size())
 		call := rec.Stop()
@@ -539,6 +541,11 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 	case p.In(h.scratch):
 		if primary {
 			win.toggleScratch()
+		}
+		return
+	case p.In(h.agentsBtn):
+		if primary {
+			win.toggleBoard()
 		}
 		return
 	case p.In(h.settings):

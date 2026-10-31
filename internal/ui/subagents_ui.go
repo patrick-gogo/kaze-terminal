@@ -111,9 +111,3 @@ func (win *window) pruneSubs(list []*tabs.Tab) {
 		}
 	}
 }
-
-// openBoard shows the agents board, filtered to tab unless it is 0 (Task 9).
-func (win *window) openBoard(tab tabs.TabID) {}
-
-// closeBoard hides the agents board (Task 9).
-func (win *window) closeBoard() {}

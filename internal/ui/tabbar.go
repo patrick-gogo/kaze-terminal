@@ -284,7 +284,7 @@ func captionGlyph(gtx layout.Context, btn captionButton, r image.Rectangle, maxi
 // layoutStatus draws the status bar: folder and branch on the left, the rest on the right.
 // It returns the server dots' and the update notice's rects in bar-local pixels,
 // each empty when not drawn.
-func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) (dots, upd image.Rectangle) {
+func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) (dots, upd, agents image.Rectangle) {
 	ops := gtx.Ops
 	width := gtx.Constraints.Max.X
 	pad := gtx.Dp(14)
@@ -305,6 +305,14 @@ func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) (do
 		if x := right - gtx.Dp(16) - size.X; x >= pad {
 			place(ops, call, image.Pt(x, (height-size.Y)/2))
 			upd = image.Rect(x-gtx.Dp(6), 0, right-gtx.Dp(10), height)
+			right = x
+		}
+	}
+	if s := agentsRunning(p.Agents); s != "" {
+		call, size := c.label(gtx, s, 11, c.th.Accent)
+		if x := right - gtx.Dp(16) - size.X; x >= pad {
+			place(ops, call, image.Pt(x, (height-size.Y)/2))
+			agents = image.Rect(x-gtx.Dp(6), 0, right-gtx.Dp(10), height)
 			right = x
 		}
 	}
@@ -336,7 +344,7 @@ func (c *chrome) layoutStatus(gtx layout.Context, p statusParts, height int) (do
 	if p.Branch != "" && x+bsize.X <= right-pad {
 		place(ops, bcall, image.Pt(x, (height-bsize.Y)/2))
 	}
-	return dots, upd
+	return dots, upd, agents
 }
 
 // layoutUsage draws the usage segments ending at end and returns where they

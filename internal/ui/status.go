@@ -21,6 +21,7 @@ type statusParts struct {
 	Usage                 []usage.Segment // Claude usage, drawn right-aligned before Right
 	Servers               []serverDot     // one per workspace run member, drawn before Usage
 	Update                string          // "Update 0.11" when a newer kaze is out, drawn before Servers
+	Agents                int             // running and waiting subagents; "N agents running" before Update
 }
 
 // serverDot is one run member's status dot: red when Down, green when Up, muted otherwise.
@@ -36,7 +37,7 @@ type locEntry struct {
 }
 
 func (win *window) statusParts() statusParts {
-	p := statusParts{Right: win.statusText(len(win.mgr.Tabs())), Update: win.updLabel()}
+	p := statusParts{Right: win.statusText(len(win.mgr.Tabs())), Update: win.updLabel(), Agents: win.subs.Active(0)}
 	for _, r := range win.curRuns() {
 		for _, m := range r.Members {
 			p.Servers = append(p.Servers, serverDot{Down: m.Down, Up: !m.Down && m.Status == "Running"})
