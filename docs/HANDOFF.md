@@ -4,6 +4,18 @@ Last updated: 2026-10-31, after Agents settings and Codex hooks were built on `f
 
 ## Where things stand
 
+**Performance fixes are built for PR #60** (2026-11-01), alongside its sidebar
+flash, finished-subagent and long-command fixes. Title/status geometry is cached;
+width measurement avoids paint recording; full histories and dirty rows reuse
+storage; forgotten pane IDs are pruned; scrolling rotates row references; the
+subagent inbox compacts obsolete tools in batches while preserving lifecycle
+states. The matched applied-log benchmarks improve from 33.9 to 72.8 MB/s at
+120x40 and 8.23 to about 52 MB/s at 240x80 on an Apple M3. These are CPU
+microbenchmarks, not native latency results. Full tests, vet, focused races and
+macOS/Windows amd64/arm64 builds pass; Windows runtime behavior is not manually
+verified. See `docs/audits/2026-11-01-performance.md` and the performance-fixes plan.
+No version bump until the release workflow after merge.
+
 **Plan 1 (terminal core with tabs) is done**, reviewed task by task plus a whole-branch review, and on `main`.
 
 **Plan 3 (the window frame) is built**: Plan 3a (kaze's own title bar) and Plan 3b (alerts, chime, folder and branch), plans in `docs/superpowers/plans/`. What it added:

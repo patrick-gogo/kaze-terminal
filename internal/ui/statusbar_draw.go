@@ -10,6 +10,7 @@ import (
 	"gioui.org/font"
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
+	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -23,11 +24,13 @@ const grpNone statusGroup = -1
 
 // statusState is the status bar as last drawn, for input.
 type statusState struct {
-	tag   *int
-	l     statusLayout
-	m     statusModel
-	y     int         // the bar's top in window px
-	hover statusGroup // grpNone when the pointer is elsewhere
+	tag    *int
+	l      statusLayout
+	m      statusModel
+	y      int         // the bar's top in window px
+	hover  statusGroup // grpNone when the pointer is elsewhere
+	cache  statusLayoutCache
+	locale system.Locale
 }
 
 func statusDimsFor(gtx layout.Context) statusDims {
@@ -52,12 +55,11 @@ func (win *window) statusRect(g statusGroup) image.Rectangle {
 // statusText measures text the way the status bar draws it.
 func (c *chrome) statusMeasure(gtx layout.Context) func(string, bool) int {
 	return func(s string, mono bool) int {
+		face := font.Font{Typeface: sansFace, Weight: font.SemiBold}
 		if mono {
-			_, sz := c.label(gtx, s, 11, c.th.Muted)
-			return sz.X
+			face = font.Font{Typeface: chromeFace}
 		}
-		_, sz := c.sans(gtx, s, 11, c.th.Muted, font.SemiBold)
-		return sz.X
+		return c.textWidth(gtx, s, 11, face)
 	}
 }
 
@@ -67,7 +69,13 @@ func (win *window) drawStatus(gtx layout.Context, y int, now time.Time) {
 	d := statusDimsFor(gtx)
 	width := gtx.Constraints.Max.X
 	m := win.statusModel(now)
-	l := layoutStatusBar(m, width, c.statusMeasure(gtx), d)
+	// Locale affects shaping as well as fonts and scale.
+	if win.stat.locale != gtx.Locale {
+		win.stat.cache.valid = false
+		win.stat.locale = gtx.Locale
+	}
+	l := win.stat.cache.layout(m, width, d, gtx.Metric, c.shaper, c.statusMeasure(gtx))
+	win.stat.cache.font = c.shaper // measuring can discover a fallback font
 	if _, ok := l.Groups[win.stat.hover]; !ok {
 		win.stat.hover = grpNone
 	}

@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"gioui.org/font"
 	"gioui.org/layout"
@@ -32,7 +33,7 @@ func (win *window) crumb() crumbParts {
 		repo = ""
 	}
 	a := win.agentOf(t.ID)
-	c := crumbParts{Repo: repo, Title: title, Cmd: a.command}
+	c := crumbParts{Repo: repo, Title: title, Cmd: crumbCommand(a.command)}
 	switch {
 	case win.alerts.markOf(t.ID) == markNeeds:
 		c.State = "needs"
@@ -64,21 +65,24 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 	if !win.custom {
 		lights = int(win.lights.Inset()*float64(gtx.Metric.PxPerDp) + 0.5)
 	}
-	side := 0
-	if !win.side.hidden {
-		side = win.sideWidth(gtx, size.X)
-	}
+	side := win.side.w
 	key := formatShortcut(runtime.GOOS, win.binds["palette"])
 	measure := func(s string, mono bool) int {
+		face := font.Font{Typeface: sansFace, Weight: font.SemiBold}
+		size := unit.Sp(12.5)
 		if mono {
-			_, sz := c.label(gtx, s, 11.5, th.Muted)
-			return sz.X
+			face, size = font.Font{Typeface: chromeFace}, 11.5
 		}
-		_, sz := c.sans(gtx, s, 12.5, th.Muted, font.SemiBold) // the widest weight the crumb draws in
-		return sz.X
+		return c.textWidth(gtx, s, size, face)
 	}
-	b := layoutTitle(titleIn{Size: size, Mac: !win.custom, LightsW: lights, SideW: side, Crumb: win.crumb(),
-		Key: key, Dims: d, Measure: measure})
+	// Use the same font/locale invalidation as the status cache.
+	if win.titleCache.locale != gtx.Locale {
+		win.titleCache.valid = false
+		win.titleCache.locale = gtx.Locale
+	}
+	b := win.titleCache.layout(titleIn{Size: size, Mac: !win.custom, LightsW: lights, SideW: side, Crumb: win.crumb(),
+		Key: key, Dims: d, Measure: measure}, gtx.Metric, c.shaper)
+	win.titleCache.font = c.shaper
 	win.bar = b
 	win.lights.setDrag(b.Drag, gtx.Metric.PxPerDp)
 
@@ -293,4 +297,17 @@ func (c *chrome) fitSideW(gtx layout.Context, s string, size unit.Sp, room int, 
 		return c.sans(gtx, string(r[:lo])+"…", size, col, w)
 	}
 	return op.CallOp{}, image.Point{}
+}
+
+// crumbCommand is a command short enough for the title bar: a plugin's
+// namespaced command shows only its own name, and anything longer than 24
+// runes is cut with an ellipsis. The sidebar and palette keep the full name.
+func crumbCommand(cmd string) string {
+	if i := strings.LastIndexByte(cmd, ':'); i >= 0 && strings.HasPrefix(cmd, "/") {
+		cmd = "/" + cmd[i+1:]
+	}
+	if r := []rune(cmd); len(r) > 24 {
+		return string(r[:23]) + "…"
+	}
+	return cmd
 }

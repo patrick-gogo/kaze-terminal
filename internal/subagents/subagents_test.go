@@ -324,3 +324,20 @@ func TestEndTabStopsItsAgents(t *testing.T) {
 		t.Fatalf("done %v", done)
 	}
 }
+
+func TestFinishedLeaveTreeWhenNoneRun(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "a1", "X"))
+	tr.Apply(ev(EvStart, "a2", "X"))
+	tr.Apply(ev(EvStop, "a1", "X"))
+	if got := fmt.Sprint(treeIDs(&tr, 1)); got != "[a1 a2]" {
+		t.Fatalf("while a2 runs the finished a1 stays: %s", got)
+	}
+	tr.Apply(ev(EvStop, "a2", "X"))
+	if got := treeIDs(&tr, 1); len(got) != 0 {
+		t.Fatalf("all finished, the tree still shows %v", got)
+	}
+	if _, _, done := tr.Board(); len(done) != 2 {
+		t.Fatal("finished subagents must stay on the board")
+	}
+}

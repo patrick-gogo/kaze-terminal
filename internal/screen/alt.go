@@ -9,9 +9,11 @@ func (s *Screen) UseAltScreen(on bool) {
 	}
 	s.alt = on
 	s.cells, s.otherCells = s.otherCells, s.cells
+	s.lines, s.otherLines = s.otherLines, s.lines
 	if on {
 		if s.cells == nil {
 			s.cells = make([]Cell, len(s.otherCells))
+			s.lines = gridLines(s.cells, s.cols, s.rows)
 		}
 		for i := range s.cells {
 			s.cells[i] = blankCell

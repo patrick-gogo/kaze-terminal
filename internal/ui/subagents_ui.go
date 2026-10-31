@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"slices"
 	"sync"
 	"time"
 
@@ -19,68 +18,104 @@ const maxSubEvents = 4096
 // goroutine. It keeps step history up to the cap without allowing a busy
 // agent's steps to displace another agent's completion or latest action.
 type subInbox struct {
-	mu  sync.Mutex
-	evs []subagents.Event
+	mu       sync.Mutex
+	evs      []subagents.Event
+	sessions map[int]string // last pending session per source; rebuilt on compaction
+	drop     []bool         // compaction scratch, at most maxSubEvents+1 entries
+	latest   map[subSourceAgent]bool
+}
+
+type subSourceAgent struct {
+	src         int
+	session, id string
 }
 
 func (b *subInbox) put(es ...subagents.Event) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for _, e := range es {
-		if e.Kind == subagents.EvSession && b.sameSession(e) {
-			continue
+		if e.Kind == subagents.EvSession {
+			if old, ok := b.sessions[e.Src]; ok && old == e.Session {
+				continue
+			}
+			if b.sessions == nil {
+				b.sessions = make(map[int]string)
+			}
+			b.sessions[e.Src] = e.Session
 		}
 		b.evs = append(b.evs, e)
 		if len(b.evs) > maxSubEvents {
-			i := b.dropIndex()
-			b.evs = slices.Delete(b.evs, i, i+1)
+			b.compact()
 		}
 	}
 }
 
-// sameSession drops only consecutive reports for a source. A source switching
-// sessions and then switching back must still deliver both transitions.
-func (b *subInbox) sameSession(e subagents.Event) bool {
-	for i := len(b.evs) - 1; i >= 0; i-- {
-		old := b.evs[i]
-		if old.Kind == subagents.EvSession && old.Src == e.Src {
-			return old.Session == e.Session
-		}
+// compact removes obsolete tool history in a batch, making room for a burst
+// instead of scanning and shifting all 4096 events on every overflowing put.
+// The order of every retained event stays unchanged. Lifecycle events and
+// each agent's newest tool/stop survive an ordinary tool flood.
+func (b *subInbox) compact() {
+	if cap(b.drop) < len(b.evs) {
+		b.drop = make([]bool, len(b.evs))
 	}
-	return false
-}
-
-// dropIndex prefers an obsolete tool step, retaining the newest step per
-// agent so a queued resume cannot leave a quiet agent marked as waiting.
-func (b *subInbox) dropIndex() int {
-	type sourceAgent struct {
-		src         int
-		session, id string
+	b.drop = b.drop[:len(b.evs)]
+	clear(b.drop)
+	if b.latest == nil {
+		b.latest = make(map[subSourceAgent]bool)
 	}
-	seen := map[sourceAgent]bool{}
-	oldest := -1
+	clear(b.latest)
 	for i := len(b.evs) - 1; i >= 0; i-- {
 		e := b.evs[i]
 		if e.Kind != subagents.EvTool && e.Kind != subagents.EvStop {
 			continue
 		}
-		k := sourceAgent{e.Src, e.Session, e.AgentID}
-		if e.Kind == subagents.EvTool && seen[k] {
-			oldest = i
+		k := subSourceAgent{e.Src, e.Session, e.AgentID}
+		if e.Kind == subagents.EvTool && b.latest[k] {
+			b.drop[i] = true
 		}
-		seen[k] = true
+		b.latest[k] = true
 	}
-	if oldest >= 0 {
-		return oldest
+	clear(b.latest) // scratch must not retain session/agent strings
+	removed, want := 0, len(b.evs)-maxSubEvents/2
+	for i := range b.drop {
+		if b.drop[i] {
+			if removed < want {
+				removed++
+			} else {
+				b.drop[i] = false
+			}
+		}
 	}
-	// With more distinct agents/control events than slots, history must still
-	// stay bounded. Drop a step before sacrificing the oldest control event.
+	// More distinct agents/control events than slots is unavoidable loss:
+	// sacrifice only enough oldest steps, then controls, to keep the hard cap.
+	for _, toolsOnly := range []bool{true, false} {
+		for i, e := range b.evs {
+			if len(b.evs)-removed <= maxSubEvents {
+				break
+			}
+			if !b.drop[i] && (!toolsOnly || e.Kind == subagents.EvTool) {
+				b.drop[i] = true
+				removed++
+			}
+		}
+	}
+	clear(b.sessions)
+	n := 0
 	for i, e := range b.evs {
-		if e.Kind == subagents.EvTool {
-			return i
+		if b.drop[i] {
+			continue
+		}
+		b.evs[n] = e
+		n++
+		if e.Kind == subagents.EvSession {
+			if b.sessions == nil {
+				b.sessions = make(map[int]string)
+			}
+			b.sessions[e.Src] = e.Session
 		}
 	}
-	return 0
+	clear(b.evs[n:])
+	b.evs = b.evs[:n]
 }
 
 func (b *subInbox) take() []subagents.Event {
@@ -88,6 +123,7 @@ func (b *subInbox) take() []subagents.Event {
 	defer b.mu.Unlock()
 	evs := b.evs
 	b.evs = nil
+	clear(b.sessions)
 	return evs
 }
 
@@ -164,4 +200,5 @@ func (win *window) pruneSubs(list []*tabs.Tab) {
 			delete(win.subTabs, id)
 		}
 	}
+	win.dropGoneAgents()
 }

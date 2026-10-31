@@ -79,18 +79,19 @@ type Renderer struct {
 	cellW  int
 	cellH  int
 
-	cols, rows   int
-	full         bool          // next snapshot copies every row
-	viewOffset   int           // the view offset the strips show
-	needStrips   bool          // strips must be rebuilt for cols x rows, outside the lock
-	drawn        []screen.Cell // what the strips show, row-major
-	snap         []screen.Cell // rows copied out under the session lock
-	snapRows     []int
-	snapSel      []bool // per cell: selected in the snapshot
-	drawnSel     []bool // per cell: drawn selected
-	lastSel      Selection
-	rowsPerStrip int
-	strips       []strip
+	cols, rows    int
+	full          bool          // next snapshot copies every row
+	viewOffset    int           // the view offset the strips show
+	needStrips    bool          // strips must be rebuilt for cols x rows, outside the lock
+	drawn         []screen.Cell // what the strips show, row-major
+	snap          []screen.Cell // rows copied out under the session lock
+	snapRows      []int
+	selectionRows []bool // retained selection dedup scratch
+	snapSel       []bool // per cell: selected in the snapshot
+	drawnSel      []bool // per cell: drawn selected
+	lastSel       Selection
+	rowsPerStrip  int
+	strips        []strip
 
 	focused   bool
 	cur       cursorState
@@ -146,6 +147,7 @@ func (r *Renderer) Release() {
 	r.cols, r.rows = 0, 0
 	r.strips, r.drawn, r.snap, r.snapRows = nil, nil, nil, nil
 	r.snapSel, r.drawnSel, r.lastSel = nil, nil, Selection{}
+	r.selectionRows = nil
 	r.curImg, r.curDrawn = nil, cursorState{}
 }
 
@@ -203,19 +205,17 @@ func (r *Renderer) snapshot(s *term.Session, sel *Selection) (held bool) {
 	if cols != r.cols || rows != r.rows {
 		r.resize(cols, rows)
 	}
-	dirty := scr.TakeDirty()
-	r.snapRows = r.snapRows[:0]
+	r.snapRows = scr.TakeDirtyInto(r.snapRows[:0])
 	if off := scr.ViewOffset(); off != r.viewOffset {
 		r.viewOffset, r.full = off, true
 	}
 	// A scrolled-back view shows history, which dirty flags don't track; the cell diff keeps a full copy cheap.
 	if r.full || r.viewOffset > 0 {
 		r.full = false
+		r.snapRows = r.snapRows[:0]
 		for row := 0; row < rows; row++ {
 			r.snapRows = append(r.snapRows, row)
 		}
-	} else {
-		r.snapRows = append(r.snapRows, dirty...)
 	}
 	base := scr.ScrollbackLen() - scr.ViewOffset() // absolute row of visible row 0
 	cur := Selection{}
@@ -255,7 +255,11 @@ func (r *Renderer) snapshot(s *term.Session, sel *Selection) (held bool) {
 
 // addSelectionRows queues the visible rows covered by the old and new selection for redraw.
 func (r *Renderer) addSelectionRows(old, cur Selection, base int) {
-	queued := make([]bool, r.rows)
+	if len(r.selectionRows) != r.rows {
+		r.selectionRows = make([]bool, r.rows)
+	}
+	queued := r.selectionRows
+	clear(queued)
 	for _, row := range r.snapRows {
 		queued[row] = true
 	}

@@ -109,7 +109,7 @@ func (s *Screen) VisibleCell(col, row int) Cell {
 // recordScrolled saves the top n rows before scrollUp discards them, keeping a scrolled-back view anchored.
 func (s *Screen) recordScrolled(n int) {
 	for r := 0; r < n; r++ {
-		s.sb.push(s.cells[r*s.cols : (r+1)*s.cols])
+		s.sb.push(s.row(r))
 	}
 	if s.viewOffset > 0 {
 		s.viewOffset = min(s.viewOffset+n, s.sb.count) // a full ring evicts one line per push, so count alone can't track it

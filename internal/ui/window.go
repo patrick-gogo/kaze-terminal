@@ -128,13 +128,14 @@ type window struct {
 	bf    benchFrame
 
 	// Title bar: kaze draws its own caption buttons where custom is set (Windows).
-	custom    bool        // Kaze draws the window buttons (Windows); false: the native traffic lights (macOS)
-	lights    *macBridge  // the native traffic lights on a frameless Mac window; nil elsewhere
-	bar       titleLayout // where the last frame put the title bar's parts
-	caption   captionState
-	capTag    *int
-	maximized bool                // from the last ConfigEvent, so the button shows the real state
-	performFn func(system.Action) // replaces win.w.Perform in tests
+	custom     bool        // Kaze draws the window buttons (Windows); false: the native traffic lights (macOS)
+	lights     *macBridge  // the native traffic lights on a frameless Mac window; nil elsewhere
+	bar        titleLayout // where the last frame put the title bar's parts
+	titleCache titleLayoutCache
+	caption    captionState
+	capTag     *int
+	maximized  bool                // from the last ConfigEvent, so the button shows the real state
+	performFn  func(system.Action) // replaces win.w.Perform in tests
 
 	// Alerts from Claude Code hooks (kaze notify).
 	srv         *notify.Server  // nil when the listener could not start
@@ -524,6 +525,7 @@ func (win *window) frame(gtx layout.Context) error {
 	size := gtx.Constraints.Max
 	bottom := max(size.Y-statusH, barH)
 	sideRect := image.Rect(0, barH, win.sideWidth(gtx, size.X), bottom)
+	win.side.w = sideRect.Dx() // the title bar's lead strip follows this, even if a toggle lands mid-frame
 	termRect := image.Rect(sideRect.Max.X, barH, size.X, bottom)
 	grid := image.Rect(termRect.Min.X+pad, termRect.Min.Y+pad/2, termRect.Max.X-pad, termRect.Max.Y-pad/2)
 	win.gridMin, win.gridRect = grid.Min, grid

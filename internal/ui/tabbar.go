@@ -17,6 +17,7 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	"golang.org/x/image/math/fixed"
 
 	"github.com/patrick-gogo/kaze-terminal/assets/fonts"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
@@ -249,4 +250,24 @@ func captionGlyph(gtx layout.Context, btn captionButton, r image.Rectangle, maxi
 		p.LineTo(f32.Pt(x0, y0+s))
 	}
 	return clip.Stroke{Path: p.End(), Width: sw}.Op()
+}
+
+// textWidth follows Label's logical glyph bounds without recording semantic,
+// path or paint operations. The shaper still handles kerning and fallback.
+func (c *chrome) textWidth(gtx layout.Context, s string, size unit.Sp, face font.Font) int {
+	s = c.fit(s)
+	c.shaper.LayoutString(text.Parameters{Font: face, PxPerEm: fixed.I(gtx.Sp(size)),
+		MaxLines: 1, MaxWidth: 1 << 16, Locale: gtx.Locale}, s)
+	first, lo, hi := true, 0, 0
+	for g, ok := c.shaper.NextGlyph(); ok; g, ok = c.shaper.NextGlyph() {
+		if g.Flags&text.FlagLineBreak != 0 && g.Flags&text.FlagParagraphBreak != 0 {
+			break
+		}
+		left, right := g.X.Floor(), (g.X + g.Advance).Ceil()
+		if first {
+			lo, hi, first = left, right, false
+		}
+		lo, hi = min(lo, left), max(hi, right)
+	}
+	return hi - lo
 }

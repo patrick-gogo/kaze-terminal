@@ -137,10 +137,15 @@ func (t *Tracker) Apply(e Event) bool {
 			return false
 		}
 		a := t.get(e)
-		a.Steps = append(a.Steps, Step{At: e.At, Tool: e.Tool, Summary: e.Summary})
-		if n := len(a.Steps); n > maxSteps {
-			a.Dropped += n - maxSteps
-			a.Steps = slices.Clone(a.Steps[n-maxSteps:])
+		step := Step{At: e.At, Tool: e.Tool, Summary: e.Summary}
+		if len(a.Steps) == maxSteps {
+			// Keep the public chronological slice without allocating a new
+			// 200-step history for every tool event after it fills.
+			copy(a.Steps, a.Steps[1:])
+			a.Steps[maxSteps-1] = step
+			a.Dropped++
+		} else {
+			a.Steps = append(a.Steps, step)
 		}
 		if a.State == Waiting {
 			a.State = Running
@@ -260,12 +265,14 @@ func (t *Tracker) CloseTab(tab int) {
 }
 
 // Tree is tab's subagents for the sidebar: parents before their children,
+// finished ones only while another still runs,
 // otherwise in start order, at most maxTree; more counts the rest.
 func (t *Tracker) Tree(tab int) (shown []*Agent, more int) {
 	var all []*Agent
 	in := map[Key]bool{}
+	busy := t.Active(tab) > 0 // finished ones stay only beside a sibling still at work
 	for _, a := range t.order {
-		if a.Tab == tab && a.InTree {
+		if a.Tab == tab && a.InTree && (busy || a.State != Done) {
 			all = append(all, a)
 			in[a.Key] = true
 		}
