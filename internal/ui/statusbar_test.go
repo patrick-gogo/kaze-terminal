@@ -2,6 +2,8 @@ package ui
 
 import (
 	"image"
+	"image/color"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -242,6 +244,38 @@ func TestStatusInEveryTheme(t *testing.T) {
 		sizedFrame(t, win, &r, 900, 600)
 		if win.statusRect(grpAgents).Empty() {
 			t.Fatalf("%s: agents not drawn", th.Key)
+		}
+	}
+}
+
+// contrast is the WCAG contrast ratio of two colours.
+func contrast(a, b color.NRGBA) float64 {
+	lum := func(c color.NRGBA) float64 {
+		ch := func(v uint8) float64 {
+			x := float64(v) / 255
+			if x <= 0.03928 {
+				return x / 12.92
+			}
+			return math.Pow((x+0.055)/1.055, 2.4)
+		}
+		return 0.2126*ch(c.R) + 0.7152*ch(c.G) + 0.0722*ch(c.B)
+	}
+	l1, l2 := lum(a)+0.05, lum(b)+0.05
+	if l1 < l2 {
+		l1, l2 = l2, l1
+	}
+	return l1 / l2
+}
+
+func TestStatusTextReadableInEveryTheme(t *testing.T) {
+	for _, th := range theme.All() {
+		c := newChrome()
+		c.setTheme(th)
+		if r := contrast(c.statusLabelColor(), th.UI.Chrome); r < 3.5 {
+			t.Errorf("%s: labels %.2f:1 on the bar", th.Key, r)
+		}
+		if r := contrast(c.statusValueColor(), th.UI.Chrome); r < 4.5 {
+			t.Errorf("%s: values %.2f:1 on the bar", th.Key, r)
 		}
 	}
 }

@@ -200,3 +200,21 @@ func TestTitleHitLookup(t *testing.T) {
 		t.Fatalf("crumb is drag space, got %v", got)
 	}
 }
+
+func TestTitleNarrowWindowsButtonsNeverOverlap(t *testing.T) {
+	for _, w := range []int{320, 360, 374, 420, 480} {
+		in := titleIn{Size: image.Pt(w, 42), SideW: 0, Crumb: fullCrumb, Key: "Ctrl+Shift+K", Dims: titleTestDims, Measure: sevenPx}
+		l := layoutTitle(in)
+		rs := []image.Rectangle{l.Toggle, l.Search, l.Scratch, l.Agents, l.Gear, l.Buttons[0], l.Buttons[1], l.Buttons[2]}
+		for i, a := range rs {
+			for _, b := range rs[i+1:] {
+				if !a.Empty() && !b.Empty() && a.Overlaps(b) {
+					t.Fatalf("%dpx: %v overlaps %v", w, a, b)
+				}
+			}
+		}
+		if !l.Scratch.Empty() && l.at(l.Scratch.Min.Add(image.Pt(2, 2))) != capScratch {
+			t.Fatalf("%dpx: a press on scratch hits %v", w, l.at(l.Scratch.Min.Add(image.Pt(2, 2))))
+		}
+	}
+}

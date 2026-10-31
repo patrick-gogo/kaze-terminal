@@ -192,16 +192,16 @@ func (win *window) drawStatus(gtx layout.Context, y int, now time.Time) {
 			}
 		case grpMem:
 			x = icon(x, "chip", th.Muted) + gap
-			text(x, strconv.Itoa(m.MemMB)+" MB", true, th.StatusFG)
+			text(x, strconv.Itoa(m.MemMB)+" MB", true, c.statusValueColor())
 		case grpTabs:
 			x = icon(x, "tabs", th.Muted) + gap
 			unit := " tabs"
 			if m.Tabs == 1 {
 				unit = " tab"
 			}
-			text(x, strconv.Itoa(m.Tabs)+unit, true, th.StatusFG)
+			text(x, strconv.Itoa(m.Tabs)+unit, true, c.statusValueColor())
 		case grpNotice:
-			text(x, l.NoticeText, true, th.StatusFG)
+			text(x, l.NoticeText, true, c.statusValueColor())
 		}
 	}
 	off.Pop()
@@ -219,7 +219,7 @@ func (win *window) drawStatus(gtx layout.Context, y int, now time.Time) {
 
 // statusLabel draws a small uppercase label and returns its right edge.
 func (c *chrome) statusLabel(gtx layout.Context, x, mid int, s string) int {
-	call, sz := c.sans(gtx, s, 9.5, mix(c.th.Muted, c.th.Chrome, 0.25), font.Bold)
+	call, sz := c.sans(gtx, s, 9.5, c.statusLabelColor(), font.Bold)
 	place(gtx.Ops, call, image.Pt(x, mid-sz.Y/2))
 	return x + sz.X
 }
@@ -325,7 +325,7 @@ func (win *window) drawUsageCard(gtx layout.Context) {
 	pad, lh := gtx.Dp(14), gtx.Dp(22)
 	rows := len(win.stat.m.Usage)
 	h := pad + gtx.Dp(22) + rows*(lh+gtx.Dp(14)) + gtx.Dp(30)
-	x := min(max(r.Max.X-w, gtx.Dp(8)), gtx.Constraints.Max.X-w-gtx.Dp(8))
+	x := max(min(max(r.Max.X-w, gtx.Dp(8)), gtx.Constraints.Max.X-w-gtx.Dp(8)), 0)
 	box := image.Rect(x, r.Min.Y-gtx.Dp(8)-h, x+w, r.Min.Y-gtx.Dp(8))
 	rad := gtx.Dp(11)
 	paint.FillShape(ops, th.ToastBG, clip.UniformRRect(box, rad).Op(ops))
@@ -360,3 +360,9 @@ func (win *window) drawUsageCard(gtx layout.Context) {
 	fc, fs := c.sans(gtx, "From Claude Code's status line.", 10.5, th.Muted, font.Normal)
 	place(ops, fc, image.Pt(box.Min.X+pad, y+(box.Max.Y-y-fs.Y)/2))
 }
+
+// statusLabelColor is the small uppercase labels' colour (5H, SERVERS).
+func (c *chrome) statusLabelColor() color.NRGBA { return c.th.Muted }
+
+// statusValueColor is the plain readouts' colour (memory, tabs, the notice).
+func (c *chrome) statusValueColor() color.NRGBA { return c.th.Folder }

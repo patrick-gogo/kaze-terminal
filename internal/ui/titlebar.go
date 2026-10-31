@@ -224,7 +224,11 @@ func layoutTitle(in titleIn) titleLayout {
 	}
 	sx := left + max(hi-left-sw, 0)/2
 	sy := (h - d.SearchH) / 2
-	l.Search = image.Rect(sx, sy, sx+sw, sy+d.SearchH)
+	if sx+sw <= hi+d.Gap { // never over the right buttons; the palette key still works
+		l.Search = image.Rect(sx, sy, sx+sw, sy+d.SearchH)
+	} else {
+		l.SearchIconOnly, l.SearchKey = true, false
+	}
 
 	// Drag: every full-height gap between the controls, minus the traffic lights.
 	cols := []image.Rectangle{l.Toggle, l.Plus, l.Search, l.Scratch, l.Agents, l.Gear, l.Buttons[0], l.Buttons[1], l.Buttons[2]}
