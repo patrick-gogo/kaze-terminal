@@ -123,7 +123,7 @@ func (p *page) iconTile(name string) (op.CallOp, image.Point) {
 var iconNames = map[string]bool{
 	"appearance": true, "workspaces": true, "claude": true, "shortcuts": true, "updates": true,
 	"about": true, "check": true, "alert": true, "prompt": true, "chart": true, "download": true,
-	"panel": true, "search": true, "terminal": true, "cog": true, "agents": true,
+	"panel": true, "search": true, "terminal": true, "cog": true, "agents": true, "plus": true,
 }
 
 // toolIcon draws one of the sidebar and title bar buttons' icons (panel,
@@ -224,6 +224,9 @@ func (c *chrome) icon(gtx layout.Context, name string, r image.Rectangle, col co
 	case "search":
 		circle(10.5, 10.5, 7.2, 2*math.Pi, 0)
 		line(15.6, 15.6, 20.6, 20.6)
+	case "plus":
+		line(12, 5, 12, 19)
+		line(5, 12, 19, 12)
 	case "agents":
 		circle(12, 6, 3, 2*math.Pi, 0)
 		circle(6, 18, 3, 2*math.Pi, 0)

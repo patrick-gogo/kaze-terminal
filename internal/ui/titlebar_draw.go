@@ -74,7 +74,7 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 			_, sz := c.label(gtx, s, 11.5, th.Muted)
 			return sz.X
 		}
-		_, sz := c.sans(gtx, s, 12.5, th.Muted, font.Medium)
+		_, sz := c.sans(gtx, s, 12.5, th.Muted, font.SemiBold) // the widest weight the crumb draws in
 		return sz.X
 	}
 	b := layoutTitle(titleIn{Size: size, Mac: !win.custom, LightsW: lights, SideW: side, Crumb: win.crumb(),

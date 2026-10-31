@@ -4,6 +4,7 @@ import (
 	"image"
 	"testing"
 
+	"gioui.org/font"
 	"gioui.org/io/input"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
@@ -103,5 +104,25 @@ func TestMacDragSnapshotForDoubleClick(t *testing.T) {
 	g := win.bar.Gear
 	if win.lights.dragAt(float64(g.Min.X+5), 20) {
 		t.Fatal("a double click on the gear must not zoom")
+	}
+}
+
+func TestTitleBarIconsExist(t *testing.T) {
+	for _, n := range []string{"panel", "plus", "terminal", "agents", "cog", "search"} {
+		if !iconNames[n] {
+			t.Errorf("icon %q is not drawn", n)
+		}
+	}
+}
+
+func TestCrumbTitleNotCutWhenItFits(t *testing.T) {
+	win, _ := sideWindow(t, false)
+	tab := openIn(t, win, "")
+	win.mgr.SetActive(tab.ID)
+	win.drawBar(barContext(1200), 42)
+	c := win.crumb()
+	_, need := win.ui.sans(barContext(1200), c.Title, 12.5, win.ui.th.ActiveFG, font.SemiBold)
+	if win.bar.Crumb.Dx() < need.X {
+		t.Fatalf("crumb %d px for %q, which needs %d", win.bar.Crumb.Dx(), c.Title, need.X)
 	}
 }
