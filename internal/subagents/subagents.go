@@ -321,3 +321,20 @@ func (t *Tracker) Active(tab int) int {
 	}
 	return n
 }
+
+// EndTab marks the subagents that ran in tab done: Claude left without stopping them.
+func (t *Tracker) EndTab(tab int, at time.Time) bool {
+	changed := false
+	for _, a := range t.order {
+		if a.src == tab && a.State != Done {
+			a.State, a.Ended, changed = Done, at, true
+			t.done = append(t.done, a)
+		}
+	}
+	if len(t.done) > maxDone {
+		over := t.done[:len(t.done)-maxDone]
+		t.drop(func(a *Agent) bool { return slices.Contains(over, a) })
+	}
+	delete(t.waits, tab)
+	return changed
+}

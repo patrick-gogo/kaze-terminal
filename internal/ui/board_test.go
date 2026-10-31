@@ -205,3 +205,46 @@ func TestSidebarAgentsButtonBadge(t *testing.T) {
 		t.Fatal("no Agents button")
 	}
 }
+
+func TestCloseTabKeyClosesTheBoardNotTheSession(t *testing.T) {
+	win, _ := boardWindow(t)
+	n := len(win.mgr.Tabs())
+	win.openBoard(0)
+	win.runShortcut(pageContext(800, 600), actCloseTab)
+	if win.board.open || len(win.mgr.Tabs()) != n {
+		t.Fatalf("board open %v, tabs %d -> %d", win.board.open, n, len(win.mgr.Tabs()))
+	}
+}
+
+func TestAgentLineUnderActiveRowClosesTheBoard(t *testing.T) {
+	win, id := boardWindow(t)
+	win.mgr.SetActive(id)
+	win.openBoard(0)
+	win.openAgentPane(id, subagents.Key{Session: "s", ID: "run"})
+	if win.board.open {
+		t.Fatal("the pane opened behind the board")
+	}
+}
+
+func TestNewTabClosesTheBoard(t *testing.T) {
+	win, _ := boardWindow(t)
+	win.openBoard(0)
+	win.newTab()
+	if win.board.open {
+		t.Fatal("new tab opened behind the board")
+	}
+}
+
+func TestClaudeLeavingEndsItsSubagents(t *testing.T) {
+	win, id := boardWindow(t)
+	tab := win.mgr.Lookup(id)
+	deliverNow(win, promptMsg(int(id), "", ""), t0) // Claude is running in the tab
+	promptMark(t, tab) // the shell prompt is back: Claude exited
+	win.leaveAgents(win.mgr.Tabs())
+	if win.subs.Active(0) != 0 {
+		t.Fatalf("%d subagents still running after Claude left", win.subs.Active(0))
+	}
+	if _, ok := win.subTimer(t0); ok {
+		t.Fatal("the minute timer outlived Claude")
+	}
+}

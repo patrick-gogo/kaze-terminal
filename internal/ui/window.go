@@ -428,6 +428,7 @@ func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 func (win *window) newTab() {
 	win.dropSideEdit()
 	win.hideSettings() // the new tab is shown
+	win.closeBoard()
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
 		// A windowsgui build has no console, so the status bar is where this can be seen.
@@ -1211,7 +1212,9 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 	case actNewTab:
 		win.newTab()
 	case actCloseTab:
-		if win.set.shown {
+		if win.board.open {
+			win.closeBoard() // like Settings: never the session hidden behind it
+		} else if win.set.shown {
 			win.closeSettings()
 		} else if t := win.mgr.Active(); t != nil {
 			win.closeTab(t.ID)

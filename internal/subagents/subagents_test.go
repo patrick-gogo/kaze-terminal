@@ -308,3 +308,19 @@ func TestBoardColumns(t *testing.T) {
 		t.Fatalf("run %d wait %d done %d", len(run), len(wait), len(done))
 	}
 }
+
+func TestEndTabStopsItsAgents(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "a1", "X"))
+	tr.Apply(ev(EvStart, "a2", "X"))
+	tr.Apply(ev(EvNeeds, "a2", ""))
+	if !tr.EndTab(1, at(90)) {
+		t.Fatal("nothing changed")
+	}
+	if tr.Active(0) != 0 {
+		t.Fatal("agents still running after Claude left")
+	}
+	if _, _, done := tr.Board(); len(done) != 2 || !done[0].Ended.Equal(at(90)) {
+		t.Fatalf("done %v", done)
+	}
+}

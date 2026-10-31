@@ -208,7 +208,7 @@ func agentMsg(m *notify.Msg, kind notify.Kind, parsed bool, id, typ, tool string
 		}
 		m.AgentID, m.AgentType = id, typ
 		if kind == notify.KindAgentStop {
-			m.Report = notify.CleanReport(last, notify.MaxReport)
+			m.Report = notify.FitReport(last, notify.MaxReport)
 		}
 		return true
 	case notify.KindTool:

@@ -471,3 +471,17 @@ func TestCleanReportKeepsNewlines(t *testing.T) {
 		t.Fatalf("len %d valid %v", len(got), utf8.ValidString(got))
 	}
 }
+
+func TestFitReportSurvivesEscaping(t *testing.T) {
+	s, ch := start(t)
+	rep := strings.Repeat("<div>&\"x\"</div>\n", 24<<10/16)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindAgentStop, AgentID: "a1", Report: FitReport(rep, MaxReport)}, time.Second)
+	m := recv(t, ch)
+	if m.Report == "" || !strings.HasPrefix(rep, m.Report) {
+		t.Fatalf("report len %d", len(m.Report))
+	}
+	b, _ := json.Marshal(FitReport(rep, MaxReport))
+	if len(b) > MaxReport {
+		t.Fatalf("encoded %d bytes", len(b))
+	}
+}

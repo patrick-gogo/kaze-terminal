@@ -344,3 +344,23 @@ func Send(addr, token string, m Msg, timeout time.Duration) error {
 	_, err = c.Write(b)
 	return err
 }
+
+// FitReport cleans a report and cuts it so its JSON encoding fits in max
+// bytes: escaping can double a report full of code or HTML, and the server
+// drops a body over its cap.
+func FitReport(s string, max int) string {
+	s = CleanReport(s, max)
+	enc := func(s string) int { b, _ := json.Marshal(s); return len(b) }
+	if enc(s) <= max {
+		return s
+	}
+	lo, hi := 0, len(s) // the longest prefix that fits
+	for lo < hi {
+		if mid := (lo + hi + 1) / 2; enc(cutBytes(s, mid)) <= max {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	return cutBytes(s, lo)
+}

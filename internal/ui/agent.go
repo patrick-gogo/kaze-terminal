@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
@@ -118,6 +119,7 @@ func (win *window) leaveAgents(list []*tabs.Tab) {
 		}
 		a.claude, a.running, a.command, a.agent = false, false, "", ""
 		win.agents[t.ID] = a
+		win.subs.EndTab(int(t.ID), time.Now()) // Claude left: no SubagentStop will come
 	}
 }
 
