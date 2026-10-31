@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"sync"
+	"sync/atomic"
 )
 
 // lightsNative is the macOS side of the traffic lights. Every method runs on
@@ -33,6 +34,7 @@ type macBridge struct {
 	view   uintptr // the attached NSView; 0 when none
 	inset  float64 // points the lights take from the left; 0 when hidden
 	closed bool
+	asking atomic.Bool       // a redraw request is on its way
 	drag   []image.Rectangle // the bar's empty space, in points from the top-left, as last drawn
 }
 
@@ -122,8 +124,14 @@ func (b *macBridge) publish(gen uint64, inset float64) {
 		b.inset = inset
 	}
 	b.mu.Unlock()
-	if ok && b.invalidate != nil {
-		b.invalidate()
+	// Never inline: native callbacks run on the main thread, possibly while
+	// Gio holds its window lock, and Invalidate there would wait on it for
+	// good. One request in flight at a time, so a burst of resizes costs one.
+	if ok && b.invalidate != nil && b.asking.CompareAndSwap(false, true) {
+		go func() {
+			b.asking.Store(false)
+			b.invalidate()
+		}()
 	}
 }
 

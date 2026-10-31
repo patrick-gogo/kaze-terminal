@@ -4,6 +4,7 @@ import (
 	"image"
 	"sync"
 	"testing"
+	"time"
 )
 
 // fakeLights records the native calls and the generation each one ran for.
@@ -169,5 +170,25 @@ func TestBridgeDragAtUsesPoints(t *testing.T) {
 	b.setDrag([]image.Rectangle{image.Rect(200, 0, 600, 84)}, 2) // px at 2x
 	if !b.dragAt(150, 20) || b.dragAt(90, 20) || b.dragAt(150, 50) {
 		t.Fatal("drag hit in points")
+	}
+}
+
+// A native callback runs on the main thread, maybe while Gio holds its window
+// lock; asking for a frame there deadlocks. publish must hand the request off.
+func TestBridgePublishNeverInvalidatesInline(t *testing.T) {
+	block := make(chan struct{})
+	b := newBridge(&fakeLights{}, func(f func()) { f() })
+	b.invalidate = func() { <-block } // like Gio's Invalidate waiting on a held lock
+	b.viewEvent(7)
+	done := make(chan struct{})
+	go func() { b.publish(b.generation(), 68); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("publish waited on the redraw: a native callback would deadlock")
+	}
+	close(block)
+	if b.Inset() != 68 {
+		t.Fatalf("inset %v", b.Inset())
 	}
 }
