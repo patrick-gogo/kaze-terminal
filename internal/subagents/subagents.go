@@ -260,12 +260,14 @@ func (t *Tracker) CloseTab(tab int) {
 }
 
 // Tree is tab's subagents for the sidebar: parents before their children,
+// finished ones only while another still runs,
 // otherwise in start order, at most maxTree; more counts the rest.
 func (t *Tracker) Tree(tab int) (shown []*Agent, more int) {
 	var all []*Agent
 	in := map[Key]bool{}
+	busy := t.Active(tab) > 0 // finished ones stay only beside a sibling still at work
 	for _, a := range t.order {
-		if a.Tab == tab && a.InTree {
+		if a.Tab == tab && a.InTree && (busy || a.State != Done) {
 			all = append(all, a)
 			in[a.Key] = true
 		}

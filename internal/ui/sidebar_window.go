@@ -32,6 +32,7 @@ type sideUI struct {
 	st        sideState
 	folded    map[string]bool // repo groups the owner folded, by key
 	hidden    bool            // off in the settings, or the window is too narrow
+	w         int             // this frame's sidebar width in px, set once at the frame's start
 	hits      sideHits        // sidebar-local, like the pointer events on tag
 	at        image.Point     // the sidebar's top-left in the window
 	tag       int             // pointer events on the sidebar or the rail
@@ -170,10 +171,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 	defer off.Pop()
 	sg := gtx
 	sg.Constraints = layout.Exact(r.Size())
-	if s.hidden {
-		s.st.hover, s.reveal = 0, false
-		s.hits = sideHits{}
-	} else {
+	{ // r is this frame's sidebar, decided before any toggle in it: draw it, never leave it bare
 		if s.renaming != 0 && win.mgr.Lookup(s.renaming) == nil {
 			win.endRename(false) // its tab closed
 		}

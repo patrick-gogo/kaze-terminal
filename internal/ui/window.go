@@ -524,6 +524,7 @@ func (win *window) frame(gtx layout.Context) error {
 	size := gtx.Constraints.Max
 	bottom := max(size.Y-statusH, barH)
 	sideRect := image.Rect(0, barH, win.sideWidth(gtx, size.X), bottom)
+	win.side.w = sideRect.Dx() // the title bar's lead strip follows this, even if a toggle lands mid-frame
 	termRect := image.Rect(sideRect.Max.X, barH, size.X, bottom)
 	grid := image.Rect(termRect.Min.X+pad, termRect.Min.Y+pad/2, termRect.Max.X-pad, termRect.Max.Y-pad/2)
 	win.gridMin, win.gridRect = grid.Min, grid
