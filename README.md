@@ -145,6 +145,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 | Jump to the next session that needs you | Ctrl+Shift+J | Cmd+J |
 | Open the palette | Ctrl+Shift+K | Cmd+K |
 | Show or hide the scratch shell | Ctrl+Shift+` | Ctrl+` |
+| Show or hide the agents board | Ctrl+Shift+A | Cmd+Shift+A |
 | Copy the selection | Ctrl+Shift+C | Cmd+C |
 | Paste | Ctrl+Shift+V | Cmd+V |
 | Open settings | Ctrl+, | Cmd+, |
@@ -152,7 +153,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
 submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The session, copy,
-paste, sidebar, next-waiting, palette, scratch shell and settings shortcuts can be changed under `[keys]` in the
+paste, sidebar, next-waiting, palette, scratch shell, agents board and settings shortcuts can be changed under `[keys]` in the
 config. Settings, Shortcuts lists every shortcut as this machine has it.
 
 ## Mouse
@@ -236,6 +237,26 @@ screen. Each session has its own. It is not listed in the sidebar and Ctrl+Tab s
 shell has exited, the next toggle starts a fresh one. Closing the session closes its scratch shell.
 Claude Code alerts from a scratch shell count on its session's row.
 
+## Subagents
+
+When Claude Code hands work to subagents (Explore, Plan, general-purpose or your own agents), kaze
+shows what each one is doing. It learns this only from Claude Code's hooks; it never reads
+transcript files.
+
+- **In the sidebar:** each session lists its subagents under its row: the type, the task, how long
+  it has run and the step it is on now (for example `Grep authMiddleware in src`). A ring means
+  running, an amber dot means it is waiting for your approval, a green dot means done. The row
+  shows a "3 agents" chip. Finished ones leave the list at your next prompt.
+- **Live pane:** click a subagent to open a read-only floating pane with its steps as they happen
+  and, when it finishes, its report (**Copy report** copies it). The keyboard stays with your session.
+- **The board:** every subagent in every session in three columns: running, waiting on you, and
+  done. Open it with the Agents button in the sidebar, the "N agents running" text in the status
+  bar, "Show agents" in the palette, or Ctrl+Shift+A (Cmd+Shift+A on macOS). Click a card to go to
+  that session with the subagent's pane open; Esc or "Back to ..." returns you.
+- **Setup:** it needs three more Claude Code hooks (SubagentStart, SubagentStop and a PreToolUse
+  hook). Settings > Agents lists them in the setup check, and **Fix** adds them. In the main
+  conversation the tool hook exits at once unless Claude starts a subagent.
+
 ## The palette
 
 One key finds and starts things: Ctrl+Shift+K (Cmd+K on macOS), the search box in the middle of
@@ -298,9 +319,10 @@ still win over the theme's terminal palette.
 
 ### Claude Code setup check
 
-The Agents section reads `~/.claude/settings.json` and shows the state of the four entries kaze
+The Agents section reads `~/.claude/settings.json` and shows the state of the entries kaze
 needs: the Stop hook (`notify done`), the Notification hook (`notify needs`), the prompt hook
-(`notify prompt`, shown as "Command each session runs") and the status line (`statusline`):
+(`notify prompt`, shown as "Command each session runs"), the status line (`statusline`) and the
+three subagent hooks (`notify agent-start`, `notify agent-stop` and `notify tool`, see Subagents):
 
 | State | Meaning |
 |---|---|
@@ -729,13 +751,13 @@ Done:
 - Plan 5b: Workspaces (launch a saved set of tabs in one click).
 - Plan 6a: the session sidebar, replacing the tab strip, with repo groups, a filter and the running workspaces.
 - Plan 6b: agent awareness on the rows (slash command, running mark, titles you can rename, `+N -M` line counts) and a Next waiting button and key.
+- Subagents: each session's subagents in the sidebar, a live pane per subagent and the agents board (replaces Plan 2's child tabs).
 
 Next:
 
 - A redesign of the alert notification card (GitHub issue #9).
 - Plans 6d and 6e: floating panes and a scratch shell, then the command palette. (`kaze status`, Plan 6c, is parked.)
 - Real panes, which would replace the workspace section of the sidebar as the way a workspace is shown.
-- Plan 2: child tabs for Claude Code subagents.
 - The Mac milestone: run, fix and benchmark kaze on macOS.
 
 Later:
