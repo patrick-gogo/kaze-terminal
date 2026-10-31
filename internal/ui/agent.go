@@ -15,6 +15,8 @@ type agentState struct {
 	agent           string
 	command, arg    string // last submitted command and its first argument
 	shellAt         uint64 // shellSeq(t) when the last hook message arrived
+	// The Claude session the latest message came from (issue #23 Part 1).
+	session, transcript, cwd string
 }
 
 // agentName keeps old in-memory/test states compatible with Claude-only rows.
@@ -81,6 +83,9 @@ func (win *window) noteAgent(m notify.Msg, id tabs.TabID, seq uint64) {
 		return
 	}
 	a.agent = agent
+	if m.Session != "" {
+		a.session, a.transcript, a.cwd = m.Session, m.Transcript, m.Cwd
+	}
 	if agent == "codex" {
 		delete(win.ctx, id)
 	}
@@ -123,6 +128,7 @@ func (win *window) pruneAgents(list []*tabs.Tab) {
 			delete(win.agents, id)
 		}
 	}
+	win.pruneSubs(list)
 	for id := range win.names {
 		if !tabIn(list, id) {
 			delete(win.names, id)

@@ -37,6 +37,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/screen"
 	"github.com/patrick-gogo/kaze-terminal/internal/skills"
 	"github.com/patrick-gogo/kaze-terminal/internal/sound"
+	"github.com/patrick-gogo/kaze-terminal/internal/subagents"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/term"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
@@ -156,6 +157,9 @@ type window struct {
 	acct    notify.Usage              // plan limits (no Ctx); UI goroutine only
 	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
 	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
+	subs    subagents.Tracker         // every subagent the hooks reported; UI goroutine only
+	subIn   subInbox                  // subagent events on their way to subs
+	subTabs map[int]bool              // tabs subs has seen, so closing one forgets its subagents
 	names   map[tabs.TabID]string     // row names the owner gave; UI goroutine only
 	lc      lineCounter               // git lines added and removed per tab; UI goroutine only
 
@@ -586,6 +590,10 @@ func (win *window) frame(gtx layout.Context) error {
 	})
 	win.publish(win.shownTab(), win.focused)
 	win.drainAlerts(gtx.Now)
+	win.drainSubs(gtx.Now)
+	if at, ok := win.subTimer(gtx.Now); ok {
+		gtx.Execute(op.InvalidateCmd{At: at}) // the elapsed minutes, only while a subagent runs
+	}
 	win.drainUsage()
 	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
 	win.visit(win.shownTab())
