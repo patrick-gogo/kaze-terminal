@@ -78,6 +78,7 @@ func (win *window) sideIn() sideInput {
 		Agent:    win.agentOf,
 		Name:     func(id tabs.TabID) string { return win.names[id] },
 		Lines:    win.linesOf,
+		Agents:   win.sideAgents,
 	}
 	if win.ui != nil {
 		in.Clean = win.ui.fit
@@ -237,7 +238,7 @@ func revealScroll(gtx layout.Context, m sideModel, st sideState, h sideHits) (in
 			if r.ID == st.shown && !found {
 				top, found = y, true
 			}
-			y += rH
+			y += rowSpan(gtx, r)
 		}
 	}
 	for _, g := range m.Groups {
@@ -560,6 +561,16 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 		return
 	case p.In(h.filter):
 		return // the frame gives the field the keyboard
+	}
+	for _, a := range h.agents {
+		if primary && p.In(a.rect) {
+			if a.more {
+				win.openBoard(a.tab)
+			} else {
+				win.openAgentPane(a.tab, a.key)
+			}
+			return
+		}
 	}
 	if r, ok := h.lineAt(p); ok {
 		switch {

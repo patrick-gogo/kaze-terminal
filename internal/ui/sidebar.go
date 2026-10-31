@@ -69,6 +69,7 @@ type sideHits struct {
 	rows                    []sideRowHit
 	groups                  []sideKeyHit
 	members                 []sideRowHit
+	agents                  []sideAgentHit // subagent lines and "+N more" lines
 	runs                    []sideRunHit
 	settings, settingsClose image.Rectangle
 	plus, filter            image.Rectangle
@@ -299,10 +300,14 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 	for _, g := range m.Groups {
 		total += groupH
 		if !g.Folded {
-			total += len(g.Rows) * rowH
+			for _, r := range g.Rows {
+				total += rowSpan(gtx, r)
+			}
 		}
 	}
-	total += len(m.Loose) * rowH
+	for _, r := range m.Loose {
+		total += rowSpan(gtx, r)
+	}
 	h.scrollMax = max(0, total-h.list.Dy())
 	if total == 0 && st.filter != "" && !h.list.Empty() {
 		h.noMatches = true
@@ -320,7 +325,10 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 
 	row := func(r sideRow) {
 		rect := image.Rect(pad, y, h.list.Max.X-pad, y+rowH)
-		y += rowH
+		y += rowSpan(gtx, r)
+		if len(r.Agents) > 0 || r.MoreAgents > 0 {
+			c.agentLines(gtx, h, r, rect.Min.X+gap+dot+gap, rect.Max.X-gap, rect.Max.Y)
+		}
 		if !rect.Overlaps(h.list) {
 			return
 		}
@@ -335,6 +343,9 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 		c.sideDot(gtx, image.Rect(rect.Min.X+gap, rect.Min.Y+gtx.Dp(14)-dot/2, rect.Min.X+gap+dot, rect.Min.Y+gtx.Dp(14)-dot/2+dot), r.Mark, r.Running)
 		room := rect.Max.X - gap - closeSize.X - gap - tx
 		titleBand := image.Rect(tx, rect.Min.Y+gtx.Dp(4), tx+max(room, 0), rect.Min.Y+gtx.Dp(24))
+		if cw := c.agentChipAt(gtx, r.AgentCount, titleBand); cw > 0 {
+			titleBand.Max.X = max(titleBand.Min.X, titleBand.Max.X-cw-gap/2)
+		}
 		word := r.stateWord()
 		wcol := th.Accent
 		switch r.Mark {
