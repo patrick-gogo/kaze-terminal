@@ -248,3 +248,12 @@ func TestClaudeLeavingEndsItsSubagents(t *testing.T) {
 		t.Fatal("the minute timer outlived Claude")
 	}
 }
+
+func TestBoardNamesSessionsLikeTheSidebar(t *testing.T) {
+	win, id := boardWindow(t)
+	deliverNow(win, promptMsg(int(id), "/ship-ticket", "TODO-142 login"), t0)
+	title, _ := win.sessionName(id)
+	if want := win.sideIn().label(win.mgr.Lookup(id), win.locOf(win.mgr.Lookup(id)), win.agentOf(id)); title != want || title != "TODO-142" {
+		t.Fatalf("board says %q, sidebar says %q", title, want)
+	}
+}
