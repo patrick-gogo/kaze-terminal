@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func start(t *testing.T) (*Server, chan Msg) {
@@ -56,7 +57,7 @@ func TestRejectsBadToken(t *testing.T) {
 
 func TestRejectsOversized(t *testing.T) {
 	s, ch := start(t)
-	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindDone, Reason: strings.Repeat("x", 5*1024)}, time.Second)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindDone, Reason: strings.Repeat("x", 40*1024)}, time.Second)
 	expectNone(t, ch)
 }
 
@@ -256,20 +257,20 @@ func sized(t *testing.T, token string, n int) []byte {
 
 func TestBodyCapBoundary(t *testing.T) {
 	s, ch := start(t)
-	rawSend(t, s.Addr(), sized(t, s.Token(), 4096))
+	rawSend(t, s.Addr(), sized(t, s.Token(), maxBody))
 	select {
 	case <-ch:
 	case <-time.After(time.Second):
-		t.Fatal("4096 bytes should be accepted")
+		t.Fatal("maxBody bytes should be accepted")
 	}
-	rawSend(t, s.Addr(), sized(t, s.Token(), 4097))
+	rawSend(t, s.Addr(), sized(t, s.Token(), maxBody+1))
 	expectNone(t, ch)
 }
 
 func TestOversizedSendReturnsPromptly(t *testing.T) {
 	s, ch := start(t)
 	t0 := time.Now()
-	err := Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindDone, Reason: strings.Repeat("x", 5*1024)}, time.Second)
+	err := Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindDone, Reason: strings.Repeat("x", 40*1024)}, time.Second)
 	if err != nil || time.Since(t0) > 500*time.Millisecond {
 		t.Fatalf("Send is fire and forget: err=%v after %v", err, time.Since(t0))
 	}
@@ -398,4 +399,75 @@ func TestAgentProtocolRejectsUnsupportedCombinations(t *testing.T) {
 		}
 	}
 	expectNone(t, ch)
+}
+
+func recv(t *testing.T, ch chan Msg) Msg {
+	t.Helper()
+	select {
+	case m := <-ch:
+		return m
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout")
+	}
+	return Msg{}
+}
+
+func TestMsgSubagentFieldsRoundTrip(t *testing.T) {
+	s, ch := start(t)
+	in := Msg{Tab: 2, Kind: KindTool, Session: "c5b9e894", Transcript: "/p/t.jsonl", Cwd: "/p",
+		AgentID: "a98", AgentType: "Explore", Tool: "Grep", Summary: "auth in src", Description: "Find auth"}
+	if err := Send(s.Addr(), s.Token(), in, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	m := recv(t, ch)
+	in.Token = ""
+	if m != in {
+		t.Fatalf("got %+v, want %+v", m, in)
+	}
+}
+
+func TestServerAcceptsLargeReport(t *testing.T) {
+	s, ch := start(t)
+	rep := strings.Repeat("r", MaxReport)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindAgentStop, AgentID: "a1", Report: rep}, time.Second)
+	if m := recv(t, ch); m.Report != rep {
+		t.Fatalf("report len %d", len(m.Report))
+	}
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindAgentStop, AgentID: "a1", Report: strings.Repeat("r", 40<<10)}, time.Second)
+	expectNone(t, ch)
+}
+
+func TestServerCleansSubagentFields(t *testing.T) {
+	s, ch := start(t)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindAgentStart, AgentID: "a\x1b1", AgentType: strings.Repeat("e", 300),
+		Report: "x", Summary: "s"}, time.Second)
+	m := recv(t, ch)
+	if m.AgentID != "a1" || len([]rune(m.AgentType)) != MaxAgentField || m.Report != "" || m.Summary != "" {
+		t.Fatalf("got %+v", m)
+	}
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindAgentStop, Report: "ok\nfine\x07"}, time.Second)
+	if m := recv(t, ch); m.Report != "ok\nfine" {
+		t.Fatalf("got %q", m.Report)
+	}
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindTool, Agent: "codex", Tool: "Bash"}, time.Second)
+	expectNone(t, ch)
+}
+
+func TestCleanLineCapsAndStrips(t *testing.T) {
+	if got := CleanLine("a\x1b[31mb\u202ec\nd", 3); got != "a[3" {
+		t.Fatalf("got %q", got)
+	}
+	if got := CleanLine(strings.Repeat("あ", 50), 10); len([]rune(got)) != 10 {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestCleanReportKeepsNewlines(t *testing.T) {
+	if got := CleanReport("one\ntwo\x07\u2028\tx", 100); got != "one\ntwo\tx" {
+		t.Fatalf("got %q", got)
+	}
+	got := CleanReport(strings.Repeat("あ", 30<<10), MaxReport)
+	if len(got) > MaxReport || !utf8.ValidString(got) || len(got) < MaxReport-3 {
+		t.Fatalf("len %d valid %v", len(got), utf8.ValidString(got))
+	}
 }
