@@ -26,7 +26,8 @@ import (
 // open means its row is in the sidebar; shown means it is in front instead of the terminal.
 type settingsState struct {
 	aboutCopy string // pending clipboard content, consumed by the About layout
-	cmdCopy   string // the same for the Commands section
+	cmdCopy   string // the same for the Shortcuts section
+	cmdFilter string // the Shortcuts section's search text
 
 	open, shown       bool
 	section           int             // index into the sections; never a later one

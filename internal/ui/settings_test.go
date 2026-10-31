@@ -279,7 +279,7 @@ func TestVersionBlockShowsVersionWithoutBuild(t *testing.T) {
 	if strings.Contains(all, "abcdef1") {
 		t.Fatalf("texts %q still show the build line", texts)
 	}
-	for _, want := range []string{"Appearance", "Workspaces", "Claude", "Commands", "About"} {
+	for _, want := range []string{"Appearance", "Workspaces", "Claude", "Shortcuts", "Updates", "About"} {
 		if !strings.Contains(all, want) {
 			t.Fatalf("nav lacks %q: %q", want, texts)
 		}
