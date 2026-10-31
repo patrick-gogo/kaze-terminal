@@ -131,7 +131,8 @@ type window struct {
 
 	// Title bar: kaze draws its own caption buttons where custom is set (Windows).
 	custom     bool
-	bar        barLayout // where the last frame put the toggle, drag area and buttons
+	lights     *macBridge // the native traffic lights on a frameless Mac window; nil elsewhere
+	bar        barLayout  // where the last frame put the toggle, drag area and buttons
 	caption    captionState
 	capTag     *int
 	dotsTag    *int
@@ -224,6 +225,9 @@ func Run(w *app.Window, opt Options) error {
 		win.exePath = exe
 	}
 	win.initUpdates()
+	if MacFrameless() {
+		win.lights = newMacBridge(win.nativeRunner(), win.w.Invalidate, 42, 14)
+	}
 	if c := opt.Config; c.ChimeNeeds || c.ChimeDone {
 		if warn := win.ensureChime(); warn != "" {
 			win.opt.Warnings = append(win.opt.Warnings, warn)
@@ -305,6 +309,9 @@ func (win *window) loop() error {
 			if h, ok := viewHandle(e); ok {
 				win.hwnd.Store(h)
 			}
+			if v, ok := macView(e); ok {
+				win.lights.viewEvent(v)
+			}
 		}
 	}
 }
@@ -326,6 +333,7 @@ func (win *window) closing() bool {
 
 // finish writes the bench summary, if any, and closes the listener and every shell.
 func (win *window) finish() {
+	win.lights.close()
 	if win.bench != nil {
 		win.benchScreen()
 		win.bench.Close(privateMB())
@@ -805,6 +813,7 @@ func (win *window) updateTitle(t *tabs.Tab) {
 	if title != win.winTitle {
 		win.winTitle = title
 		win.w.Option(app.Title(title))
+		win.lights.reapply() // Gio hides the traffic lights again on every option
 	}
 }
 
