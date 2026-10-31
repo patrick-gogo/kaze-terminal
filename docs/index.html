@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Kaze — Your whole workspace, one terminal</title>
-  <meta name="description" content="A small, open-source terminal for Windows and macOS. Launch project workspaces, follow Claude Code sessions, and know when you’re needed.">
+  <title>Kaze — Every Claude session, one terminal</title>
+  <meta name="description" content="A small, open-source terminal for macOS and Windows, built around Claude Code. A sidebar of your sessions, floating panes for your servers, and one key to find anything.">
   <link rel="icon" href="site-assets/kaze-icon.svg">
   <link rel="stylesheet" href="site-assets/site.css">
 </head>
@@ -14,24 +14,66 @@
 <header class="site-header">
   <div class="header-inner wrap">
     <a class="brand" href="#main" aria-label="Kaze home"><img src="site-assets/kaze-icon.svg" alt="" width="32" height="32"><span>kaze</span></a>
-    <nav aria-label="Main navigation"><a href="#workspaces">Workspaces</a><a href="#install">Build</a><a class="source-link" href="https://github.com/patrick-gogo/kaze-terminal">GitHub <span aria-hidden="true">↗</span></a></nav>
+    <nav aria-label="Main navigation"><a href="#sessions">Features</a><a href="#workspaces">Workspaces</a><a href="#install">Build</a><a class="source-link" href="https://github.com/patrick-gogo/kaze-terminal">GitHub <span aria-hidden="true">↗</span></a></nav>
   </div>
 </header>
 <main id="main">
   <section class="hero wrap" aria-labelledby="hero-title">
-    <h1 id="hero-title">One terminal.<br><span>Your whole workspace.</span></h1>
-    <p class="hero-copy">Open your project. Start your tools. Stay with the work.<br class="desktop-break"> A small terminal with saved workspaces and a soft spot for Claude Code.</p>
+    <h1 id="hero-title">Every Claude session.<br><span>One quiet terminal.</span></h1>
+    <p class="hero-copy">See which session needs you, which one is working and which one is done.<br class="desktop-break"> Keep your servers floating close by. Find anything with one key.</p>
     <div class="hero-actions"><a class="button primary" href="#install" data-platform="mac">Build for macOS <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/patrick-gogo/kaze-terminal">View source <span aria-hidden="true">↗</span></a></div>
     <p class="platform-note">Also on <a href="#install" data-platform="windows">Windows</a><span aria-hidden="true">/</span>Go + Gio<span aria-hidden="true">/</span>MIT licensed</p>
-    <figure class="product">
-      <div class="product-caption"><div class="capture-switcher" role="group" aria-label="Product screenshots"><button type="button" data-shot="terminal" aria-pressed="true">Terminal</button><button type="button" data-shot="workspaces" aria-pressed="false">Workspaces</button><button type="button" data-shot="about" aria-pressed="false">About</button></div><span id="capture-description" aria-live="polite">Workspace tabs on macOS</span></div>
-      <div class="screenshot"><img id="product-shot" src="site-assets/kaze-terminal.png" alt="Kaze running on macOS: a four-tab demo workspace showing git history, passing Go tests and a file listing" width="2200" height="1496" fetchpriority="high"></div>
-      <figcaption>Captured from Kaze 0.6 on macOS. Demo workspace with real local command output.</figcaption>
+    <figure class="product" id="product">
+      <div class="product-caption"><div class="capture-switcher" role="group" aria-label="Product screenshots"><button type="button" data-shot="sessions" aria-pressed="true">Sessions</button><button type="button" data-shot="palette" aria-pressed="false">Palette</button><button type="button" data-shot="scratch" aria-pressed="false">Scratch shell</button><button type="button" data-shot="workspaces" aria-pressed="false">Workspaces</button><button type="button" data-shot="about" aria-pressed="false">About</button></div><span id="capture-description" aria-live="polite">The session sidebar with a server floating over a session</span></div>
+      <div class="screenshot"><img id="product-shot" src="site-assets/kaze-sessions.png" alt="Kaze on macOS: a sidebar of sessions marked needs you, running and done, with an API server's log floating over the todo-api session" width="2200" height="1496" fetchpriority="high"></div>
+      <figcaption>Captured from Kaze 0.10 on macOS, with demo projects and real local command output. <a class="caption-link" href="https://github.com/patrick-gogo/kaze-terminal/blob/main/docs/site-assets/SCREENSHOTS.md">How these were taken</a></figcaption>
     </figure>
   </section>
 
+  <section class="feature-section wrap" id="sessions" aria-labelledby="sessions-title">
+    <div class="section-intro"><h2 id="sessions-title">Built around the agent.<br><span>Still just a terminal.</span></h2><p>Run Claude Code in as many sessions as you like. Kaze keeps track,<br class="desktop-break"> so you only look when something needs you.</p></div>
+    <div class="feature-grid">
+      <article>
+        <span class="feature-symbol" aria-hidden="true">◐</span>
+        <h3>A sidebar of sessions.</h3>
+        <p>Sessions group by repo, worktrees included. Each row shows its folder, branch, the lines changed and the slash command it runs, plus a plain <b class="state needs">needs you</b>, <b class="state running">running</b> or <b class="state done">done</b>.</p>
+        <button type="button" class="show-shot" data-show="sessions">See the sidebar <span aria-hidden="true">↑</span></button>
+      </article>
+      <article>
+        <span class="feature-symbol" aria-hidden="true">⇥</span>
+        <h3>Jump to what’s waiting.</h3>
+        <p>Next waiting takes you to the next session that needs an answer, in sidebar order. A toast and an optional chime tell you when Claude asks, even while you work elsewhere.</p>
+        <a href="https://github.com/patrick-gogo/kaze-terminal#alerts-claude-code-hooks">Set up the hooks <span aria-hidden="true">↗</span></a>
+      </article>
+      <article>
+        <span class="feature-symbol" aria-hidden="true">▣</span>
+        <h3>Floating panes.</h3>
+        <p>Watch a server’s log without leaving your Claude session. Click a workspace member and it floats over the session: drag it, resize it, type into it, or expand it to the main view.</p>
+        <button type="button" class="show-shot" data-show="sessions">See a floating pane <span aria-hidden="true">↑</span></button>
+      </article>
+      <article>
+        <span class="feature-symbol" aria-hidden="true">›_</span>
+        <h3>A scratch shell, per session.</h3>
+        <p>Press <kbd>Ctrl</kbd> <kbd>`</kbd> for a quick shell in the session’s folder. Press it again to hide it; it keeps running, with its screen, until the session closes.</p>
+        <button type="button" class="show-shot" data-show="scratch">See the scratch shell <span aria-hidden="true">↑</span></button>
+      </article>
+      <article>
+        <span class="feature-symbol" aria-hidden="true">⌕</span>
+        <h3>One key finds everything.</h3>
+        <p><kbd>⌘</kbd> <kbd>K</kbd> opens the palette: waiting sessions first, then every session and server, your Claude Code skills and slash commands, and Kaze’s own actions.</p>
+        <button type="button" class="show-shot" data-show="palette">See the palette <span aria-hidden="true">↑</span></button>
+      </article>
+      <article>
+        <span class="feature-symbol" aria-hidden="true">▤</span>
+        <h3>Context in the status bar.</h3>
+        <p>Your folder and branch, your servers at a glance, and optional Claude plan and context usage. The useful details stay out of your output.</p>
+        <a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <span aria-hidden="true">↗</span></a>
+      </article>
+    </div>
+  </section>
+
   <section class="workspace-section wrap" id="workspaces" aria-labelledby="workspace-title">
-    <div class="section-intro"><h2 id="workspace-title">Your project has a routine.<br><span>Save it once.</span></h2><p>The same folders. The same servers. The same log tail.<br>Turn your startup routine into a workspace, then run it from Settings.</p></div>
+    <div class="section-intro"><h2 id="workspace-title">Your project has a routine.<br><span>Save it once.</span></h2><p>The same folders. The same servers. The same log tail.<br>Turn your startup routine into a workspace, then run it from Settings or the palette.</p></div>
     <div class="workspace-example">
       <div class="example-heading"><span>Example workspace</span><span class="mono">my-project <span aria-hidden="true">/</span> 4 tabs</span></div>
       <ol class="recipe">
@@ -40,28 +82,28 @@
         <li><span class="recipe-index">03</span><div><h3>Frontend</h3><span class="folder">~/src/project/web</span></div><code>npm run dev</code><span class="wait">Wait for port 8000</span></li>
         <li><span class="recipe-index">04</span><div><h3>Logs</h3><span class="folder">~/src/project</span></div><code>docker compose logs -f api</code><span class="wait">Wait for port 8000</span></li>
       </ol>
-      <p class="example-foot">One group in your tab strip. Run it again to return to your open tabs.</p>
+      <p class="example-foot">Each member gets a line in the sidebar and a dot in the status bar. Click one to float it over your session.</p>
     </div>
   </section>
 
-  <section class="details wrap" aria-label="Terminal features">
-    <article><span class="feature-symbol" aria-hidden="true">↗</span><h3>Come back when it matters.</h3><p>Claude needs an answer? Its tab gets a mark. A turn finishes? You’ll know. Optional chimes keep you in the loop while you work elsewhere.</p><a href="https://github.com/patrick-gogo/kaze-terminal#alerts-claude-code-hooks">Set up Claude alerts <span aria-hidden="true">↗</span></a></article>
-    <article><span class="feature-symbol" aria-hidden="true">▤</span><h3>Keep the context close.</h3><p>Your folder and branch, plus optional Claude plan and context usage. The useful details stay in the status bar, out of your output.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <span aria-hidden="true">↗</span></a></article>
-    <article><span class="feature-symbol" aria-hidden="true">⌘</span><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing, and cursor controls. Change them in Settings, or edit the small config file directly.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <span aria-hidden="true">↗</span></a></article>
+  <section class="details wrap" aria-label="More features">
+    <article><span class="feature-symbol" aria-hidden="true">⌘</span><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing and cursor controls. Change them in Settings, or edit the small config file directly.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <span aria-hidden="true">↗</span></a></article>
+    <article><span class="feature-symbol" aria-hidden="true">✓</span><h3>Checks your Claude setup.</h3><p>Settings shows which Claude Code hooks are missing and adds them for you, after showing the change and backing up your file.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-code-setup-check">See the setup check <span aria-hidden="true">↗</span></a></article>
+    <article><span class="feature-symbol" aria-hidden="true">⌨</span><h3>Your keys, your way.</h3><p>Every shortcut can be changed in the config, and Settings lists the commands so far with their keys.</p><a href="https://github.com/patrick-gogo/kaze-terminal#shortcuts">See the shortcuts <span aria-hidden="true">↗</span></a></article>
   </section>
 
-  <section class="engineering wrap" aria-labelledby="engineering-title"><div><h2 id="engineering-title">Quiet, down to the renderer.</h2><p>Kaze redraws the cells that changed and caches its glyphs. When nothing changes, there’s no frame to draw.</p></div><div class="engineering-facts"><span><b>Go + Gio</b>Windows and macOS</span><span><b>Open source</b>Small enough to make your own</span></div></section>
+  <section class="engineering wrap" aria-labelledby="engineering-title"><div><h2 id="engineering-title">Quiet, down to the renderer.</h2><p>Kaze redraws the cells that changed and caches its glyphs. When nothing changes, there’s no frame to draw, floating panes included.</p></div><div class="engineering-facts"><span><b>Go + Gio</b>macOS and Windows</span><span><b>Open source</b>Small enough to make your own</span></div></section>
 
   <section class="install wrap" id="install" aria-labelledby="install-title">
-    <div class="install-intro"><h2 id="install-title">Make room for<br><span>your next project.</span></h2><p>Build Kaze from source. You’ll need Go 1.27 or newer; macOS also needs the Xcode Command Line Tools.</p><p class="release-note">Windows is used daily. macOS is an early preview, with fixes in progress.</p><a class="inline-link" href="https://github.com/patrick-gogo/kaze-terminal/issues">Follow development <span aria-hidden="true">↗</span></a></div>
+    <div class="install-intro"><h2 id="install-title">Make room for<br><span>your next project.</span></h2><p>Build Kaze from source. You’ll need Go 1.27 or newer; macOS also needs the Xcode Command Line Tools.</p><p class="release-note">Used every day on macOS and Windows. A few Mac touches are still to come.</p><a class="inline-link" href="https://github.com/patrick-gogo/kaze-terminal/issues">Follow development <span aria-hidden="true">↗</span></a></div>
     <div class="installer">
       <div class="platform-tabs" role="tablist" aria-label="Build platform"><button id="tab-mac" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" tabindex="0">macOS</button><button id="tab-windows" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" tabindex="-1">Windows</button></div>
       <div class="clone-block"><div class="command-heading"><span>Clone the repository</span><button type="button" data-copy="git clone https://github.com/patrick-gogo/kaze-terminal.git&#10;cd kaze-terminal" aria-label="Copy clone commands">Copy</button></div><pre><code>git clone https://github.com/patrick-gogo/kaze-terminal.git
 cd kaze-terminal</code></pre></div>
       <div id="panel-mac" role="tabpanel" aria-labelledby="tab-mac"><div class="command-heading"><span>Build and open the app</span><button type="button" data-copy="./tools/package-macos.sh&#10;open dist/Kaze.app" aria-label="Copy macOS build commands">Copy</button></div><pre><code>./tools/package-macos.sh
-open dist/Kaze.app</code></pre><p class="installer-tip">Settings: <kbd>⌘</kbd> <kbd>,</kbd></p></div>
+open dist/Kaze.app</code></pre><p class="installer-tip">Palette: <kbd>⌘</kbd> <kbd>K</kbd> · Scratch shell: <kbd>Ctrl</kbd> <kbd>`</kbd> · Settings: <kbd>⌘</kbd> <kbd>,</kbd></p></div>
       <div id="panel-windows" role="tabpanel" aria-labelledby="tab-windows" hidden><div class="command-heading"><span>Build and run in PowerShell</span><button type="button" data-copy='go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze&#10;.\kaze.exe' aria-label="Copy Windows build commands">Copy</button></div><pre><code>go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze
-.\kaze.exe</code></pre><p class="installer-tip">Settings: <kbd>Ctrl</kbd> <kbd>,</kbd></p></div>
+.\kaze.exe</code></pre><p class="installer-tip">Palette: <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>K</kbd> · Scratch shell: <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>`</kbd> · Settings: <kbd>Ctrl</kbd> <kbd>,</kbd></p></div>
       <a class="build-docs" href="https://github.com/patrick-gogo/kaze-terminal#build-and-run-from-a-clone">Full build instructions <span aria-hidden="true">↗</span></a>
     </div>
   </section>
