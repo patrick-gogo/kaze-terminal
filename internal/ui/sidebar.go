@@ -43,6 +43,7 @@ type sideState struct {
 	buttons    bool            // macOS: toggle and gear sit in the sidebar's top row
 	nextKey    string          // the "Next waiting" button's key, "" for none
 	runFolded  map[uint64]bool // workspace runs whose header is folded
+	floating   tabs.TabID      // the front member pane over the shown session, highlighted like shown
 }
 
 type sideRowHit struct {
@@ -73,6 +74,7 @@ type sideHits struct {
 	plus, filter            image.Rectangle
 	toggle, gear            image.Rectangle
 	palette                 image.Rectangle // macOS: opens the palette
+	scratch                 image.Rectangle // macOS: shows or hides the scratch shell
 	next                    image.Rectangle // the "Next waiting" button
 	list                    image.Rectangle // the scrollable area, for wheel events
 	rename                  image.Rectangle // the rename editor, empty while none is drawn
@@ -175,6 +177,8 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 		h.toggle = image.Rect(pad, (bar-btn)/2, pad+btn, (bar-btn)/2+btn)
 		h.gear = image.Rect(size.X-pad-btn, (bar-btn)/2, size.X-pad, (bar-btn)/2+btn)
 		h.palette = h.toggle.Add(image.Pt(btn+gtx.Dp(4), 0))
+		h.scratch = h.palette.Add(image.Pt(btn+gtx.Dp(4), 0))
+		fillGlyph(ops, th.CapGlyph, h.scratch, scratchGlyph(gtx, h.scratch))
 		fillGlyph(ops, th.CapGlyph, h.toggle, toggleGlyph(gtx, h.toggle))
 		fillGlyph(ops, th.CapGlyph, h.palette, searchGlyph(gtx, h.palette))
 		fillGlyph(ops, th.CapGlyph, h.gear, captionGlyph(gtx, capGear, h.gear, false))
@@ -602,7 +606,7 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 				hidden++
 				continue
 			}
-			on := mem.ID != 0 && mem.ID == st.shown && !st.settingsOn
+			on := mem.ID != 0 && (mem.ID == st.shown || mem.ID == st.floating) && !st.settingsOn
 			if on {
 				paint.FillShape(ops, th.Active, clip.UniformRRect(r, gtx.Dp(6)).Op(ops))
 			}

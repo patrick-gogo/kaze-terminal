@@ -156,8 +156,8 @@ func TestRenameSurvivesClaudeLeaving(t *testing.T) {
 	startRename(t, win, r, b.ID)
 	retype(t, win, r, "api work")
 	pressKey(t, win, r, key.NameReturn, 0)
-	report(t, a, `C:\code\alpha\ticket33`) // both shells are back at a prompt: Claude left
-	report(t, b, `C:\code\alpha\other`)
+	report(t, a, osPath("/code/alpha/ticket33")) // both shells are back at a prompt: Claude left
+	report(t, b, osPath("/code/alpha/other"))
 	sideFrame(t, win, r)
 	m := buildSide(win.sideIn())
 	rows := m.Groups[0].Rows

@@ -51,7 +51,7 @@ type Config struct {
 var KnownActions = map[string]bool{
 	"new_tab": true, "close_tab": true, "next_tab": true, "prev_tab": true,
 	"copy": true, "paste": true, "open_settings": true, "toggle_sidebar": true, "next_waiting": true,
-	"palette": true,
+	"palette": true, "scratch_shell": true,
 }
 
 var (

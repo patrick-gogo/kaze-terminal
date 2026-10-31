@@ -129,6 +129,10 @@ func (win *window) onNotify(m notify.Msg) {
 	id := tabs.TabID(m.Tab)
 	var t *tabs.Tab
 	if mgr := win.liveMgr.Load(); mgr != nil {
+		// A scratch shell's messages count on its session's row (spec 8.3).
+		if p := hookTab(mgr, id, m.Kind); p != id {
+			id, m.Tab = p, int(p)
+		}
 		t = mgr.Lookup(id)
 	}
 	if t == nil {

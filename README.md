@@ -132,6 +132,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 | Hide or show the sidebar | Ctrl+Shift+B | Cmd+B |
 | Jump to the next session that needs you | Ctrl+Shift+J | Cmd+J |
 | Open the palette | Ctrl+Shift+K | Cmd+K |
+| Show or hide the scratch shell | Ctrl+Shift+` | Ctrl+` |
 | Copy the selection | Ctrl+Shift+C | Cmd+C |
 | Paste | Ctrl+Shift+V | Cmd+V |
 | Open settings | Ctrl+, | Cmd+, |
@@ -139,7 +140,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
 submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The session, copy,
-paste, sidebar, next-waiting, palette and settings shortcuts can be changed under `[keys]` in the
+paste, sidebar, next-waiting, palette, scratch shell and settings shortcuts can be changed under `[keys]` in the
 config. Settings, Commands lists every shortcut as this machine has it.
 
 ## Mouse
@@ -195,6 +196,33 @@ Sessions are listed down the left side, in place of a tab strip.
 - **Title bar:** on Windows the toggle, the K mark, the gear and the window buttons sit in the
   title bar. On macOS, with the native title bar, the toggle and the gear sit at the top of the
   sidebar, and a thin rail with them stays when the sidebar is hidden.
+
+## Floating panes
+
+A workspace member opens as a floating pane over the session you are in, so you can watch a
+server's log without leaving your Claude session. Click its line in the sidebar, the server dots
+in the status bar, or pick it in the palette.
+
+- **Move and resize:** drag the header to move a pane, drag an edge or corner to resize it. The
+  shell inside gets the new size. Panes stay inside the terminal area and shrink with the window,
+  then come back to their size when it grows again.
+- **Keyboard:** click a pane to bring it to the front and type into it (its border turns to the
+  accent color). Click your session to take the keyboard back. Every key goes to the program in
+  the pane, Esc and Ctrl+C included; kaze's own shortcuts still work.
+- **Expand** makes the member the main view; pick any session to go back. **×** hides the pane;
+  the member keeps running.
+- **Per session:** each session remembers its own panes while kaze runs (they are not kept across
+  restarts), up to 4 per session. A fifth replaces the oldest member pane. A member floats over
+  one session at a time.
+
+### The scratch shell
+
+Ctrl+Shift+` (Ctrl+` on macOS), the terminal button left of the gear in the Windows title bar, or
+the same button at the top of the macOS sidebar shows a quick shell for the session in front, in
+that session's folder, as a floating pane. The key hides it again; it keeps running with its
+screen. Each session has its own. It is not listed in the sidebar and Ctrl+Tab skips it. If its
+shell has exited, the next toggle starts a fresh one. Closing the session closes its scratch shell.
+Claude Code alerts from a scratch shell count on its session's row.
 
 ## The palette
 
@@ -309,14 +337,14 @@ reading "all up" or "N down". Click the header to fold it.
   in red when its commands finished or its shell exited, and `Failed` in red when its run
   failed. A member's line shows an amber dot when it needs you and a green dot when it is done;
   a folded header shows the amber one if any member needs you, else the green one. Click a
-  member to show it as the main view.
+  member to float it over your session (see Floating panes below).
 - The Workspaces list in Settings shows how far each member got: Starting, Waiting for Docker
   (or a port), Confirm to run, Running, Finished, Failed, Cancelled or No commands. Finished means
   the shell came back to its prompt (it needs the snippet from "Folder and branch in the status
   bar"); kaze can't tell whether the commands worked.
 - Running a workspace keeps your current session in front.
 - The status bar shows one dot per running member (green running, red down, muted otherwise)
-  and the word "servers". Click the dots to show the member that is down, or the first member
+  and the word "servers". Click the dots to float the member that is down, or the first member
   if none is.
 - Ctrl+Tab and Ctrl+Shift+Tab step through sessions in sidebar order and skip workspace members.
 - Close a member with your close-session shortcut (Ctrl+Shift+W, Cmd+W on macOS), the × that
@@ -392,7 +420,7 @@ error makes kaze use all defaults.
 | `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
 | `sidebar` | Show the session sidebar (the toggle saves it here) | `true` |
-| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `toggle_sidebar`, `next_waiting`, `palette`, `open_settings` | the shortcuts above |
+| `[keys]` | `new_tab`, `close_tab`, `next_tab`, `prev_tab`, `copy`, `paste`, `toggle_sidebar`, `next_waiting`, `palette`, `scratch_shell`, `open_settings` | the shortcuts above |
 | `font_family` | **Not supported yet.** Setting it only adds a warning; kaze always uses its bundled font. | |
 
 Shortcuts are written like `"ctrl+shift+t"`. Modifiers: `ctrl`, `shift`, `alt` (or `option`),

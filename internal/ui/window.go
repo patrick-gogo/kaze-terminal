@@ -94,7 +94,8 @@ type window struct {
 	wheel     wheel
 	gate      textGate
 	composing bool
-	gridMin   image.Point // top-left of the grid in window pixels
+	gridMin   image.Point     // top-left of the grid in window pixels
+	gridRect  image.Rectangle // the main grid in window pixels
 
 	home     string                              // for "~" in the status bar
 	branchFn func(dir string) string             // gitinfo.Branch unless a test replaces it
@@ -172,6 +173,7 @@ type window struct {
 	// skillCache keeps parsed skill files between palette opens; only the scan goroutine uses it.
 	skillCache *skills.Cache
 	skillsFn   func(skills.Sources) []skills.Skill // nil reads through skillCache; tests fake it
+	fl         floats                              // floating panes per session; UI goroutine only
 	side       sideUI                              // the sidebar; UI goroutine only
 	wsp        wsPage                              // the Workspaces section: its list and the open draft; UI goroutine only
 }
@@ -376,7 +378,7 @@ func (win *window) setFocused(f bool) {
 		win.rend.SetFocused(f)
 	}
 	if win.mgr != nil {
-		if t := win.mgr.Active(); t != nil {
+		if t := win.keyTab(); t != nil {
 			sendFocus(t, f)
 			if f {
 				win.staleBranch(t)
@@ -499,6 +501,7 @@ func (win *window) frame(gtx layout.Context) error {
 		win.rend = render.NewRenderer(px, win.pal, rendOptions(win.opt.Config))
 		win.rend.SetFocused(win.focused)
 		win.rendPx, win.rendStale = px, false
+		win.fl.rends = nil // the panes' renderers follow the main one
 	}
 	cw, ch := win.rend.CellSize()
 	size := gtx.Constraints.Max
@@ -506,7 +509,7 @@ func (win *window) frame(gtx layout.Context) error {
 	sideRect := image.Rect(0, barH, win.sideWidth(gtx, size.X), bottom)
 	termRect := image.Rect(sideRect.Max.X, barH, size.X, bottom)
 	grid := image.Rect(termRect.Min.X+pad, termRect.Min.Y+pad/2, termRect.Max.X-pad, termRect.Max.Y-pad/2)
-	win.gridMin = grid.Min
+	win.gridMin, win.gridRect = grid.Min, grid
 	cols, rows := gridSize(grid.Dx(), grid.Dy(), cw, ch)
 
 	if win.mgr == nil {
@@ -549,12 +552,17 @@ func (win *window) frame(gtx layout.Context) error {
 	if win.set.shown {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
 	} else if active != nil {
-		win.termEvents(gtx, active, cw, ch)
+		win.paneEvents(gtx, cw, ch) // before the session: a pane sits over it
+		if win.fl.refocus {
+			win.fl.refocus, win.wantFocus = false, true // its filters are up now
+		}
+		win.termEvents(gtx, win.mainView(active), cw, ch)
 	}
 	if win.mgr.Empty() {
 		return nil
 	}
 	active = win.mgr.Active()
+	win.paneStep(active)
 	win.switchedTo(active)
 	list := win.mgr.Tabs()
 	win.pruneSels(list)
@@ -571,7 +579,10 @@ func (win *window) frame(gtx layout.Context) error {
 	win.drainUsage()
 	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
 	win.visit(win.shownTab())
-	win.autoScroll(gtx, active, cw, ch)
+	if v, ok := win.paneKeyView(); ok {
+		win.visit(v.tab) // the pane being typed into is seen too
+	}
+	win.autoScrollSelection(gtx, active, cw, ch)
 	if at, ok := win.wsTick(win.wsNow()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
 	}
@@ -599,7 +610,7 @@ func (win *window) frame(gtx layout.Context) error {
 		system.ActionInputOp(system.ActionMove).Add(ops)
 		area.Pop()
 	}
-	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Search, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
+	for _, r := range []image.Rectangle{win.bar.Toggle, win.bar.Search, win.bar.Scratch, win.bar.Gear.Union(win.bar.Buttons[0]).Union(win.bar.Buttons[2])} {
 		if r.Empty() {
 			continue
 		}
@@ -612,13 +623,18 @@ func (win *window) frame(gtx layout.Context) error {
 	win.frameRuns = &runs
 	win.drawSide(gtx, sideRect)
 
+	var panes []paneView
 	if win.set.shown {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
 		win.wsr.hits = win.wsr.hits[:0]
 	} else {
+		win.rend.SetFocused(win.viewFocused(0))
 		win.drawTerminal(gtx, active, termRect, grid, &sel)
 		win.drawWsBanner(gtx, active, termRect) // after the terminal, so it takes the clicks it covers
+		panes = win.paneViews(gtx, termRect, cw, ch)
+		win.drawPanes(gtx, panes) // over the session and its banner, front pane last
 	}
+	win.syncVisible(panes)
 
 	// Status bar.
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
@@ -711,7 +727,14 @@ func (win *window) switchedTo(t *tabs.Tab) {
 		win.updateTitle(t)
 		return
 	}
-	if win.lastTab != nil && win.focused {
+	if k := win.fl.keys; k != 0 {
+		// The keyboard was in a pane of the old session: it leaves with it.
+		win.fl.keys = 0
+		if pt := win.mgr.Lookup(k); pt != nil && win.focused {
+			sendFocus(pt, false)
+		}
+		win.wantFocus = true
+	} else if win.lastTab != nil && win.focused {
 		sendFocus(win.lastTab, false) // a no-op once that tab is closed
 	}
 	if win.focused {
@@ -777,6 +800,7 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 	d := barDims{
 		buttonW: gtx.Dp(46), gearW: gtx.Dp(46), toggleW: gtx.Dp(46), markW: gtx.Dp(30),
 		searchMin: gtx.Dp(160), searchMax: gtx.Dp(460), searchH: gtx.Dp(24),
+		scratchW: gtx.Dp(40),
 	}
 	win.bar = layoutBar(size, d, true)
 	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
@@ -793,6 +817,13 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 		}
 	}
 	win.ui.layoutCaptions(gtx, win.bar, win.caption, win.maximized) // empty buttons are skipped
+	if r := win.bar.Scratch; !r.Empty() {
+		col := th.CapGlyph
+		if win.caption.hover == capScratch {
+			paint.FillShape(ops, th.CapHover, clip.Rect(r).Op())
+		}
+		fillGlyph(ops, col, r, scratchGlyph(gtx, r))
+	}
 	if r := win.bar.Search; !r.Empty() {
 		key := formatShortcut(runtime.GOOS, win.binds["palette"])
 		win.ui.layoutSearch(gtx, r, d.searchH, key, win.caption.hover == capSearch)
@@ -818,6 +849,8 @@ func (win *window) captionEvent(e pointer.Event) {
 		win.toggleSidebar()
 	case capSearch:
 		win.openPalette()
+	case capScratch:
+		win.toggleScratch()
 	default:
 		win.perform(actionFor(c, win.maximized))
 	}
@@ -857,6 +890,9 @@ func (win *window) focusTarget() event.Tag {
 		}
 		return &win.set.tag
 	}
+	if v, ok := win.paneKeyView(); ok {
+		return v.tag
+	}
 	return win.termTag
 }
 
@@ -888,7 +924,47 @@ func (win *window) toastEvents(gtx layout.Context) {
 	}
 }
 
-func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
+// termView is one terminal on screen: the shown session or a floating pane.
+type termView struct {
+	tab        *tabs.Tab
+	tag        event.Tag       // keys, paste and pointer input
+	grid       image.Rectangle // window px
+	cols, rows int
+}
+
+// mainView is the shown session's terminal: termTag, the main grid, the shared size.
+func (win *window) mainView(t *tabs.Tab) termView {
+	cols, rows := win.mgr.Size()
+	grid := win.gridRect
+	if grid.Empty() {
+		grid = image.Rectangle{Min: win.gridMin, Max: win.gridMin}
+	}
+	return termView{tab: t, tag: win.termTag, grid: grid, cols: cols, rows: rows}
+}
+
+// keyView is the view with the keyboard; ok is false while none is shown.
+func (win *window) keyView() (termView, bool) {
+	if v, ok := win.paneKeyView(); ok {
+		return v, true
+	}
+	// A scratch shortcut can start a pane before its first frame. Keyboard
+	// input following that shortcut already belongs to its terminal, even
+	// though its grid and renderer will be laid out later this frame.
+	if owner := win.fl.owner(win.fl.keys); owner != 0 && owner == win.paneOwner() {
+		p := win.fl.sets[owner].find(win.fl.keys)
+		if t := win.mgr.Lookup(p.id); t != nil && !p.hidden {
+			return termView{tab: t, tag: &p.body}, true
+		}
+	}
+	t := win.shownTab()
+	if t == nil {
+		return termView{}, false
+	}
+	return win.mainView(t), true
+}
+
+func (win *window) termEvents(gtx layout.Context, v termView, cw, ch int) {
+	t := v.tab
 	m := modes(t.Session)
 	kinds := pointer.Press | pointer.Release | pointer.Scroll | pointer.Drag | pointer.Cancel
 	if m.MouseAny {
@@ -897,12 +973,12 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 	var batch []event.Event
 	for {
 		ev, ok := gtx.Event(
-			key.FocusFilter{Target: win.termTag},
-			key.Filter{Focus: win.termTag, Optional: allMods},
+			key.FocusFilter{Target: v.tag},
+			key.Filter{Focus: v.tag, Optional: allMods},
 			// Tab is a focus key in Gio and is only delivered to filters that name it.
-			key.Filter{Focus: win.termTag, Name: key.NameTab, Optional: allMods},
-			transfer.TargetFilter{Target: win.termTag, Type: "application/text"},
-			pointer.Filter{Target: win.termTag, Kinds: kinds, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}},
+			key.Filter{Focus: v.tag, Name: key.NameTab, Optional: allMods},
+			transfer.TargetFilter{Target: v.tag, Type: "application/text"},
+			pointer.Filter{Target: v.tag, Kinds: kinds, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}},
 		)
 		if !ok {
 			break
@@ -919,17 +995,30 @@ func (win *window) termEvents(gtx layout.Context, t *tabs.Tab, cw, ch int) {
 	if win.bench != nil {
 		batch = win.benchBatch(gtx, t, batch, ch)
 	}
-	win.routeAndWait(gtx, t, batch, cw, ch)
+	for _, ev := range batch {
+		if e, ok := ev.(pointer.Event); ok && e.Kind == pointer.Press && !win.bench.IgnoreInput() {
+			// A press in a pane takes the keyboard there; one in the session takes it back.
+			if v.tag == win.termTag {
+				if win.fl.keys != 0 {
+					win.focusSession()
+				}
+			} else {
+				win.focusPane(t.ID)
+			}
+			break
+		}
+	}
+	win.routeAndWait(gtx, v, batch, cw, ch)
 }
 
 // routeAndWait routes the frame's input to t and, when that wrote to the shell,
 // waits up to echoWait for its echo. A shell answers a key well under a
 // millisecond later; without the wait this frame is drawn first and the echo
 // waits a whole screen refresh (16.7ms at 60Hz) for the next one.
-func (win *window) routeAndWait(gtx layout.Context, t *tabs.Tab, batch []event.Event, cw, ch int) {
-	mark := t.Session.EchoMark()
-	win.route(gtx, batch, cw, ch)
-	t.Session.WaitEcho(mark, echoWait)
+func (win *window) routeAndWait(gtx layout.Context, v termView, batch []event.Event, cw, ch int) {
+	mark := v.tab.Session.EchoMark()
+	win.routeView(gtx, v, batch, cw, ch)
+	v.tab.Session.WaitEcho(mark, echoWait)
 }
 
 // route delivers one frame's terminal input to the active tab.
@@ -937,6 +1026,22 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 	t := win.mgr.Active()
 	if t == nil {
 		return
+	}
+	win.routeView(gtx, win.mainView(t), batch, cw, ch)
+}
+
+// routeView delivers one frame's input to the view's tab. For the main view a
+// key that switches tabs sends the rest of the batch to the new active tab;
+// any other view stops there, or when its own tab closed.
+func (win *window) routeView(gtx layout.Context, v termView, batch []event.Event, cw, ch int) {
+	main := v.tag == win.termTag
+	t := v.tab
+	if main {
+		t = win.mgr.Active()
+		if t == nil {
+			return
+		}
+		v.tab = t
 	}
 	m := modes(t.Session)
 	edited := false
@@ -946,9 +1051,27 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 			if e.State == key.Press {
 				win.blinkFrom = time.Time{} // typing shows the cursor and restarts the blink
 			}
+			before := win.mgr.Active()
+			keysBefore := win.fl.keys
 			win.onKey(gtx, t, e, m)
+			if win.fl.keys != keysBefore {
+				// Scratch toggles move the keyboard without switching the main
+				// tab. Keep the rest of this batch with its new destination.
+				if next, ok := win.keyView(); ok {
+					win.endGesture()
+					v, t, m = next, next.tab, modes(next.tab.Session)
+					main = v.tag == win.termTag
+				}
+			}
 			if win.set.shown {
 				return // the key showed settings; the rest of the frame's input is not the terminal's
+			}
+			if !main {
+				if win.mgr.Lookup(t.ID) == nil || win.mgr.Active() != before {
+					win.endGesture()
+					return
+				}
+				continue
 			}
 			if a := win.mgr.Active(); a != t {
 				// The key opened, closed or switched tabs; the rest of the frame's input goes to the new one.
@@ -957,6 +1080,7 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 					return
 				}
 				t, m = a, modes(a.Session)
+				v.tab = t
 			}
 		case key.CompositionEvent:
 			win.composing = compositionActive(e)
@@ -972,13 +1096,13 @@ func (win *window) route(gtx layout.Context, batch []event.Event, cw, ch int) {
 		case transfer.DataEvent:
 			win.paste(t, e, m)
 		case pointer.Event:
-			win.onPointer(gtx, t, e, m, cw, ch)
+			win.pointerView(gtx, v, e, m, cw, ch)
 		}
 	}
 	if edited && !win.composing {
 		// Gio keeps typed text as editor state; clear it so it doesn't grow forever.
-		gtx.Execute(key.SnippetCmd{Tag: win.termTag})
-		gtx.Execute(key.SelectionCmd{Tag: win.termTag})
+		gtx.Execute(key.SnippetCmd{Tag: v.tag})
+		gtx.Execute(key.SelectionCmd{Tag: v.tag})
 	}
 }
 
@@ -1024,13 +1148,15 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.nextWaiting()
 	case actPalette:
 		win.togglePalette()
+	case actScratch:
+		win.toggleScratch()
 	case actPaste:
-		if win.shownTab() != nil {
-			gtx.Execute(clipboard.ReadCmd{Tag: win.termTag})
+		if v, ok := win.keyView(); ok {
+			gtx.Execute(clipboard.ReadCmd{Tag: v.tag})
 		}
 	case actCopy:
-		if t := win.shownTab(); t != nil {
-			win.copySel(gtx, t)
+		if v, ok := win.keyView(); ok {
+			win.copySel(gtx, v.tab)
 		}
 	}
 }
@@ -1049,10 +1175,15 @@ func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 
 func mouseOn(m term.Modes) bool { return m.MouseX10 || m.MouseButton || m.MouseAny }
 
+// onPointer is pointerView for the main view.
 func (win *window) onPointer(gtx layout.Context, t *tabs.Tab, e pointer.Event, m term.Modes, cw, ch int) {
-	p := e.Position.Round().Sub(win.gridMin)
-	cols, rows := win.mgr.Size()
-	col, row := gridCell(p, cw, ch, cols, rows)
+	win.pointerView(gtx, win.mainView(t), e, m, cw, ch)
+}
+
+func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, m term.Modes, cw, ch int) {
+	t := v.tab
+	p := e.Position.Round().Sub(v.grid.Min)
+	col, row := gridCell(p, cw, ch, v.cols, v.rows)
 	switch e.Kind {
 	case pointer.Press:
 		win.wantFocus = true
@@ -1213,11 +1344,15 @@ func (win *window) selectRelease(gtx layout.Context, t *tabs.Tab) {
 // autoScroll scrolls the view while a selection drag is held above or below the
 // grid. It reports whether it asked for another frame.
 func (win *window) autoScroll(gtx layout.Context, t *tabs.Tab, cw, ch int) bool {
+	return win.autoScrollView(gtx, win.mainView(t), cw, ch)
+}
+
+func (win *window) autoScrollView(gtx layout.Context, v termView, cw, ch int) bool {
+	t, rows := v.tab, v.rows
 	ts := win.sels[t.ID]
 	if ts == nil || !ts.dragging || win.toApp || ch <= 0 {
 		return false
 	}
-	_, rows := win.mgr.Size()
 	dir := edgeDir(win.dragPos.Y, rows*ch)
 	if dir == 0 {
 		return false

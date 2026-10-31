@@ -18,9 +18,10 @@ const (
 	capMinimize
 	capMaximize // shows "restore" when maximized
 	capClose
-	capGear   // opens settings; sits left of minimize, outside Buttons
-	capToggle // shows or hides the sidebar; at the bar's left end
-	capSearch // opens the palette; centred between the mark and the gear
+	capGear    // opens settings; sits left of minimize, outside Buttons
+	capToggle  // shows or hides the sidebar; at the bar's left end
+	capSearch  // opens the palette; centred between the mark and the gear
+	capScratch // shows or hides the session's scratch shell; left of the gear
 )
 
 // barLayout is where things go in kaze's own top bar, in pixels. Without a custom
@@ -31,6 +32,7 @@ type barLayout struct {
 	Drag    image.Rectangle    // empty space that moves the window; left of Search when there is one
 	Search  image.Rectangle    // the palette's search box column; empty when the bar is too narrow
 	DragR   image.Rectangle    // empty space right of Search that moves the window too
+	Scratch image.Rectangle    // the scratch shell button, left of Gear; may be empty
 	Buttons [3]image.Rectangle // indexed capMinimize-1, capMaximize-1, capClose-1
 	Gear    image.Rectangle    // the settings button, left of Buttons; may be empty
 }
@@ -44,6 +46,7 @@ type barDims struct {
 
 	searchMin, searchMax int // the search box's width range; searchMax 0 leaves it out
 	searchH              int // the search box's height
+	scratchW             int // the scratch shell button; 0 leaves it out
 }
 
 // layoutBar splits a bar of the given size, left to right: toggle, mark, drag
@@ -63,6 +66,10 @@ func layoutBar(size image.Point, d barDims, custom bool) barLayout {
 	gearL := max(left-max(d.gearW, 0), 0)
 	if gearL < left {
 		b.Gear = image.Rect(gearL, 0, left, size.Y).Intersect(bar)
+	}
+	if l := gearL - max(d.scratchW, 0); d.scratchW > 0 && l >= 0 {
+		b.Scratch = image.Rect(l, 0, gearL, size.Y)
+		gearL = l
 	}
 	toggleR := min(max(d.toggleW, 0), gearL)
 	if toggleR > 0 {
@@ -100,6 +107,9 @@ func (b barLayout) captionAt(p image.Point) captionButton {
 	}
 	if p.In(b.Search) {
 		return capSearch
+	}
+	if p.In(b.Scratch) {
+		return capScratch
 	}
 	return capNone
 }

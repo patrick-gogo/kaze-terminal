@@ -32,7 +32,7 @@ func TestTypedKeyEchoShowsInTheFrameThatSentIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	tab := win.mgr.Active()
-	win.routeAndWait(layout.Context{}, tab, []event.Event{key.EditEvent{Text: "q"}}, 8, 16)
+	win.routeAndWait(layout.Context{}, win.mainView(tab), []event.Event{key.EditEvent{Text: "q"}}, 8, 16)
 	tab.Session.Lock()
 	got := tab.Session.Screen().Cell(0, 0).Rune
 	tab.Session.Unlock()

@@ -63,12 +63,13 @@ func (p *recPTY) sent() string {
 }
 
 type recStarter struct {
-	mu   sync.Mutex
-	ptys []*recPTY
-	fail error // returned instead of starting while set
+	mu    sync.Mutex
+	ptys  []*recPTY
+	fail  error    // returned instead of starting while set
+	where []string // each started shell's folder, "" for the default
 }
 
-func (s *recStarter) start([]string, string) (ptyx.Session, error) {
+func (s *recStarter) start(_ []string, dir string) (ptyx.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.fail != nil {
@@ -76,6 +77,7 @@ func (s *recStarter) start([]string, string) (ptyx.Session, error) {
 	}
 	p := newRecPTY()
 	s.ptys = append(s.ptys, p)
+	s.where = append(s.where, dir)
 	return p, nil
 }
 
