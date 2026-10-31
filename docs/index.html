@@ -100,6 +100,19 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>Release by release.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
+        <div class="release-meta"><span class="version">Unreleased</span><span class="badge">Upcoming</span></div>
+        <div class="release-body">
+          <h3>Smoother sessions, less overhead</h3>
+          <ul>
+            <li><b>Sidebar fixes:</b> toggling the sidebar no longer flashes, and finished subagents leave its tree once none remain running. Their reports stay on the agents board.</li>
+            <li><b>Shorter title-bar commands:</b> long plugin commands show a compact name, while the sidebar and palette keep the full name.</li>
+            <li><b>Faster busy terminals:</b> scrolling reuses rows, and unchanged title-bar and status-bar layouts are reused instead of measured again each frame.</li>
+            <li><b>Less memory churn:</b> subagent history and rendering buffers reuse storage, and forgotten subagent pane IDs are cleaned up.</li>
+            <li><b>More efficient agent updates:</b> bursts of tool activity are compacted in batches, protecting completion reports and the newest actions.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
         <div class="release-meta"><span class="version">0.15</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>A new title bar and status bar</h3>
