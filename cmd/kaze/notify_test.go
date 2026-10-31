@@ -118,9 +118,9 @@ func TestNotifyStdinThatNeverEndsDoesNotBlock(t *testing.T) {
 	}
 }
 
-func TestReadStdinCapsAt64KB(t *testing.T) {
-	b := readStdinLimited(bytes.NewReader(make([]byte, 200<<10)), time.Second)
-	if len(b) != 64<<10 {
+func TestReadStdinCapsAt2MB(t *testing.T) {
+	b := readStdinLimited(bytes.NewReader(make([]byte, 3<<20)), time.Second)
+	if len(b) != 2<<20 {
 		t.Fatalf("read %d bytes", len(b))
 	}
 }
