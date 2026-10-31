@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -10,11 +11,13 @@ import (
 )
 
 // maxSubEvents bounds the events waiting for a frame (a minimized window gets
-// none); past it the oldest go, a lost step at worst.
+// none). On overflow, redundant session reports and superseded tool steps
+// make room for lifecycle events and each agent's latest step.
 const maxSubEvents = 4096
 
 // subInbox carries subagent events from the notify goroutines to the UI
-// goroutine. Unlike the alert inbox it keeps every event: each step counts.
+// goroutine. It keeps step history up to the cap without allowing a busy
+// agent's steps to displace another agent's completion or latest action.
 type subInbox struct {
 	mu  sync.Mutex
 	evs []subagents.Event
@@ -23,10 +26,61 @@ type subInbox struct {
 func (b *subInbox) put(es ...subagents.Event) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.evs = append(b.evs, es...)
-	if n := len(b.evs); n > maxSubEvents {
-		b.evs = append(b.evs[:0:0], b.evs[n-maxSubEvents:]...)
+	for _, e := range es {
+		if e.Kind == subagents.EvSession && b.sameSession(e) {
+			continue
+		}
+		b.evs = append(b.evs, e)
+		if len(b.evs) > maxSubEvents {
+			i := b.dropIndex()
+			b.evs = slices.Delete(b.evs, i, i+1)
+		}
 	}
+}
+
+// sameSession drops only consecutive reports for a source. A source switching
+// sessions and then switching back must still deliver both transitions.
+func (b *subInbox) sameSession(e subagents.Event) bool {
+	for i := len(b.evs) - 1; i >= 0; i-- {
+		old := b.evs[i]
+		if old.Kind == subagents.EvSession && old.Src == e.Src {
+			return old.Session == e.Session
+		}
+	}
+	return false
+}
+
+// dropIndex prefers an obsolete tool step, retaining the newest step per
+// agent so a queued resume cannot leave a quiet agent marked as waiting.
+func (b *subInbox) dropIndex() int {
+	type sourceAgent struct {
+		src         int
+		session, id string
+	}
+	seen := map[sourceAgent]bool{}
+	oldest := -1
+	for i := len(b.evs) - 1; i >= 0; i-- {
+		e := b.evs[i]
+		if e.Kind != subagents.EvTool && e.Kind != subagents.EvStop {
+			continue
+		}
+		k := sourceAgent{e.Src, e.Session, e.AgentID}
+		if e.Kind == subagents.EvTool && seen[k] {
+			oldest = i
+		}
+		seen[k] = true
+	}
+	if oldest >= 0 {
+		return oldest
+	}
+	// With more distinct agents/control events than slots, history must still
+	// stay bounded. Drop a step before sacrificing the oldest control event.
+	for i, e := range b.evs {
+		if e.Kind == subagents.EvTool {
+			return i
+		}
+	}
+	return 0
 }
 
 func (b *subInbox) take() []subagents.Event {

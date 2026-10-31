@@ -45,7 +45,8 @@ type Agent struct {
 	Report         string
 	InTree         bool // false once the session's next prompt came after it finished
 
-	src int // the tab the hooks ran in
+	src     int  // the tab the hooks ran in
+	stopped bool // true only after a real stop; EndTab makes a provisional Done entry
 }
 
 type EventKind uint8
@@ -164,9 +165,15 @@ func (t *Tracker) Apply(e Event) bool {
 			return false
 		}
 		a := t.get(e)
-		if a.State == Done {
+		if a.stopped {
 			return false
 		}
+		if a.State == Done {
+			// A shell return can beat delivery of SubagentStop. Complete
+			// that provisional entry without keeping a second board card.
+			t.done = slices.DeleteFunc(t.done, func(old *Agent) bool { return old == a })
+		}
+		a.stopped = true
 		a.State, a.Ended, a.Report = Done, e.At, e.Report
 		t.done = append(t.done, a)
 		if len(t.done) > maxDone {

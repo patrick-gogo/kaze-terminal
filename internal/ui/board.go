@@ -67,9 +67,10 @@ func (win *window) openBoard(tab tabs.TabID) {
 	win.hideSettings()
 	b := &win.board
 	b.open, b.tab, b.scroll = true, tab, 0
-	b.missing = false
+	b.missing = true
 	if win.claudePath != "" {
 		if _, r, err := win.readClaude(); err == nil {
+			b.missing = false
 			for _, e := range []claudesetup.Entry{r.AgentStart, r.AgentStop, r.Tools} {
 				b.missing = b.missing || e.State != claudesetup.OK
 			}

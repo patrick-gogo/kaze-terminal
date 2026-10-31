@@ -93,7 +93,7 @@ func load(settings []byte) (*node, error) {
 		if h.Kind != '{' {
 			return nil, errors.New(`"hooks" is not an object`)
 		}
-		for _, ev := range []string{"Stop", "Notification", "UserPromptSubmit"} {
+		for _, ev := range []string{"Stop", "Notification", "UserPromptSubmit", "SubagentStart", "SubagentStop", "PreToolUse"} {
 			if g := h.Get(ev); g != nil && g.Kind != '[' {
 				return nil, fmt.Errorf("hooks %q is not a list", ev)
 			}
