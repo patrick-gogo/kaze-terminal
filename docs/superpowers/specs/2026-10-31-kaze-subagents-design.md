@@ -102,7 +102,7 @@ A permission prompt fires `Notification` (`permission_prompt`), which kaze alrea
 - **If the message carries an `agent_id`** (the hooks docs list it as a common field "for the subagent the hook fires in"), that subagent is **waiting on you**. Its next step or its stop clears the wait.
 - **If it doesn't**, the session is waiting as today, and no subagent is marked. The board then shows the session's card in "Waiting on you" with "a subagent may be asking" when any of its subagents is running.
 
-Not yet confirmed on a real session. **The first plan task checks it** by capturing the real hook input from a throwaway project (never the owner's `~/.claude`). Both paths are built either way, because older Claude Code versions may lack the field.
+**Checked on Claude Code 2.1.314, 2026-10-31** (throwaway project, `claude -p`): `PreToolUse` inside a subagent carries `agent_id` and `agent_type`; the main conversation's call is `tool_name: "Agent"` with `description` and `subagent_type`; every event has the parent's `session_id`; `SubagentStop` carries `last_assistant_message`. Whether `permission_prompt` carries `agent_id` still needs an interactive run (`-p` never asks). **The first plan task checks it** by capturing the real hook input from a throwaway project (never the owner's `~/.claude`). Both paths are built either way, because older Claude Code versions may lack the field.
 
 `kaze notify needs` starts sending `agent_id` when present. Nothing else about today's alert changes (same chime, flash, toast).
 
