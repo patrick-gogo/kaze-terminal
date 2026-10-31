@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Window Chrome Redesign</title>
+<style>
+@font-face{font-family:Manrope;src:url(../site-assets/Manrope.ttf) format('truetype');font-weight:200 800}
+@font-face{font-family:JetBrains;src:url(../site-assets/JetBrainsMono-Regular.ttf) format('truetype')}
+:root{
+  --chrome:#0b0d12;--bar:#0d1016;--page:#0f1117;--card:#13161e;--raised:#1a1e29;--line:#1d2230;--line2:#2a3142;
+  --fg:#e8eaf1;--muted:#8a90a2;--dim:#5d6476;--accent:#8b7bff;--accent2:#b9a6ff;--soft:rgba(139,123,255,.14);
+  --needs:#f2b84b;--done:#62d39a;--red:#ff6b6b;--branch:#62d39a;--folder:#b7bccb;--mag:#d58cff;--bg:#05060a;--term:#0f1117;
+  --track:#232838;--pop:#161a24;--shadow:0 18px 50px rgba(0,0,0,.55);--close:#e5484d;
+  --sans:Manrope,system-ui,sans-serif;--mono:JetBrains,ui-monospace,monospace
+}
+body.washi{
+  --chrome:#ece6da;--bar:#e9e2d5;--page:#f5f0e6;--card:#efe9de;--raised:#e3dccc;--line:#dcd4c4;--line2:#cfc6b3;
+  --fg:#2b2620;--muted:#6f675b;--dim:#9b9283;--accent:#4c55c7;--accent2:#3b43a8;--soft:rgba(76,85,199,.12);
+  --needs:#a96a00;--done:#2f7a4c;--red:#b8423a;--branch:#2f7a4c;--folder:#4f483e;--mag:#8a3fb0;--bg:#d9d2c4;--term:#f5f0e6;
+  --track:#d8d0bf;--pop:#f7f2e9;--shadow:0 18px 40px rgba(60,45,20,.18)
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+.top{max-width:1220px;margin:0 auto;padding:28px 16px 14px;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end;justify-content:space-between}
+.top h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.4px}
+.top p{margin:4px 0 0;color:var(--muted);font-size:12.5px;max-width:560px}
+.controls{display:flex;flex-wrap:wrap;gap:14px}
+.seg{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{padding:5px 11px;border-radius:6px;font-size:12px;color:var(--muted);font-weight:550}
+.seg button[aria-pressed=true]{background:var(--raised);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:650}
+.stage{max-width:1220px;margin:0 auto;padding:4px 16px 18px}
+.win{border:1px solid var(--line2);border-radius:11px;overflow:hidden;background:var(--term);box-shadow:var(--shadow)}
+body.windows .win{border-radius:8px}
+.ico{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--mono)}
+.add{color:var(--done)}.del{color:var(--red)}.hot{color:var(--needs)}.crit{color:var(--red)}
+
+/* Title bar */
+.tb{height:42px;display:flex;align-items:stretch;background:var(--bar);border-bottom:1px solid var(--line);user-select:none}
+.tb .lead{width:248px;flex:none;display:flex;align-items:center;gap:6px;padding:0 10px 0 14px;background:var(--chrome);border-right:1px solid var(--line)}
+body.noside .tb .lead{width:auto;border-right:0;background:transparent}
+.lights{display:flex;gap:8px;margin-right:10px}.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)}.lights i+i{background:#febc2e}.lights i+i+i{background:#28c840}
+body.windows .lights{display:none}
+.mark{display:none;width:20px;height:20px;margin-right:6px}
+body.windows .mark{display:block}
+.ib{width:30px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--muted);position:relative;flex:none}
+.ib:hover{background:var(--raised);color:var(--fg)}
+.ib.on{color:var(--fg)}
+.badge{position:absolute;top:1px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:var(--accent);color:#fff;font-size:9.5px;font-weight:700;line-height:15px;text-align:center;box-shadow:0 0 0 2px var(--bar)}
+.badge.warn{background:var(--needs);color:#1a1300}
+.lead .sp{flex:1}
+.main{flex:1;display:flex;align-items:center;gap:10px;padding:0 8px 0 14px;min-width:0}
+.crumb{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto;font-size:12.5px;white-space:nowrap;overflow:hidden}
+.crumb .repo{color:var(--muted)}
+.crumb .slash{color:var(--dim)}
+.crumb .title{color:var(--fg);font-weight:650}
+.crumb .cmd{font:11.5px var(--mono);color:var(--mag)}
+.ring{width:10px;height:10px;border-radius:50%;border:1.7px solid var(--accent);border-top-color:transparent;flex:none}
+.state{font-size:10.5px;font-weight:650;padding:2px 8px;border-radius:9px;background:var(--soft);color:var(--accent2)}
+.state.needs{background:color-mix(in srgb,var(--needs) 16%,transparent);color:var(--needs)}
+.cmdk{margin:0 auto;display:flex;align-items:center;gap:9px;height:28px;width:min(400px,36%);min-width:190px;padding:0 6px 0 11px;border-radius:8px;background:var(--card);border:1px solid var(--line);color:var(--dim);font-size:12px;flex:0 1 auto;white-space:nowrap;overflow:hidden}
+.cmdk>span:not(.sp){overflow:hidden;text-overflow:ellipsis}
+.cmdk:hover{border-color:var(--line2);color:var(--muted)}
+.cmdk .sp{flex:1}
+kbd{white-space:nowrap;flex:none;font:10.5px var(--mono);color:var(--muted);border:1px solid var(--line2);background:var(--raised);border-radius:5px;padding:1px 6px}
+.right{display:flex;align-items:center;gap:2px}
+.vsep{width:1px;height:16px;background:var(--line2);margin:0 6px}
+.caps{display:none;align-items:stretch;margin-left:6px}
+body.windows .caps{display:flex}
+.caps button{width:46px;display:grid;place-items:center;color:var(--muted)}
+.caps button:hover{background:var(--raised);color:var(--fg)}
+.caps button.x:hover{background:var(--close);color:#fff}
+.caps svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.1}
+
+/* Body */
+.body{display:flex;height:400px}
+.side{width:248px;background:var(--chrome);border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:6px}
+body.noside .side{display:none}
+.filter{display:flex;gap:6px;margin-bottom:6px}
+.filter div{flex:1;height:30px;border:1px solid var(--line);border-radius:7px;color:var(--dim);font:12px var(--mono);display:flex;align-items:center;padding:0 10px}
+.filter b{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;display:grid;place-items:center;color:var(--muted);font-weight:400}
+.grp{font:12px var(--mono);color:var(--fg);padding:6px 6px 2px;display:flex;align-items:center;gap:7px}
+.grp .n{margin-left:auto;color:var(--dim)}
+.row{border-radius:8px;padding:7px 8px 7px 26px;position:relative;font:11.5px/1.6 var(--mono);color:var(--muted)}
+.row.on{background:var(--raised);box-shadow:inset 2px 0 0 var(--accent)}
+.row .t{color:var(--fg)}.row .c{color:var(--mag)}
+.row .m{position:absolute;left:9px;top:11px}
+.row .dot{width:7px;height:7px;border-radius:50%;background:var(--needs);display:block}
+.row .dot.done{background:var(--done)}
+.row .l3{display:flex;justify-content:space-between}
+.row .w{color:var(--accent)}.row .w.needs{color:var(--needs)}.row .w.done{color:var(--done)}
+.sub{font:11px var(--mono);color:var(--muted);padding:2px 8px 2px 42px;position:relative}
+.sub .ring{position:absolute;left:26px;top:6px;width:8px;height:8px}
+.sub .ty{color:var(--mag)}
+.term{flex:1;padding:12px 16px;font:12.5px/1.75 var(--mono);color:var(--fg);overflow:hidden}
+.term .p{color:var(--accent2)}.term .g{color:var(--branch)}.term .d{color:var(--muted)}
+
+/* Status bar A (from status-bar-mockup) */
+.bar{display:flex;align-items:center;background:var(--chrome);border-top:1px solid var(--line);position:relative;user-select:none}
+.va{height:32px;padding:0 6px;gap:2px;font-size:11.5px}
+.va .item{display:flex;align-items:center;gap:7px;height:24px;padding:0 9px;border-radius:7px;color:var(--muted);white-space:nowrap}
+.va .item.click:hover{background:var(--raised);color:var(--fg)}
+.va .sep{width:1px;height:14px;background:var(--line2);margin:0 4px;flex:none}
+.va .val{color:var(--fg);font-family:var(--mono);font-size:11px}
+.va .lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:650}
+.va .chip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:9px;background:var(--soft);color:var(--accent2);font-size:11px;font-weight:600}
+.va .chip.warn{background:color-mix(in srgb,var(--needs) 16%,transparent);color:var(--needs)}
+.va .sp{flex:1}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--done);flex:none}.sdot.down{background:var(--red)}
+.meter{width:38px;height:4px;border-radius:2px;background:var(--track);overflow:hidden;flex:none}
+.meter i{display:block;height:100%;border-radius:2px;background:var(--accent)}
+.meter.hot i{background:var(--needs)}.meter.crit i{background:var(--red)}
+
+.notes{max-width:1220px;margin:0 auto;padding:0 16px 40px;display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px 16px;font-size:12.5px;color:var(--muted)}
+.note h3{margin:0 0 6px;font-size:13px;color:var(--fg);font-weight:650}
+.note ul{margin:6px 0 0;padding-left:16px}.note li{margin:4px 0}
+.note b{color:var(--fg);font-weight:600}
+@media(max-width:860px){.notes{grid-template-columns:1fr}.stage{overflow-x:auto}.win{min-width:980px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div>
+    <h1>Window chrome redesign</h1>
+    <p>One title bar for macOS and Windows, drawn by Kaze, with the A status bar below. Switch the platform: everything stays in the same place except the window buttons.</p>
+  </div>
+  <div class="controls">
+    <div class="ctl"><span>Platform</span><div class="seg" id="pSeg"><button data-p="mac" aria-pressed="true">macOS</button><button data-p="windows" aria-pressed="false">Windows</button></div></div>
+    <div class="ctl"><span>Sidebar</span><div class="seg" id="dSeg"><button data-d="on" aria-pressed="true">Shown</button><button data-d="off" aria-pressed="false">Hidden</button></div></div>
+    <div class="ctl"><span>State</span><div class="seg" id="sSeg"><button data-s="calm" aria-pressed="true">Calm</button><button data-s="busy" aria-pressed="false">Busy</button></div></div>
+    <div class="ctl"><span>Theme</span><div class="seg" id="tSeg"><button data-t="midnight" aria-pressed="true">Midnight</button><button data-t="washi" aria-pressed="false">Washi</button></div></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="win">
+    <div class="tb" id="tb"></div>
+    <div class="body">
+      <div class="side" id="side"></div>
+      <div class="term">
+        <div><span class="p">todo-api</span> <span class="g">feature/auth</span> ❯ go test ./...</div>
+        <div>ok&nbsp;&nbsp;&nbsp;example.com/todo-api/api&nbsp;&nbsp;&nbsp;&nbsp;0.442s</div>
+        <div>ok&nbsp;&nbsp;&nbsp;example.com/todo-api/store&nbsp;&nbsp;0.825s</div>
+        <div><span class="p">todo-api</span> <span class="g">feature/auth</span> ❯ git diff --stat</div>
+        <div>&nbsp;internal/session/store.go | 15 <span class="add">++++++++++++</span><span class="del">---</span></div>
+        <div>&nbsp;1 file changed, 12 insertions(+), 3 deletions(-)</div>
+        <div><span class="p">todo-api</span> <span class="g">feature/auth</span> ❯ <span class="d">▍</span></div>
+      </div>
+    </div>
+    <div id="sb"></div>
+  </div>
+</div>
+
+<div class="notes">
+  <div class="note"><h3>What changes</h3>
+    <ul>
+      <li><b>One bar on both platforms.</b> On macOS, Kaze stops using the system title bar and draws its own. The real traffic lights stay, inset into Kaze's bar. On Windows, Kaze already draws its own; it gets the same layout.</li>
+      <li><b>The sidebar's icon row moves up</b> into the title bar, above the sidebar. The sidebar starts with the filter, so it gains a row.</li>
+      <li><b>The session you're in is named in the bar:</b> repo, title, command and state. It replaces "kaze · zsh".</li>
+      <li><b>A real search field</b> in the middle opens the palette, showing its key.</li>
+      <li><b>On the right:</b> scratch shell, Agents (with its badge) and Settings. On Windows the minimize, maximize and close buttons follow, redrawn thin, with a red close on hover.</li>
+    </ul></div>
+  <div class="note"><h3>Notes</h3>
+    <ul>
+      <li>The title bar is 42px (today: macOS 28px system bar plus a 36px icon row; Windows 38px).</li>
+      <li>Empty space in the bar still drags the window, and a double click maximizes it on both.</li>
+      <li>Feasible on Mac: Gio can open a frameless window with a full-size content view. Kaze then turns the native traffic lights back on with a small macOS call (to check during the build).</li>
+      <li>No gradients. Theme colours only, so all five themes work.</li>
+      <li>The + for a new session moves to the title bar, above the sidebar; the filter takes the full width.</li>
+      <li>In a narrow window the status bar drops tabs, then memory, then server counts, before anything gets cut.</li>
+    </ul></div>
+</div>
+
+<script>
+const S = {p:'mac', d:'on', s:'calm'};
+const I = {
+  panel:'<svg class="ico" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6.5 3v10"/></svg>',
+  plus:'<svg class="ico" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg>',
+  search:'<svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>',
+  term:'<svg class="ico" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="m5 6.5 2 1.8L5 10M8.5 10h2.5"/></svg>',
+  agents:'<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><path d="M7 5.7 5 10.3M9 5.7l2 4.6"/></svg>',
+  cog:'<svg class="ico" viewBox="0 0 24 24" style="stroke-width:1.7"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+  folder:'<svg class="ico" viewBox="0 0 16 16" style="width:13px;height:13px"><path d="M2 4.5c0-.6.4-1 1-1h3l1.5 1.5H13c.6 0 1 .4 1 1V12c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1z"/></svg>',
+  branch:'<svg class="ico" viewBox="0 0 16 16" style="width:13px;height:13px"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 2.5-7 4"/></svg>',
+  chip:'<svg class="ico" viewBox="0 0 16 16" style="width:13px;height:13px"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2"/></svg>',
+  tabs:'<svg class="ico" viewBox="0 0 16 16" style="width:13px;height:13px"><rect x="2.5" y="4.5" width="11" height="8.5" rx="1.5"/><path d="M5 2.5h8.5c.6 0 1 .4 1 1V10"/></svg>',
+  up:'<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M8 12.5V4M4.5 7.5 8 4l3.5 3.5"/></svg>'
+};
+const mark = `<svg class="mark" viewBox="0 0 32 32"><path d="M8 5h5v9l9-9h6L17 16l11 11h-6l-9-9v9H8z" fill="var(--accent)"/></svg>`;
+function data(){
+  const busy = S.s==='busy';
+  return {busy, agents: busy?{n:4,w:1}:{n:3,w:0}, servers: busy?['up','up','down']:['up','up','up'],
+    usage: busy?[{k:'5h',p:84,l:'hot'},{k:'wk',p:93,l:'crit'},{k:'ctx',p:71,l:'hot'}]:[{k:'5h',p:23,l:''},{k:'wk',p:41,l:''},{k:'ctx',p:34,l:''}],
+    update: busy?'0.15':''};
+}
+function titlebar(d){
+  const key = S.p==='mac' ? '⌘K' : 'Ctrl K';
+  const st = d.busy ? '<span class="state needs">needs you</span>' : '<span class="state">running</span>';
+  const lead = S.d==='on'
+    ? `<div class="lead"><div class="lights"><i></i><i></i><i></i></div>${mark}<button class="ib on" title="Hide sidebar">${I.panel}</button><span class="sp"></span><button class="ib" title="New session">${I.plus}</button></div>`
+    : `<div class="lead"><div class="lights"><i></i><i></i><i></i></div>${mark}<button class="ib" title="Show sidebar">${I.panel}</button></div>`;
+  return `${lead}<div class="main">
+    <div class="crumb">${d.busy?'<span class="sdot" style="background:var(--needs);width:8px;height:8px"></span>':'<span class="ring"></span>'}<span class="repo">todo-api</span><span class="slash">/</span><span class="title">TODO-142</span><span class="cmd">/ship-ticket</span>${st}</div>
+    <button class="cmdk">${I.search}<span>Search sessions, skills, commands</span><span class="sp"></span><kbd>${key}</kbd></button>
+    <div class="right">
+      <button class="ib" title="Scratch shell">${I.term}</button>
+      <button class="ib" title="Agents">${I.agents}<span class="badge${d.agents.w?' warn':''}">${d.agents.n}</span></button>
+      <button class="ib" title="Settings">${I.cog}</button>
+    </div>
+  </div>
+  <div class="caps"><button title="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button><button title="Maximize"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button><button class="x" title="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0 0 10"/></svg></button></div>`;
+}
+function side(d){
+  return `<div class="filter"><div>Filter sessions…</div></div>
+    <div class="grp"><span class="ring" style="width:8px;height:8px"></span>todo-api<span class="n">2</span></div>
+    <div class="row on"><span class="m">${d.busy?'<span class="dot"></span>':'<span class="ring"></span>'}</span><div><span class="t">TODO-142</span> <span class="c">· /ship-ticket</span></div><div>~/projects/todo-api</div><div class="l3"><span style="color:var(--branch)">auth <span class="add">+12</span> <span class="del">-3</span></span><span class="w${d.busy?' needs':''}">${d.busy?'needs you':'running'}</span></div></div>
+    <div class="sub"><span class="ring"></span><span class="ty">Explore</span> Find the auth middleware</div>
+    <div class="sub"><span class="ring"></span><span class="ty">Plan</span> Plan the login form</div>
+    <div class="row"><span class="m"><span class="dot done"></span></span><div><span class="t">auth-tokens</span> <span class="c">· /review-pr</span></div><div>~/projects/todo-api-auth</div><div class="l3"><span style="color:var(--branch)">auth</span><span class="w done">done</span></div></div>
+    <div class="grp"><span class="sdot" style="background:var(--done)"></span>notes-cli<span class="n">1</span></div>`;
+}
+const meter = u => `<span class="meter${u.l?' '+u.l:''}"><i style="width:${u.p}%"></i></span>`;
+const pc = u => u.l==='crit'?'crit':u.l==='hot'?'hot':'';
+function statusbar(d){
+  const ag = d.agents.w ? `<span class="chip warn"><span class="sdot" style="background:var(--needs)"></span>${d.agents.n} agents · 1 waiting</span>` : `<span class="chip"><span class="ring" style="width:9px;height:9px"></span>${d.agents.n} agents</span>`;
+  return `<div class="bar va">
+    <div class="item click">${I.folder}<span class="val" style="color:var(--folder)">~/projects/todo-api</span></div>
+    <div class="item click" style="color:var(--branch)">${I.branch}<span class="val" style="color:var(--branch)">feature/auth</span><span class="mono add" style="font-size:10.5px">+12</span><span class="mono del" style="font-size:10.5px">−3</span></div>
+    <span class="sp"></span>
+    ${d.update?`<div class="item click"><span class="chip">${I.up}Update ${d.update}</span></div><span class="sep"></span>`:''}
+    <div class="item click">${ag}</div><span class="sep"></span>
+    <div class="item click">${d.servers.map(s=>`<span class="sdot${s==='down'?' down':''}"></span>`).join('')}<span class="val">${d.servers.filter(s=>s==='up').length}/3</span><span class="lbl">servers</span></div><span class="sep"></span>
+    <div class="item click">${d.usage.map(u=>`<span class="lbl">${u.k}</span>${meter(u)}<span class="val ${pc(u)}">${u.p}%</span>`).join('<span style="width:6px"></span>')}</div><span class="sep"></span>
+    <div class="item">${I.chip}<span class="val">152 MB</span></div>
+    <div class="item">${I.tabs}<span class="val">7 tabs</span></div>
+  </div>`;
+}
+function render(){
+  const d = data();
+  document.body.classList.toggle('windows', S.p==='windows');
+  document.body.classList.toggle('noside', S.d==='off');
+  document.getElementById('tb').innerHTML = titlebar(d);
+  document.getElementById('side').innerHTML = side(d);
+  document.getElementById('sb').innerHTML = statusbar(d);
+}
+function wire(id,key){
+  document.querySelectorAll(`#${id} button`).forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll(`#${id} button`).forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    if(key==='t') document.body.classList.toggle('washi', b.dataset.t==='washi'); else S[key]=b.dataset[key];
+    render();
+  }));
+}
+wire('pSeg','p'); wire('dSeg','d'); wire('sSeg','s'); wire('tSeg','t');
+const q = new URLSearchParams(location.search);
+for (const [k,id] of [['p','pSeg'],['d','dSeg'],['s','sSeg'],['t','tSeg']]) if(q.get(k)) document.querySelector(`#${id} [data-${k}="${q.get(k)}"]`)?.click();
+render();
+</script>
+</body>
+</html>

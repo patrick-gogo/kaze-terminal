@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Status Bar Redesign</title>
+<style>
+@font-face{font-family:Manrope;src:url(../site-assets/Manrope.ttf) format('truetype');font-weight:200 800}
+@font-face{font-family:JetBrains;src:url(../site-assets/JetBrainsMono-Regular.ttf) format('truetype')}
+:root{
+  --chrome:#0b0d12;--page:#0f1117;--card:#13161e;--raised:#1a1e29;--line:#1d2230;--line2:#2a3142;
+  --fg:#e8eaf1;--muted:#8a90a2;--dim:#5d6476;--accent:#8b7bff;--accent2:#b9a6ff;--soft:rgba(139,123,255,.14);
+  --needs:#f2b84b;--done:#62d39a;--red:#ff6b6b;--branch:#62d39a;--folder:#b7bccb;--bg:#05060a;--term:#0f1117;
+  --track:#232838;--pop:#161a24;--shadow:0 18px 50px rgba(0,0,0,.55);
+  --sans:Manrope,system-ui,sans-serif;--mono:JetBrains,ui-monospace,monospace
+}
+body.washi{
+  --chrome:#ece6da;--page:#f5f0e6;--card:#efe9de;--raised:#e5dece;--line:#dcd4c4;--line2:#cfc6b3;
+  --fg:#2b2620;--muted:#6f675b;--dim:#9b9283;--accent:#4c55c7;--accent2:#3b43a8;--soft:rgba(76,85,199,.12);
+  --needs:#a96a00;--done:#2f7a4c;--red:#b8423a;--branch:#2f7a4c;--folder:#4f483e;--bg:#d9d2c4;--term:#f5f0e6;
+  --track:#d8d0bf;--pop:#f7f2e9;--shadow:0 18px 40px rgba(60,45,20,.18)
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+.top{max-width:1180px;margin:0 auto;padding:28px 16px 14px;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end;justify-content:space-between}
+.top h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.4px}
+.top p{margin:4px 0 0;color:var(--muted);font-size:12.5px;max-width:560px}
+.controls{display:flex;flex-wrap:wrap;gap:14px}
+.seg{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{padding:5px 11px;border-radius:6px;font-size:12px;color:var(--muted);font-weight:550}
+.seg button[aria-pressed=true]{background:var(--raised);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:650}
+
+/* The window */
+.stage{max-width:1180px;margin:0 auto;padding:4px 16px 18px}
+.win{border:1px solid var(--line2);border-radius:11px;overflow:hidden;background:var(--term);box-shadow:var(--shadow)}
+.title{height:30px;background:var(--chrome);display:flex;align-items:center;justify-content:center;position:relative;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.lights{position:absolute;left:12px;display:flex;gap:7px}.lights i{width:11px;height:11px;border-radius:50%;background:#ff5f57}.lights i+i{background:#febc2e}.lights i+i+i{background:#28c840}
+.body{display:flex;height:360px}
+.side{width:230px;background:var(--chrome);border-right:1px solid var(--line);padding:14px 12px;display:flex;flex-direction:column;gap:9px}
+.side .f{height:28px;border:1px solid var(--line);border-radius:7px}
+.side .r{height:46px;border-radius:7px;background:var(--card);opacity:.8}
+.side .r.on{background:var(--raised);box-shadow:inset 2px 0 0 var(--accent)}
+.term{flex:1;padding:12px 16px;font:12.5px/1.75 var(--mono);color:var(--fg);overflow:hidden}
+.term .p{color:var(--accent2)}.term .g{color:var(--branch)}.term .d{color:var(--muted)}
+
+/* Shared bar parts */
+.bar{display:flex;align-items:center;background:var(--chrome);border-top:1px solid var(--line);position:relative;user-select:none}
+.mono{font-family:var(--mono)}
+.ico{width:13px;height:13px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--done);flex:none}
+.dot.down{background:var(--red)}.dot.mute{background:var(--dim)}
+.ring{width:9px;height:9px;border-radius:50%;border:1.6px solid var(--accent);border-top-color:transparent;flex:none}
+.add{color:var(--done)}.del{color:var(--red)}
+.hot{color:var(--needs)}.crit{color:var(--red)}
+
+/* Current bar, for comparison */
+.cur{height:24px;padding:0 14px;font:11px var(--mono);color:var(--muted);gap:12px}
+.cur .sp{flex:1}.cur .folder{color:var(--folder)}.cur .branch{color:var(--branch)}.cur .acc{color:var(--accent)}
+
+/* A: Segments */
+.va{height:32px;padding:0 6px;gap:2px;font-size:11.5px}
+.va .item{display:flex;align-items:center;gap:7px;height:24px;padding:0 9px;border-radius:7px;color:var(--muted);white-space:nowrap}
+.va .item.click:hover{background:var(--raised);color:var(--fg)}
+.va .sep{width:1px;height:14px;background:var(--line2);margin:0 4px;flex:none}
+.va .val{color:var(--fg);font-family:var(--mono);font-size:11px}
+.va .lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:650}
+.va .chip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:9px;background:var(--soft);color:var(--accent2);font-size:11px;font-weight:600}
+.va .chip.warn{background:color-mix(in srgb,var(--needs) 16%,transparent);color:var(--needs)}
+.meter{width:38px;height:4px;border-radius:2px;background:var(--track);overflow:hidden;flex:none}
+.meter i{display:block;height:100%;border-radius:2px;background:var(--accent)}
+.meter.hot i{background:var(--needs)}.meter.crit i{background:var(--red)}
+.va .sp{flex:1}
+
+/* B: Quiet line */
+.vb{height:28px;padding:0 16px;gap:18px;font-size:11px;color:var(--muted)}
+.vb .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:700;margin-right:5px}
+.vb .v{font-family:var(--mono);color:var(--fg);font-size:11px}
+.vb .sp{flex:1}
+.vb .grp{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.vb .grp.click{cursor:pointer}.vb .grp.click:hover .v{color:var(--accent2)}
+.gauge{width:14px;height:14px;flex:none;transform:rotate(-90deg)}
+.gauge circle{fill:none;stroke-width:2.4}
+.gauge .t{stroke:var(--track)}.gauge .f{stroke:var(--accent);stroke-linecap:round}
+.gauge.hot .f{stroke:var(--needs)}.gauge.crit .f{stroke:var(--red)}
+.vb .rule{width:1px;height:12px;background:var(--line2)}
+
+/* C: Floating dock */
+.dockwrap{background:var(--term);padding:6px 8px 8px;border-top:1px solid var(--line)}
+.vc{height:34px;border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:0 5px;gap:4px;font-size:11.5px;border-top:1px solid var(--line2)}
+.vc .cell{display:flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:7px;white-space:nowrap;color:var(--muted)}
+.vc .cell.click:hover{background:var(--raised);color:var(--fg)}
+.vc .cell.loc{background:var(--raised);color:var(--fg)}
+.vc .v{font-family:var(--mono);font-size:11px;color:var(--fg)}
+.vc .sp{flex:1}
+.vc .stack{display:flex;flex-direction:column;gap:3px;width:62px}
+.vc .stack .row{display:flex;justify-content:space-between;font:9.5px var(--mono);color:var(--dim)}
+.vc .stack .row b{font-weight:400;color:var(--fg)}
+.vc .stack .meter{width:100%;height:3px}
+.vc .badge{font-size:10.5px;font-weight:650;padding:2px 7px;border-radius:6px;background:var(--soft);color:var(--accent2)}
+.vc .badge.warn{background:color-mix(in srgb,var(--needs) 16%,transparent);color:var(--needs)}
+
+/* Popover */
+.pop{position:absolute;bottom:calc(100% + 8px);width:290px;background:var(--pop);border:1px solid var(--line2);border-radius:11px;box-shadow:var(--shadow);padding:14px 15px 12px;z-index:5;display:none;font-size:12px}
+.pop.open{display:block}
+.pop h4{margin:0 0 10px;font-size:12.5px;font-weight:650}
+.pop .line{display:grid;grid-template-columns:62px 1fr 42px;align-items:center;gap:10px;margin:8px 0}
+.pop .line .n{color:var(--muted);font-size:11.5px}
+.pop .line .meter{width:100%;height:5px}
+.pop .line .p{font:11px var(--mono);text-align:right}
+.pop .sub{font-size:10.5px;color:var(--dim);margin:-4px 0 6px 72px}
+.pop .foot{border-top:1px solid var(--line);margin-top:10px;padding-top:9px;color:var(--dim);font-size:10.5px}
+
+.notes{max-width:1180px;margin:0 auto;padding:0 16px 40px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px 16px;font-size:12.5px;color:var(--muted)}
+.note h3{margin:0 0 6px;font-size:13px;color:var(--fg);font-weight:650}
+.note.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.note ul{margin:6px 0 0;padding-left:16px}.note li{margin:3px 0}
+.cmp{max-width:1180px;margin:0 auto;padding:0 16px 10px}
+.cmp .lab{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:650;margin:0 0 6px 2px}
+.cmp .win{border-radius:8px}
+@media(max-width:820px){
+  .notes{grid-template-columns:1fr}.side{display:none}
+  .stage,.cmp{overflow-x:auto}.win{min-width:760px}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <div>
+    <h1>Status bar redesign</h1>
+    <p>Three directions for the bar at the bottom: folder, branch, agents, servers, Claude usage and Kaze's own memory and tabs. Hover the usage to see its details. Try the busy state and the light theme.</p>
+  </div>
+  <div class="controls">
+    <div class="ctl"><span>Direction</span><div class="seg" id="vSeg"><button data-v="a" aria-pressed="true">A · Segments</button><button data-v="b" aria-pressed="false">B · Quiet line</button><button data-v="c" aria-pressed="false">C · Dock</button></div></div>
+    <div class="ctl"><span>State</span><div class="seg" id="sSeg"><button data-s="calm" aria-pressed="true">Calm</button><button data-s="busy" aria-pressed="false">Busy</button></div></div>
+    <div class="ctl"><span>Theme</span><div class="seg" id="tSeg"><button data-t="midnight" aria-pressed="true">Midnight</button><button data-t="washi" aria-pressed="false">Washi</button></div></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="win">
+    <div class="title"><div class="lights"><i></i><i></i><i></i></div>kaze · TODO-142</div>
+    <div class="body">
+      <div class="side"><div class="f"></div><div class="r on"></div><div class="r"></div><div class="r"></div><div class="r"></div></div>
+      <div class="term">
+        <div><span class="p">todo-api</span> <span class="g">feature/auth</span> ❯ go test ./...</div>
+        <div>ok&nbsp;&nbsp;&nbsp;example.com/todo-api/api&nbsp;&nbsp;&nbsp;&nbsp;0.442s</div>
+        <div>ok&nbsp;&nbsp;&nbsp;example.com/todo-api/store&nbsp;&nbsp;0.825s</div>
+        <div><span class="p">todo-api</span> <span class="g">feature/auth</span> ❯ git diff --stat</div>
+        <div>&nbsp;internal/session/store.go | 15 <span class="add">++++++++++++</span><span class="del">---</span></div>
+        <div>&nbsp;1 file changed, 12 insertions(+), 3 deletions(-)</div>
+        <div><span class="p">todo-api</span> <span class="g">feature/auth</span> ❯ <span class="d">▍</span></div>
+      </div>
+    </div>
+    <div id="barHost"></div>
+  </div>
+</div>
+
+<div class="cmp">
+  <div class="lab">Today, for comparison</div>
+  <div class="win"><div class="bar cur">
+    <span class="folder">~/projects/todo-api</span><span class="branch">⌥ feature/auth</span><span class="sp"></span>
+    <span class="acc" data-busy-text="Update 0.15">3 agents running</span><span><span style="color:var(--done)">●●●</span> servers</span><span id="curUsage">5h 23%  ·  wk 41%  ·  ctx 34%</span><span>kaze 152MB · 7 tabs</span>
+  </div></div>
+</div>
+
+<div class="notes">
+  <div class="note" data-n="a"><h3>A · Segments</h3>Each part is its own quiet group, split by hairlines. Usage gets small meters with the number beside them, and anything clickable lights up on hover.
+    <ul><li>Agents and Update as soft pills</li><li>Branch with its +/− lines</li><li>32px tall (today: 24)</li></ul></div>
+  <div class="note" data-n="b"><h3>B · Quiet line</h3>Closest to today's height and calm. Small uppercase labels, bright values, and usage as tiny ring gauges instead of words.
+    <ul><li>Least visual change</li><li>Most information per pixel</li><li>28px tall</li></ul></div>
+  <div class="note" data-n="c"><h3>C · Dock</h3>A floating rounded dock inset from the window edges, like a macOS toolbar. The folder sits in a raised cell; usage stacks label, number and meter.
+    <ul><li>Most "premium", most new</li><li>Takes the most height (about 48px)</li><li>Strong card look</li></ul></div>
+</div>
+
+<script>
+const S = {v:'a', s:'calm'};
+const icon = {
+  folder:'<svg class="ico" viewBox="0 0 16 16"><path d="M2 4.5c0-.6.4-1 1-1h3l1.5 1.5H13c.6 0 1 .4 1 1V12c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1z"/></svg>',
+  branch:'<svg class="ico" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 2.5-7 4"/></svg>',
+  server:'<svg class="ico" viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="4" rx="1"/><rect x="2.5" y="9" width="11" height="4" rx="1"/></svg>',
+  chip:'<svg class="ico" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2"/></svg>',
+  tabs:'<svg class="ico" viewBox="0 0 16 16"><rect x="2.5" y="4.5" width="11" height="8.5" rx="1.5"/><path d="M5 2.5h8.5c.6 0 1 .4 1 1V10"/></svg>',
+  up:'<svg class="ico" viewBox="0 0 16 16"><path d="M8 12.5V4M4.5 7.5 8 4l3.5 3.5"/></svg>'
+};
+function data(){
+  const busy = S.s === 'busy';
+  return {
+    folder:'~/projects/todo-api', branch:'feature/auth', add:12, del:3,
+    agents: busy ? {n:4, waiting:1} : {n:3, waiting:0},
+    servers: busy ? ['up','up','down'] : ['up','up','up'],
+    usage: busy
+      ? [{k:'5h',p:84,lvl:'hot',reset:'resets in 38m'},{k:'wk',p:93,lvl:'crit',reset:'resets Mon 9:00'},{k:'ctx',p:71,lvl:'hot',reset:'this session'}]
+      : [{k:'5h',p:23,lvl:'',reset:'resets in 2h 14m'},{k:'wk',p:41,lvl:'',reset:'resets Mon 9:00'},{k:'ctx',p:34,lvl:'',reset:'this session'}],
+    mem:152, tabs:7, update: busy ? '0.15' : ''
+  };
+}
+const lvlClass = l => l ? ' '+l : '';
+const meter = (u, cls='') => `<span class="meter${lvlClass(u.lvl)} ${cls}"><i style="width:${u.p}%"></i></span>`;
+const gauge = u => { const c = 2*Math.PI*5.5, off = c*(1-u.p/100);
+  return `<svg class="gauge${lvlClass(u.lvl)}" viewBox="0 0 14 14"><circle class="t" cx="7" cy="7" r="5.5"/><circle class="f" cx="7" cy="7" r="5.5" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/></svg>`; };
+const servers = d => d.servers.map(s => `<span class="dot${s==='down'?' down':''}"></span>`).join('');
+const upCount = d => d.servers.filter(s=>s==='up').length;
+const pctClass = u => u.lvl==='crit'?'crit':u.lvl==='hot'?'hot':'';
+function popover(d){
+  return `<div class="pop" id="pop"><h4>Claude usage</h4>${d.usage.map(u=>`
+    <div class="line"><span class="n">${{'5h':'5-hour','wk':'Week','ctx':'Context'}[u.k]}</span>${meter(u)}<span class="p ${pctClass(u)}">${u.p}%</span></div>
+    <div class="sub">${u.reset}</div>`).join('')}
+    <div class="foot">From Claude Code's status line. Click to open Settings › Agents.</div></div>`;
+}
+function barA(d){
+  const ag = d.agents.waiting ? `<span class="chip warn"><span class="dot" style="background:var(--needs)"></span>${d.agents.n} agents · 1 waiting</span>` : `<span class="chip"><span class="ring"></span>${d.agents.n} agents</span>`;
+  return `<div class="bar va">
+    <div class="item click">${icon.folder}<span class="val" style="color:var(--folder)">${d.folder}</span></div>
+    <div class="item click" style="color:var(--branch)">${icon.branch}<span class="val" style="color:var(--branch)">${d.branch}</span><span class="mono add" style="font-size:10.5px">+${d.add}</span><span class="mono del" style="font-size:10.5px">−${d.del}</span></div>
+    <span class="sp"></span>
+    ${d.update?`<div class="item click"><span class="chip">${icon.up}Update ${d.update}</span></div><span class="sep"></span>`:''}
+    <div class="item click">${ag}</div><span class="sep"></span>
+    <div class="item click">${servers(d)}<span class="val">${upCount(d)}/${d.servers.length}</span><span class="lbl">servers</span></div><span class="sep"></span>
+    <div class="item click" id="usage">${d.usage.map(u=>`<span class="lbl">${u.k}</span>${meter(u)}<span class="val ${pctClass(u)}">${u.p}%</span>`).join('<span style="width:6px"></span>')}${popover(d)}</div><span class="sep"></span>
+    <div class="item">${icon.chip}<span class="val">${d.mem} MB</span></div>
+    <div class="item">${icon.tabs}<span class="val">${d.tabs} tabs</span></div>
+  </div>`;
+}
+function barB(d){
+  const ag = d.agents.waiting ? `<span class="v hot">${d.agents.n} · 1 waiting</span>` : `<span class="v">${d.agents.n} running</span>`;
+  return `<div class="bar vb">
+    <div class="grp"><span class="v" style="color:var(--folder)">${d.folder}</span></div>
+    <div class="grp"><span class="v" style="color:var(--branch)">⌥ ${d.branch}</span><span class="mono add">+${d.add}</span><span class="mono del">−${d.del}</span></div>
+    <span class="sp"></span>
+    ${d.update?`<div class="grp click"><span class="k" style="color:var(--accent)">update</span><span class="v" style="color:var(--accent2)">${d.update}</span></div><span class="rule"></span>`:''}
+    <div class="grp click"><span class="k">agents</span>${ag}</div>
+    <div class="grp click"><span class="k">servers</span>${servers(d)}</div>
+    <span class="rule"></span>
+    <div class="grp click" id="usage">${d.usage.map(u=>`${gauge(u)}<span class="k" style="margin:0 2px 0 0">${u.k}</span><span class="v ${pctClass(u)}">${u.p}%</span>`).join('<span style="width:8px"></span>')}${popover(d)}</div>
+    <span class="rule"></span>
+    <div class="grp"><span class="k">kaze</span><span class="v">${d.mem}MB</span><span class="v" style="color:var(--dim)">·</span><span class="v">${d.tabs} tabs</span></div>
+  </div>`;
+}
+function barC(d){
+  const ag = d.agents.waiting ? `<span class="badge warn">1 waiting</span>` : '';
+  return `<div class="dockwrap"><div class="bar vc">
+    <div class="cell loc">${icon.folder}<span class="v" style="color:var(--folder)">${d.folder}</span></div>
+    <div class="cell click" style="color:var(--branch)">${icon.branch}<span class="v" style="color:var(--branch)">${d.branch}</span><span class="mono add" style="font-size:10.5px">+${d.add}</span><span class="mono del" style="font-size:10.5px">−${d.del}</span></div>
+    <span class="sp"></span>
+    ${d.update?`<div class="cell click"><span class="badge">${icon.up} Update ${d.update}</span></div>`:''}
+    <div class="cell click"><span class="ring"></span><span class="v">${d.agents.n} agents</span>${ag}</div>
+    <div class="cell click">${icon.server}${servers(d)}</div>
+    <div class="cell click" id="usage">${d.usage.map(u=>`<div class="stack"><div class="row"><span>${u.k}</span><b class="${pctClass(u)}">${u.p}%</b></div>${meter(u)}</div>`).join('')}${popover(d)}</div>
+    <div class="cell">${icon.chip}<span class="v">${d.mem} MB</span><span style="color:var(--dim)">·</span><span class="v">${d.tabs} tabs</span></div>
+  </div></div>`;
+}
+function render(){
+  const d = data();
+  document.getElementById('barHost').innerHTML = {a:barA,b:barB,c:barC}[S.v](d);
+  const u = document.getElementById('usage'), p = document.getElementById('pop');
+  if (u && p){
+    u.style.position='relative'; u.style.cursor='pointer';
+    p.style.right='0';
+    u.addEventListener('mouseenter',()=>p.classList.add('open'));
+    u.addEventListener('mouseleave',()=>p.classList.remove('open'));
+  }
+  document.querySelectorAll('.note').forEach(n=>n.classList.toggle('on', n.dataset.n===S.v));
+  document.getElementById('curUsage').textContent = d.usage.map(u=>`${u.k} ${u.p}%${u.lvl&&u.k!=='ctx'?' ('+u.reset+')':''}`).join('  ·  ');
+}
+function wire(id, key){
+  document.querySelectorAll(`#${id} button`).forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll(`#${id} button`).forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+    const v = b.dataset[key];
+    if (key==='t') document.body.classList.toggle('washi', v==='washi');
+    else S[key] = v;
+    render();
+  }));
+}
+wire('vSeg','v'); wire('sSeg','s'); wire('tSeg','t');
+const q = new URLSearchParams(location.search);
+if (q.get('v')) document.querySelector(`#vSeg [data-v="${q.get('v')}"]`)?.click();
+if (q.get('s')) document.querySelector(`#sSeg [data-s="${q.get('s')}"]`)?.click();
+if (q.get('t')) document.querySelector(`#tSeg [data-t="${q.get('t')}"]`)?.click();
+render();
+</script>
+</body>
+</html>
