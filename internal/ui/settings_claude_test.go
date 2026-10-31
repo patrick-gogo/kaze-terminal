@@ -78,7 +78,7 @@ func claudeWindow(t *testing.T, f claudeFixture, w, h int) *window {
 
 func claudeIndex(t *testing.T) int {
 	t.Helper()
-	i := slices.IndexFunc(defaultSections(), func(s settingsSection) bool { return s.title == "Claude" })
+	i := slices.IndexFunc(defaultSections(), func(s settingsSection) bool { return s.title == "Agents" })
 	if i < 0 {
 		t.Fatal("no Claude section")
 	}
@@ -354,15 +354,8 @@ func TestClaudeSectionFitsDefaultWindow(t *testing.T) {
 	if len(controlsOf(win, "claude_fix")) != 1 {
 		t.Fatal("no Fix button")
 	}
-	// The setup check comes first, so Fix shows without scrolling.
-	for _, c := range controlsOf(win, "claude_fix") {
-		if c.rect.Max.Y > bottom || c.rect.Max.X > w {
-			t.Fatalf("Fix at %v is off the page", c.rect)
-		}
-	}
-	for _, c := range controlsOf(win, "claude_fix") {
-		win.settingsPointer(pressAt(center(c.rect)))
-	}
+	// Reach the setup below shared alert controls before opening its dialog.
+	pressAny(t, win, "claude_fix", 0)
 	win.drawSettings(pageContext(w, h), image.Rect(0, 38, w, bottom))
 	if win.claude.dialog == nil {
 		t.Fatal("no dialog")

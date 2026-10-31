@@ -23,6 +23,7 @@ const (
 type palItem struct {
 	Section         palSection
 	Key             string // stable across rebuilds: "tab:<id>", "skill:<name>", "act:<config>", "ws:<id>"
+	Agent           string
 	Name, Command   string // Command: the row's " · /command" part, sessions only
 	Detail          string // right-aligned dim text
 	Mark            mark
@@ -102,12 +103,12 @@ func buildPalette(in palInput) []palItem {
 	q := palQuery(in.Query)
 	var waiting, sessions, skl, kaze []ranked
 	for _, r := range in.Sessions {
-		tier, ok := palTier(q, r.Title, r.Command, r.Folder, r.Branch)
+		tier, ok := palTier(q, r.Title, r.Command, r.Folder, r.Branch, r.Agent)
 		if !ok {
 			continue
 		}
 		it := palItem{
-			Key: "tab:" + strconv.Itoa(int(r.ID)), Name: r.Title, Command: r.Command,
+			Key: "tab:" + strconv.Itoa(int(r.ID)), Name: r.Title, Command: r.Command, Agent: r.Agent,
 			Mark: r.Mark, Running: r.Running, Claude: r.Claude, Tab: r.ID,
 		}
 		if r.Mark == markNeeds {
@@ -169,7 +170,7 @@ func sessionWord(r sideRow) string {
 		return "done"
 	case r.Running:
 		return "running"
-	case r.Claude:
+	case r.Claude || r.Agent != "":
 		return "idle"
 	}
 	return "shell"

@@ -239,8 +239,8 @@ func (c *chrome) palRow(gtx layout.Context, it palItem, r image.Rectangle, selec
 	}
 	call, nsz := c.fitSide(gtx, it.Name, sz, room, fg)
 	place(ops, call, image.Pt(x, mid-nsz.Y/2))
-	if it.Command != "" && nsz.X > 0 {
-		call, csz := c.fitSide(gtx, " · "+it.Command, sz, room-nsz.X, th.Muted)
+	if command := agentCommand(it.Agent, it.Command); command != "" && nsz.X > 0 {
+		call, csz := c.fitSide(gtx, " · "+command, sz, room-nsz.X, th.Muted)
 		place(ops, call, image.Pt(x+nsz.X, mid-csz.Y/2))
 	}
 }

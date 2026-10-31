@@ -389,3 +389,13 @@ func TestServerCleansPromptReasonAndInvisibles(t *testing.T) {
 		t.Fatal("ValidCommand")
 	}
 }
+
+func TestAgentProtocolRejectsUnsupportedCombinations(t *testing.T) {
+	s, ch := start(t)
+	for _, m := range []Msg{{Tab: 1, Kind: KindDone, Agent: "other"}, {Tab: 1, Kind: KindUsage, Agent: "codex", Usage: &Usage{}}, {Tab: 1, Kind: KindInterrupt, Agent: "claude"}} {
+		if err := Send(s.Addr(), s.Token(), m, time.Second); err != nil {
+			t.Fatal(err)
+		}
+	}
+	expectNone(t, ch)
+}

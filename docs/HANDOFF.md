@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-31, after downloads (Releases from version tags) and the in-place updater were built on `feat/updates`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-31, after Agents settings and Codex hooks were built on `feat/agents-settings`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -37,6 +37,29 @@ Last updated: 2026-10-31, after downloads (Releases from version tags) and the i
 - **Frame** (`settings.go`, `settings_style.go`): menu with title, icons (`chrome.icon`), a "Kaze" group, badges and the update state in the footer; no "Later" line. Rows with `heading` start a card (`newCard` starts one without a label); rows can carry `icon`, `pill`/`tone` and `monoHint`; hints and lines wrap. Controls restyled; buttons can be `ghost`.
 - **Pages:** Appearance (theme cards with previews, live preview, cursor chips), Workspaces (a card per workspace with a state pill), Claude (setup check first, with Connected/Missing/Broken/Taken pills), Shortcuts (was Commands: grouped key caps, search), Updates (new; the updater moved out of About), About (lockup, version pill, facts row, Report an issue).
 - **Tests** click like a person: `pressAny` scrolls a control into view first, because the roomier pages scroll.
+
+**Agents settings (issue #31) is built** on `feat/agents-settings` (design and plan
+`docs/superpowers/{specs,plans}/2026-10-31-kaze-agents-settings*.md`):
+
+- Settings **Agents** replaces Claude: shared alerts, Claude-only usage, then Claude Code and
+  Codex setup cards. Existing config keys and installed Claude hook commands still work.
+- `kaze notify <needs|done|prompt|interrupt> --agent codex` identifies Codex; no agent flag keeps
+  Claude behavior. Codex Stop prints `{}` even outside Kaze. Other Codex commands are silent.
+  Codex slash commands and `$skill` names are bounded and sanitized like Claude commands.
+- Sidebar and palette sessions identify the agent. Interrupt ends running with no alert, chime
+  or flash. The next shell prompt clears the agent. Claude's palette skill catalog is unchanged.
+- `internal/codexsetup` checks hooks.json and read-only inline hooks. Fix confirms first,
+  preserves other handlers, backs up existing files, checks for stale sources, and writes only
+  hooks.json. Inline problems or duplicate Kaze handlers need manual repair. Codex's notify,
+  config.toml and hook trust are never written. After Fix, the user must review `/hooks` in Codex;
+  the dismissible reminder lasts until restart. The page says Configured, not Connected.
+- The ordered JSON editor is shared with claudesetup; Claude's repair and Replace tests remain.
+- Verified the prerequisite with the real Codex CLI 0.166.0 in a real Kaze PTY, isolated HOME,
+  temporary input-blocked overlay and local Responses stub: env inheritance, loopback delivery,
+  prompt delivery, Stop `{}`, one completed turn, and Interrupt on a probe-only SIGINT. No account credentials or external model calls were used.
+- Baseline `go test ./...` and vet passed. Baseline UI race testing reproduces the already-known
+  race in the fake chime/flash counters of TestOnNotifyNeverBlocksAndStaysBounded. Windows hooks
+  remain unverified by hand. No global input was injected and no owner settings were changed.
 
 **Downloads and updates are built** (spec `docs/superpowers/specs/2026-10-31-kaze-updates-design.md`, plan `docs/superpowers/plans/2026-10-31-kaze-updates.md`). Version 0.11:
 

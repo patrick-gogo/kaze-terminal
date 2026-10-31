@@ -454,16 +454,17 @@ func (c *chrome) rowTitle(gtx layout.Context, r sideRow, st sideState, h *sideHi
 	}
 	mid := band.Min.Y + band.Dy()/2
 	room := band.Dx()
-	cmd, mag := " · "+r.Command, c.memberColor("magenta")
+	command := agentCommand(r.Agent, r.Command)
+	cmd, mag := " · "+command, c.memberColor("magenta")
 	var cCall op.CallOp
 	var cSize image.Point
-	if r.Command != "" {
+	if command != "" {
 		cCall, cSize = c.fitSide(gtx, cmd, 12, room, mag)
 	}
 	// The command keeps at most half the line while the title needs the rest.
 	tCall, tSize := c.fitSide(gtx, r.Title, 12, room-min(cSize.X, room/2), fg)
 	place(ops, tCall, image.Pt(band.Min.X, mid-tSize.Y/2))
-	if r.Command != "" {
+	if command != "" {
 		if cSize.X > room-tSize.X {
 			cCall, cSize = c.fitSide(gtx, cmd, 12, room-tSize.X, mag)
 		}

@@ -272,8 +272,8 @@ sidebar, and it closes with that row's ×. Its menu on the left has:
 - **Appearance:** theme cards (each a small terminal in that theme's colors), a live preview,
   font size, line spacing, cursor shape and blinking.
 - **Workspaces:** saved launch recipes, one card each with its state (see Workspaces below).
-- **Claude:** a check of your Claude Code setup (below), then the alert and usage choices
-  (chimes, taskbar flash, how long the "done" toast stays, the usage readout in the status bar).
+- **Agents:** shared alert choices (chimes, taskbar flash and done-toast duration), Claude usage,
+  and separate setup checks for Claude Code and Codex.
 - **Shortcuts:** every shortcut with its keys and config name, grouped and searchable, and kaze's
   command line (`kaze --workspace`, `kaze --version`, and the hook commands). Read-only for now.
 - **Updates:** whether a newer kaze is out, and the update itself (see Updates below).
@@ -298,7 +298,7 @@ still win over the theme's terminal palette.
 
 ### Claude Code setup check
 
-The Claude section reads `~/.claude/settings.json` and shows the state of the four entries kaze
+The Agents section reads `~/.claude/settings.json` and shows the state of the four entries kaze
 needs: the Stop hook (`notify done`), the Notification hook (`notify needs`), the prompt hook
 (`notify prompt`, shown as "Command each session runs") and the status line (`statusline`):
 
@@ -313,6 +313,41 @@ needs: the Stop hook (`notify done`), the Notification hook (`notify needs`), th
 line for kaze's. Both show exactly what will change in a confirm dialog first, and write only after
 you confirm. Before writing, kaze copies the file to `settings.json.bak-<date>-<time>`, and it
 touches no other entry. If the file is empty or not valid JSON, kaze reports that and offers no fix.
+
+### Codex setup check
+
+Settings > Agents also checks Codex's `~/.codex/hooks.json` and reads inline hooks
+in `~/.codex/config.toml`. If the `.codex` directory is absent, it shows **Codex
+not found**. It checks these handlers:
+
+| Codex event | Command |
+|---|---|
+| PermissionRequest | `kaze notify needs --agent codex` |
+| Stop | `kaze notify done --agent codex` |
+| UserPromptSubmit | `kaze notify prompt --agent codex` |
+| Interrupt | `kaze notify interrupt --agent codex` |
+
+**Fix** previews the changes and asks before writing. It adds missing handlers
+beside other programs' hooks and repairs broken Kaze handlers. An existing file
+is copied to `hooks.json.bak-<date>-<time>` first. If either source changed while
+the preview was open, nothing is written. A working inline hook is left in place;
+inline problems and duplicate Kaze handlers require manual repair so Kaze does
+not silently install a second copy. Empty or malformed hook files are not fixed.
+
+After Fix, **open Codex and run `/hooks` to review and trust Kaze's hooks**. The
+settings check verifies configuration and executable paths, not hook trust. The
+reminder stays until dismissed or Kaze restarts. Kaze never changes Codex's
+`notify` command, writes its `config.toml`, or approves a Codex permission request.
+
+Session rows and the palette show `claude` or `codex` before the submitted command.
+Codex commands can start with `/` or `$` (for skills). Codex's Interrupt hook clears
+`running` without a done notification; Claude's existing interrupt limitation
+still applies. The shared usage switch shows **Claude** usage only. The palette's
+skill catalog and skill launcher remain for Claude Code.
+
+Codex Stop prints `{}` and always exits successfully, including outside Kaze.
+Other hook commands are silent. The hook transport, prompt, Stop and Interrupt lifecycles were checked
+with Codex CLI 0.166.0 on macOS; Windows hook execution still needs a manual check.
 
 ## About
 

@@ -18,7 +18,7 @@ type cmdLine struct{ Example, Copy, Desc string }
 var commandLines = []cmdLine{
 	{"kaze --workspace <name>", `kaze --workspace "<name>"`, "Start kaze with a workspace"},
 	{"kaze --version", "kaze --version", "Print the version and build"},
-	{"kaze notify done / needs / prompt", "", "Used by Claude Code hooks; you don't run these yourself"},
+	{"kaze notify done / needs / prompt / interrupt", "", "Used by Claude Code and Codex hooks; you don't run these yourself"},
 	{"kaze statusline", "", "Used by Claude Code's status line; you don't run this yourself"},
 }
 

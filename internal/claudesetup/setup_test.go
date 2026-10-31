@@ -302,7 +302,7 @@ func TestEncodeKeepsOrderAndNumbers(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "{\n  \"z\": 1.50,\n  \"a\": [],\n  \"m\": {},\n  \"k\": [\n    true,\n    null,\n    \"é\\n\"\n  ]\n}\n"
-	if got := string(n.encode()); got != want {
+	if got := string(n.Encode()); got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
 }

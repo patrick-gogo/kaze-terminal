@@ -21,12 +21,12 @@ func commandsPage(t *testing.T, win *window) string {
 	return strings.Join(win.set.texts, "\n")
 }
 
-func TestCommandsAfterClaude(t *testing.T) {
+func TestCommandsAfterAgents(t *testing.T) {
 	var got []string
 	for _, s := range defaultSections() {
 		got = append(got, s.title)
 	}
-	if strings.Join(got, " ") != "Appearance Workspaces Claude Shortcuts Updates About" {
+	if strings.Join(got, " ") != "Appearance Workspaces Agents Shortcuts Updates About" {
 		t.Fatalf("sections %v", got)
 	}
 }

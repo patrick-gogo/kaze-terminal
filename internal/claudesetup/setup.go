@@ -53,16 +53,16 @@ func Inspect(settings []byte, exists func(string) bool) Report {
 		u := Entry{State: Unreadable}
 		return Report{Stop: u, Needs: u, Prompt: u, StatusLine: u}
 	}
-	hooks := root.get("hooks")
+	hooks := root.Get("hooks")
 	r := Report{
-		Stop:   findHook(hooks.get("Stop"), argsDone, exists),
-		Needs:  findHook(hooks.get("Notification"), argsNeeds, exists),
-		Prompt: findHook(hooks.get("UserPromptSubmit"), argsPrompt, exists),
+		Stop:   findHook(hooks.Get("Stop"), argsDone, exists),
+		Needs:  findHook(hooks.Get("Notification"), argsNeeds, exists),
+		Prompt: findHook(hooks.Get("UserPromptSubmit"), argsPrompt, exists),
 	}
 	r.StatusLine = Entry{State: Missing}
-	if s := root.get("statusLine"); s != nil {
+	if s := root.Get("statusLine"); s != nil {
 		// Anything there that is not kaze's is someone else's, even a blank command.
-		cmd, _ := s.get("command").str()
+		cmd, _ := s.Get("command").Str()
 		r.StatusLine = entryFor(cmd, argsStatus, exists)
 		if r.StatusLine.State == Missing {
 			r.StatusLine = Entry{State: Taken, Command: cmd}
@@ -77,20 +77,20 @@ func load(settings []byte) (*node, error) {
 	if err != nil {
 		return nil, err
 	}
-	if root.kind != '{' {
+	if root.Kind != '{' {
 		return nil, errors.New("settings are not a JSON object")
 	}
-	if h := root.get("hooks"); h != nil {
-		if h.kind != '{' {
+	if h := root.Get("hooks"); h != nil {
+		if h.Kind != '{' {
 			return nil, errors.New(`"hooks" is not an object`)
 		}
 		for _, ev := range []string{"Stop", "Notification", "UserPromptSubmit"} {
-			if g := h.get(ev); g != nil && g.kind != '[' {
+			if g := h.Get(ev); g != nil && g.Kind != '[' {
 				return nil, fmt.Errorf("hooks %q is not a list", ev)
 			}
 		}
 	}
-	if s := root.get("statusLine"); s != nil && s.kind != '{' {
+	if s := root.Get("statusLine"); s != nil && s.Kind != '{' {
 		return nil, errors.New(`"statusLine" is not an object`)
 	}
 	return root, nil
@@ -101,27 +101,20 @@ func commands(groups *node, fn func(cmd *node)) {
 	if groups == nil {
 		return
 	}
-	for _, g := range groups.vals {
-		for _, h := range g.get("hooks").listVals() {
-			if c := h.get("command"); c != nil {
+	for _, g := range groups.Vals {
+		for _, h := range g.Get("hooks").ListVals() {
+			if c := h.Get("command"); c != nil {
 				fn(c)
 			}
 		}
 	}
 }
 
-func (n *node) listVals() []*node {
-	if n == nil || n.kind != '[' {
-		return nil
-	}
-	return n.vals
-}
-
 // findHook is the event's kaze entry with args: an OK one wins over a broken one.
 func findHook(groups *node, args string, exists func(string) bool) Entry {
 	best := Entry{State: Missing}
 	commands(groups, func(c *node) {
-		cmd, ok := c.str()
+		cmd, ok := c.Str()
 		if !ok {
 			return
 		}
@@ -175,9 +168,9 @@ func command(exe, args string) string { return `"` + exe + `" ` + args }
 
 func hookNode(exe, args string) *node {
 	h := object()
-	h.set("type", scalar("command"))
-	h.set("command", scalar(command(exe, args)))
-	h.set("timeout", &node{raw: "3"})
+	h.Set("type", scalar("command"))
+	h.Set("command", scalar(command(exe, args)))
+	h.Set("timeout", &node{Raw: "3"})
 	return h
 }
 
@@ -189,16 +182,16 @@ func Fix(settings []byte, r Report, exe string) (out []byte, summary []string, e
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read the settings: %w", err)
 	}
-	hooks := root.get("hooks")
+	hooks := root.Get("hooks")
 	group := func(event string) *node {
 		if hooks == nil {
 			hooks = object()
-			root.set("hooks", hooks)
+			root.Set("hooks", hooks)
 		}
-		g := hooks.get(event)
+		g := hooks.Get(event)
 		if g == nil {
-			g = &node{kind: '['}
-			hooks.set(event, g)
+			g = &node{Kind: '['}
+			hooks.Set(event, g)
 		}
 		return g
 	}
@@ -215,15 +208,15 @@ func Fix(settings []byte, r Report, exe string) (out []byte, summary []string, e
 		case Missing:
 			g := object()
 			if h.matcher != "" {
-				g.set("matcher", scalar(h.matcher))
+				g.Set("matcher", scalar(h.matcher))
 			}
-			g.set("hooks", &node{kind: '[', vals: []*node{hookNode(exe, h.args)}})
+			g.Set("hooks", &node{Kind: '[', Vals: []*node{hookNode(exe, h.args)}})
 			list := group(h.event)
-			list.vals = append(list.vals, g)
+			list.Vals = append(list.Vals, g)
 			summary = append(summary, "Add "+h.say)
 		case Broken:
 			commands(group(h.event), func(c *node) {
-				if cmd, ok := c.str(); ok {
+				if cmd, ok := c.Str(); ok {
 					if _, ok := kazeCommand(cmd, h.args); ok {
 						*c = *scalar(command(exe, h.args))
 					}
@@ -235,18 +228,18 @@ func Fix(settings []byte, r Report, exe string) (out []byte, summary []string, e
 	switch r.StatusLine.State {
 	case Missing:
 		s := object()
-		s.set("type", scalar("command"))
-		s.set("command", scalar(command(exe, argsStatus)))
-		root.set("statusLine", s)
+		s.Set("type", scalar("command"))
+		s.Set("command", scalar(command(exe, argsStatus)))
+		root.Set("statusLine", s)
 		summary = append(summary, "Add the status line (usage in the status bar)")
 	case Broken:
-		root.get("statusLine").set("command", scalar(command(exe, argsStatus)))
+		root.Get("statusLine").Set("command", scalar(command(exe, argsStatus)))
 		summary = append(summary, "Repoint the status line from "+r.StatusLine.Exe+" to "+exe)
 	}
 	if len(summary) == 0 {
 		return settings, nil, nil
 	}
-	return root.encode(), summary, nil
+	return root.Encode(), summary, nil
 }
 
 // Replace puts kaze's status line in place of another program's and returns
@@ -256,17 +249,17 @@ func Replace(settings []byte, exe string) ([]byte, string) {
 	if err != nil {
 		return nil, ""
 	}
-	s := root.get("statusLine")
+	s := root.Get("statusLine")
 	if s == nil {
 		s = object()
-		root.set("statusLine", s)
+		root.Set("statusLine", s)
 	}
-	removed, _ := s.get("command").str()
-	if s.get("type") == nil {
-		s.set("type", scalar("command"))
+	removed, _ := s.Get("command").Str()
+	if s.Get("type") == nil {
+		s.Set("type", scalar("command"))
 	}
-	s.set("command", scalar(command(exe, argsStatus)))
-	return root.encode(), removed
+	s.Set("command", scalar(command(exe, argsStatus)))
+	return root.Encode(), removed
 }
 
 // Write copies the current file to settings.json.bak-YYYYMMDD-HHMMSS, then
@@ -338,7 +331,7 @@ func Relayout(settings []byte) bool {
 		return false
 	}
 	norm := bytes.ReplaceAll(settings, []byte("\r\n"), []byte("\n"))
-	return !bytes.Equal(bytes.TrimRight(n.encode(), "\n"), bytes.TrimRight(norm, "\n"))
+	return !bytes.Equal(bytes.TrimRight(n.Encode(), "\n"), bytes.TrimRight(norm, "\n"))
 }
 
 // Diff is the lines that differ between the settings before (as Fix would
@@ -346,7 +339,7 @@ func Relayout(settings []byte) bool {
 // separate changes and at the end when more than max lines would show.
 func Diff(before, after []byte, max int) []string {
 	if n, err := parse(before); err == nil {
-		before = n.encode()
+		before = n.Encode()
 	}
 	a, b := lines(before), lines(after)
 	if len(a)*len(b) > 4_000_000 {

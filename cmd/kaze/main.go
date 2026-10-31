@@ -29,7 +29,7 @@ func main() {
 		os.Exit(0)
 	}
 	if len(os.Args) > 1 && os.Args[1] == "notify" {
-		os.Exit(runNotify(os.Args[2:], stdinForNotify(), os.Getenv)) // before any window code
+		os.Exit(runNotifyOutput(os.Args[2:], stdinForNotify(), os.Getenv, os.Stdout)) // before any window code
 	}
 	if len(os.Args) > 1 && os.Args[1] == "statusline" {
 		os.Exit(runStatusline(stdinForNotify(), os.Stdout, os.Getenv, time.Now()))

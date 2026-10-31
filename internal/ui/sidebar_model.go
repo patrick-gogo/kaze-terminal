@@ -11,7 +11,8 @@ import (
 type sideRow struct {
 	ID                    tabs.TabID
 	Title, Folder, Branch string
-	Command               string // the last slash command while Claude runs in the tab
+	Agent                 string // agent name while a hook-driven session is active
+	Command               string // the last command while an agent runs in the tab
 	Running               bool
 	Claude                bool // Claude Code has reported from this tab
 	Add, Del              int  // lines added and removed in the folder's repo
@@ -62,7 +63,7 @@ type sideInput struct {
 	Home     string
 	DefTitle string
 	Clean    func(string) string             // drops runes the fonts lack before a title is shortened; nil keeps them
-	Agent    func(tabs.TabID) agentState     // nil: no tab runs Claude
+	Agent    func(tabs.TabID) agentState     // nil: no tab runs an agent
 	Name     func(tabs.TabID) string         // the owner's name for a row; nil or "" for none
 	Lines    func(tabs.TabID) (add, del int) // nil: no counts
 }
@@ -83,7 +84,7 @@ func (r sideRow) matches(lowerFilter string) bool {
 	if lowerFilter == "" {
 		return true
 	}
-	for _, s := range []string{r.Title, r.Command, r.Folder, r.Branch} {
+	for _, s := range []string{r.Title, r.Command, r.Folder, r.Branch, r.Agent} {
 		if strings.Contains(strings.ToLower(s), lowerFilter) {
 			return true
 		}
@@ -114,6 +115,7 @@ func buildSide(in sideInput) sideModel {
 			Folder:  tildeHome(loc.cwd, in.Home),
 			Branch:  shortBranch(loc.branch),
 			Command: a.command,
+			Agent:   a.agentName(),
 			Running: a.running,
 			Claude:  a.claude,
 			Mark:    in.Mark(t.ID),

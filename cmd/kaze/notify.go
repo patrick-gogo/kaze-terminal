@@ -25,29 +25,51 @@ const (
 // (older Claude Code), is an alert.
 var quietNotification = map[string]bool{"idle_prompt": true, "auth_success": true}
 
-// runNotify is `kaze notify <done|needs>`, run by Claude Code hooks. It always
+// runNotify is the quiet compatibility entry used by existing Claude tests.
+// The command entry uses runNotifyOutput for Codex Stop JSON. It always
 // returns 0 and prints nothing: an alert is a nicety and must never fail or
 // slow the hook.
-func runNotify(args []string, stdin io.Reader, env func(string) string) (code int) {
+func runNotify(args []string, stdin io.Reader, env func(string) string) int {
+	return runNotifyOutput(args, stdin, env, io.Discard)
+}
+
+func notifyArgs(args []string) (notify.Kind, string, bool) {
+	agent := ""
+	if len(args) == 3 && args[1] == "--agent" && (args[2] == "codex" || args[2] == "claude") {
+		agent = args[2]
+	} else if len(args) != 1 {
+		return "", "", false
+	}
+	kind := notify.Kind(args[0])
+	switch kind {
+	case notify.KindDone, notify.KindNeeds, notify.KindPrompt:
+		return kind, agent, true
+	case notify.KindInterrupt:
+		return kind, agent, agent == "codex"
+	}
+	return "", "", false
+}
+
+func runNotifyOutput(args []string, stdin io.Reader, env func(string) string, stdout io.Writer) (code int) {
 	// Exit 2 from a hook is a blocking error for Claude Code, so a panic must still exit 0.
 	defer func() {
 		if recover() != nil {
 			code = 0
 		}
 	}()
+	kind, agent, ok := notifyArgs(args)
+	if !ok {
+		return 0
+	}
+	if kind == notify.KindDone && agent == "codex" {
+		defer func() { _, _ = io.WriteString(stdout, "{}\n") }()
+	}
 	start := time.Now()
-	if len(args) != 1 {
-		return 0
-	}
-	kind := notify.Kind(args[0])
-	if kind != notify.KindDone && kind != notify.KindNeeds && kind != notify.KindPrompt {
-		return 0
-	}
 	addr, token, tab, ok := kazeTab(env)
 	if !ok {
 		return 0 // not run from a kaze tab
 	}
-	msg := notify.Msg{Tab: tab, Kind: kind}
+	msg := notify.Msg{Tab: tab, Kind: kind, Agent: agent}
 	if stdin != nil {
 		var hook struct {
 			Message string `json:"message"`
@@ -56,13 +78,13 @@ func runNotify(args []string, stdin io.Reader, env func(string) string) (code in
 		}
 		if json.Unmarshal(readStdinLimited(stdin, stdinWait), &hook) == nil {
 			if kind == notify.KindPrompt {
-				msg.Command, msg.Args = promptCommand(hook.Prompt)
-				if !notify.ValidCommand(msg.Command) {
+				msg.Command, msg.Args = agentPromptCommand(hook.Prompt, agent)
+				if !notify.ValidAgentCommand(msg.Command, agent) {
 					msg.Command = "" // an oversized word would push the message past the server's cap
 				}
 				msg.Args = notify.CleanArgs(msg.Args)
 			}
-			if kind == notify.KindNeeds && quietNotification[hook.Type] {
+			if kind == notify.KindNeeds && agent != "codex" && quietNotification[hook.Type] {
 				return 0
 			}
 			msg.Reason = trimRunes(hook.Message, reasonMaxRunes)
@@ -76,9 +98,11 @@ func runNotify(args []string, stdin io.Reader, env func(string) string) (code in
 
 // promptCommand splits a prompt that starts with a slash command into the
 // command and the rest of its first line; any other prompt gives two empties.
-func promptCommand(prompt string) (cmd, args string) {
+func promptCommand(prompt string) (cmd, args string) { return agentPromptCommand(prompt, "claude") }
+
+func agentPromptCommand(prompt, agent string) (cmd, args string) {
 	p := strings.TrimLeftFunc(prompt, unicode.IsSpace)
-	if len(p) < 2 || p[0] != '/' {
+	if len(p) < 2 || (p[0] != '/' && !(agent == "codex" && p[0] == '$')) {
 		return "", ""
 	}
 	line := p
