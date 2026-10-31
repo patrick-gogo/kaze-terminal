@@ -4,35 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Kaze — Every Claude session, one terminal</title>
-  <meta name="description" content="A small, open-source terminal for macOS and Windows, built around Claude Code. A sidebar of your sessions, floating panes for your servers, and one key to find anything.">
+  <title>Kaze | Light, fast, and out of the way.</title>
+  <meta name="description" content="A lightweight, open-source terminal for Claude Code and Codex on macOS and Windows. Keep sessions in view, see what needs you, and keep your servers close.">
   <link rel="icon" href="site-assets/kaze-icon.svg">
   <link rel="stylesheet" href="site-assets/site.css">
 </head>
-<body>
+<body class="site-page">
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header">
   <div class="header-inner wrap">
     <a class="brand" href="#main" aria-label="Kaze by Patrick home"><img src="site-assets/kaze-icon.svg" alt="" width="32" height="32"><span class="brand-lockup"><span>kaze</span><span class="brand-byline">by Patrick</span></span></a>
-    <nav aria-label="Main navigation"><a href="#sessions">Features</a><a href="#workspaces">Workspaces</a><a href="#changelog">Changelog</a><a href="#install">Download</a><a class="source-link" href="https://github.com/patrick-gogo/kaze-terminal"><svg class="github-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a></nav>
+    <nav aria-label="Main navigation"><a href="#sessions">Features</a><a href="#workspaces">Workspaces</a><a href="changelog.html">Changelog</a><a href="#install">Download</a><a class="source-link" href="https://github.com/patrick-gogo/kaze-terminal"><svg class="github-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a></nav>
   </div>
 </header>
 <main id="main">
-  <section class="hero wrap" aria-labelledby="hero-title">
-    <img class="hero-logo" src="site-assets/kaze-logo-by-patrick.png" alt="kaze by Patrick" width="1200" height="493">
-    <h1 id="hero-title">Every Claude session.<br><span>One quiet terminal.</span></h1>
-    <p class="hero-copy">See which session needs you, which one is working and which one is done.<br class="desktop-break"> Keep your servers floating close by. Find anything with one key.</p>
+  <section class="hero hero-concept wrap" aria-labelledby="hero-title">
+    <div class="hero-intro">
+      <h1 id="hero-title"><span class="agents-line">Light, fast,</span><span class="quiet-line">and out of the way.</span></h1>
+      <p class="hero-copy">A lightweight terminal for Claude Code and Codex. Keep sessions in view, see when an agent needs you, and keep your servers close.</p>
     <div class="hero-actions"><a class="button primary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-macOS.zip" data-download="mac"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>Download for macOS</a><a class="button secondary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-x64.zip" data-download="windows"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h11.377v11.372H0zm12.623 0H24v11.372H12.623zM0 12.623h11.377V24H0zm12.623 0H24V24H12.623z"/></svg>Download for Windows</a></div>
-    <p class="platform-note">Free and open source<span aria-hidden="true">/</span><b id="download-count" hidden></b><span id="download-sep" aria-hidden="true" hidden>/</span><a href="#first-launch">How to install</a><span aria-hidden="true">/</span><a href="https://github.com/patrick-gogo/kaze-terminal">View source</a></p>
-    <figure class="product" id="product">
-      <div class="product-caption"><div class="capture-switcher" role="group" aria-label="Product screenshots"><button type="button" data-shot="sessions" aria-pressed="true">Sessions</button><button type="button" data-shot="agents" aria-pressed="false">Subagents</button><button type="button" data-shot="board" aria-pressed="false">Agents board</button><button type="button" data-shot="palette" aria-pressed="false">Palette</button><button type="button" data-shot="scratch" aria-pressed="false">Scratch shell</button><button type="button" data-shot="workspaces" aria-pressed="false">Workspaces</button><button type="button" data-shot="settings" aria-pressed="false">Settings</button><button type="button" data-shot="about" aria-pressed="false">About</button></div><span id="capture-description" aria-live="polite">The session sidebar with a server floating over a session</span></div>
-      <div class="screenshot"><img id="product-shot" src="site-assets/kaze-sessions.png" alt="Kaze on macOS: a sidebar of sessions marked needs you, running and done, with an API server's log floating over the todo-api session" width="2200" height="1440" fetchpriority="high"></div>
-      <figcaption>Captured from Kaze 0.15 on macOS, with demo projects and real local command output. <a class="caption-link" href="https://github.com/patrick-gogo/kaze-terminal/blob/main/docs/site-assets/SCREENSHOTS.md">How these were taken</a></figcaption>
+      <p class="hero-meta">Free and open source. Built for macOS and Windows.</p>
+      <a class="hero-install-link" href="#first-launch">First time installing? <span>Here’s how</span> <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
+    </div>
+    <figure class="hero-proof product" id="product" role="region" aria-roledescription="carousel" aria-label="Kaze product screenshots">
+      <a class="screenshot hero-screenshot" id="full-capture" href="site-assets/kaze-sessions.png" target="_blank" rel="noopener" aria-label="Open the full-size Kaze screenshot in a new tab"><img id="product-shot" src="site-assets/kaze-sessions.png" alt="Kaze on macOS: a sidebar of sessions marked needs you, running and done, with an API server's log floating over the todo-api session" width="2200" height="1440" fetchpriority="high"></a>
+      <div class="gallery-footer"><div class="capture-switcher" role="group" aria-label="Product screenshots"><button type="button" data-shot="sessions" aria-pressed="true">Sessions</button><button type="button" data-shot="agents" aria-pressed="false">Subagents</button><button type="button" data-shot="board" aria-pressed="false">Agents board</button><button type="button" data-shot="palette" aria-pressed="false">Palette</button><button type="button" data-shot="scratch" aria-pressed="false">Scratch shell</button><button type="button" data-shot="workspaces" aria-pressed="false">Workspaces</button><button type="button" data-shot="settings" aria-pressed="false">Settings</button><button type="button" data-shot="about" aria-pressed="false">About</button></div></div>
+      <figcaption><span id="capture-description" aria-live="polite">The session sidebar with a server floating over a session</span><span class="capture-honesty">Native macOS captures. Demo projects, real command output. <a href="site-assets/SCREENSHOTS.md">Capture notes</a></span></figcaption>
     </figure>
   </section>
+  <div class="hero-transition wrap"><p>A little less checking.<br><span>A lot more room to focus.</span></p><a href="#sessions">Meet Kaze <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M4 9l4 4 4-4"/></svg></a></div>
 
   <section class="feature-section wrap" id="sessions" aria-labelledby="sessions-title">
-    <div class="section-intro"><h2 id="sessions-title">Built around the agent.<br><span>Still just a terminal.</span></h2><p>Run Claude Code in as many sessions as you like. Kaze keeps track,<br class="desktop-break"> so you only look when something needs you.</p></div>
+    <div class="section-intro"><h2 id="sessions-title">Built around the agent.<br><span>Still just a terminal.</span></h2><p>Run Claude Code or Codex in as many sessions as you like. Kaze keeps track,<br class="desktop-break"> so you only look when something needs you.</p></div>
     <div class="feature-grid">
       <article>
         <span class="feature-symbol" aria-hidden="true">◐</span>
@@ -97,7 +100,7 @@
   <section class="engineering wrap" aria-labelledby="engineering-title"><div><h2 id="engineering-title">Quiet, down to the renderer.</h2><p>Kaze redraws the cells that changed and caches its glyphs. When nothing changes, there’s no frame to draw, floating panes included.</p></div><div class="engineering-facts"><span><b>Go + Gio</b>macOS and Windows</span><span><b>Open source</b>Small enough to make your own</span></div></section>
 
   <section class="changelog wrap" id="changelog" aria-labelledby="changelog-title">
-    <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>Release by release.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
+    <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>The latest releases.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
         <div class="release-meta"><span class="version">0.15.1</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
@@ -138,66 +141,8 @@
           </ul>
         </div>
       </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.13</span><time datetime="2026-10-31">Oct 31, 2026</time></div>
-        <div class="release-body">
-          <h3>Claude Code and Codex, side by side</h3>
-          <ul>
-            <li><b>Agents settings:</b> shared alert controls, with separate setup checks for Claude Code and Codex.</li>
-            <li><b>Codex hooks:</b> see when Codex needs you, is running or is done. Interrupting Codex clears its running state without a done alert.</li>
-            <li><b>Know which agent:</b> session rows and the palette show Claude or Codex beside the command, including Codex’s <code>$skill</code> names.</li>
-            <li><b>Setup with a preview:</b> Codex Fix asks before writing, backs up existing hooks, and leaves your other hooks and config alone. Then review and trust Kaze’s hooks with <code>/hooks</code> in Codex.</li>
-            <li><b>A refreshed lander:</b> native Kaze 0.12 screenshots, an Appearance view in the gallery, and a mobile layout with roomier navigation and buttons.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.12</span><time datetime="2026-10-31">Oct 31, 2026</time></div>
-        <div class="release-body">
-          <h3>A redesigned settings page</h3>
-          <ul>
-            <li><b>A new look:</b> settings sit in cards, with a clean UI font and new controls. Monospace is kept for keys, paths and commands.</li>
-            <li><b>Appearance:</b> theme cards that preview each theme, a live preview of your theme, font size and cursor, and cursor shapes you can see.</li>
-            <li><b>Workspaces:</b> one card per workspace with its state, and each tab’s folder, commands and start condition at a glance.</li>
-            <li><b>Claude:</b> your Claude Code setup first, with a Connected or Missing mark per hook and a one-click Fix.</li>
-            <li><b>Shortcuts:</b> grouped, drawn as key caps, and searchable.</li>
-            <li><b>Updates:</b> its own page, with the update status, progress while it downloads, and the automatic-check switch.</li>
-            <li><b>About:</b> roomier, with your version, platform and a Report an issue button.</li>
-            <li><b>New icons</b> for the sidebar, search, scratch shell and settings buttons, drawn as one matched set.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.11</span><time datetime="2026-10-31">Oct 31, 2026</time></div>
-        <div class="release-body">
-          <h3>Downloads and updates</h3>
-          <ul>
-            <li><b>Download Kaze</b> for macOS (Apple Silicon and Intel) and Windows, no Go needed.</li>
-            <li><b>Updates in place:</b> Kaze checks GitHub once a day, shows “Update” in the status bar, and installs a new version with one click after asking. Each download is checked against the release’s checksums.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.10</span></div>
-        <div class="release-body">
-          <h3>Floating panes and the scratch shell</h3>
-          <ul>
-            <li><b>Floating panes:</b> a workspace’s servers float over your Claude session. Drag, resize, type into them, or expand one to the main view.</li>
-            <li><b>Scratch shell:</b> <kbd>Ctrl</kbd> <kbd>`</kbd> opens a quick shell in the session’s folder; press it again to hide it.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.9</span></div>
-        <div class="release-body">
-          <h3>The palette</h3>
-          <ul>
-            <li><b>One key finds everything:</b> <kbd>⌘</kbd> <kbd>K</kbd> lists waiting sessions, every session and server, your Claude Code skills and Kaze’s own actions.</li>
-          </ul>
-        </div>
-      </li>
     </ol>
-    <a class="all-releases" href="https://github.com/patrick-gogo/kaze-terminal/releases">Every release on GitHub <span aria-hidden="true">↗</span></a>
+    <a class="all-releases" href="changelog.html">View all releases <span aria-hidden="true">→</span></a>
   </section>
 
   <section class="install wrap" id="install" aria-labelledby="install-title">

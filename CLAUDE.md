@@ -54,9 +54,10 @@ lander alone) don't get one.
    - **Version:** bump `internal/version.Number` (and its test, RED first) and
      `CFBundleShortVersionString` in `assets/branding/macos/Info.plist`. A feature bumps the minor
      version (0.12 → 0.13); a fix-only release adds a patch number (0.13 → 0.13.1).
-   - **Changelog:** a new row at the top of the lander's "What's new" section (`docs/index.html`,
-     `#changelog`): the version, today's date, a short title and plain bullets of what users get. Move
-     the "Latest" badge to it.
+   - **Changelog:** a new row at the top of the full history (`docs/changelog.html`) and the lander's
+     "What's new" section (`docs/index.html`, `#changelog`): the version, today's date, a short title
+     and plain bullets of what users get. Keep only the three latest releases on the lander; preserve
+     all entries on the changelog page. Move the "Latest" badge to the new entry on both pages.
    - **Lander:** if the feature is worth showing, add or update its card in the feature grid
      (`#sessions`) or its section. If the UI changed, say whether the screenshots need retaking
      (`docs/site-assets/SCREENSHOTS.md` has how); don't fake them.

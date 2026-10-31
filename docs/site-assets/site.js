@@ -51,6 +51,8 @@ function showShot(shot) {
   const image = document.getElementById('product-shot');
   image.src = `site-assets/kaze-${shot}.png`;
   image.alt = captures[shot].alt;
+  const fullCapture = document.getElementById('full-capture');
+  if (fullCapture) fullCapture.href = image.src;
   document.getElementById('capture-description').textContent = captures[shot].caption;
   document.querySelectorAll('[data-shot]').forEach(item => item.setAttribute('aria-pressed', String(item.dataset.shot === shot)));
 }
@@ -76,20 +78,55 @@ if (/Windows/.test(navigator.userAgent)) {
   selectPlatform('windows');
 }
 
-// The download count: every release zip on GitHub, summed. Kaze's in-place
-// updates download the same zips, so they count too. Hidden until there is one.
-fetch('https://api.github.com/repos/patrick-gogo/kaze-terminal/releases?per_page=100')
-  .then(r => (r.ok ? r.json() : []))
-  .then(releases => {
-    const total = releases
-      .flatMap(r => r.assets || [])
-      .filter(a => a.name.endsWith('.zip'))
-      .reduce((n, a) => n + a.download_count, 0);
-    if (total > 0) {
-      const count = document.getElementById('download-count');
-      count.textContent = `${total.toLocaleString('en-US')} ${total === 1 ? 'download' : 'downloads'}`;
-      count.hidden = false;
-      document.getElementById('download-sep').hidden = false;
+// Rotate real product captures while the gallery is visible and idle.
+(() => {
+  const gallery = document.getElementById('product');
+  if (!gallery) return;
+  const image = document.getElementById('product-shot');
+  const choices = [...gallery.querySelectorAll('[data-shot]')];
+  const description = document.getElementById('capture-description');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  let playing = !reduced.matches, visible = false, hovering = false, timer;
+  let advancing = false;
+  const index = () => choices.findIndex(button => button.getAttribute('aria-pressed') === 'true');
+  const canRotate = () => playing && visible && !hovering && !document.hidden && !gallery.contains(document.activeElement);
+  function schedule() {
+    clearTimeout(timer);
+    description.setAttribute('aria-live', playing ? 'off' : 'polite');
+    if (canRotate()) {
+      timer = setTimeout(() => {
+        if (canRotate()) advance(1);
+        else schedule();
+      }, 2500);
     }
-  })
-  .catch(() => {});
+  }
+  function advance(direction) {
+    advancing = true;
+    choices[(index() + direction + choices.length) % choices.length].click();
+    advancing = false;
+    schedule();
+  }
+  choices.forEach(button => button.addEventListener('click', () => {
+    if (!advancing) playing = false;
+    document.getElementById('full-capture').href = image.src;
+    schedule();
+  }));
+  document.querySelectorAll('[data-show]').forEach(button => button.addEventListener('click', () => {
+    playing = false;
+    schedule();
+  }));
+  gallery.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') { hovering = true; schedule(); } });
+  gallery.addEventListener('pointerleave', () => { hovering = false; schedule(); });
+  gallery.addEventListener('focusin', schedule);
+  gallery.addEventListener('focusout', () => setTimeout(schedule, 0));
+  document.addEventListener('visibilitychange', schedule);
+  reduced.addEventListener('change', () => { if (reduced.matches) playing = false; schedule(); });
+  new IntersectionObserver(entries => { visible = entries[0].isIntersecting; schedule(); }, { threshold: 0.25 }).observe(image);
+  image.addEventListener('load', () => {
+    if (!reduced.matches) {
+      image.getAnimations().forEach(animation => animation.cancel());
+      image.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
+    }
+  });
+  schedule();
+})();
