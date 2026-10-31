@@ -80,7 +80,11 @@ As the window narrows, parts give way in this order:
 2. The crumb drops the command, then the repo.
 3. The title shortens with an ellipsis.
 
-The buttons never disappear.
+If the compact search key cap still leaves insufficient room, drop the key cap
+and keep its 30 dp search button. Measure the actual configured shortcut, including
+long custom bindings. Reserve the native window buttons and action buttons before
+allocating crumb text; the crumb may be empty when no text fits. At 600 dp, all
+action buttons remain visible without overlapping the sidebar lead strip.
 
 ## 6. Status bar (direction A)
 
@@ -126,20 +130,51 @@ The usage reset text shown at warning levels ("(resets 3:00)") moves into the de
 
 ### 6.4 Narrow windows
 
-Groups drop in this order:
-1. tabs
-2. memory
-3. the servers' count and label (the dots stay)
-4. usage labels (meters and numbers stay)
-5. the folder, which shortens from the left
+Fit against measured text widths, not just window-width breakpoints. Start with
+the full layout and apply these steps in order, stopping as soon as it fits:
 
-Branch, agents, update and the usage numbers stay.
+1. Drop tabs, then memory. A live error notice is separate from these readouts;
+   reserve space for its shortened text before ordinary status groups.
+2. Drop the servers' count and label, retaining their dots.
+3. Drop usage labels, retaining the meters and numbers.
+4. Shorten the folder from the left, then omit it if necessary.
+5. Shorten the branch with an ellipsis to its remaining budget, then omit its
+   line counts. Branch text has no guaranteed minimum width.
+6. Compact the agents pill to its icon and count (amber when waiting), and the
+   update pill to its update icon. Their existing click actions stay the same.
+   Use hover details to expose the full labels, counts and update version.
+7. Drop usage meters and restore short labels beside the percentages so they
+   remain distinguishable: `5h 84%`, `wk 93%`, `ctx 71%`. Reduce group padding and
+   remove separators that no longer fit. Collapse server dots to one aggregate
+   dot, red if any member is down, green only if all are up, otherwise muted.
+8. If still too narrow, omit servers, branch, then individual usage entries in
+   the order ctx, wk, 5h. Their full information remains in the sidebar and
+   Settings. Keep the agents and update actions while they fit; at widths too
+   small even for those, omit update before agents. No element may extend
+   outside the bar, and hidden groups must have no hit rectangle.
+
+At 600 dp with the busy demo values, branch, compact agents/update and all three
+labelled usage percentages must fit. Longer branch names, large counts and long
+version strings use the same measured fallbacks rather than overlapping. At
+smaller widths, step 8 defines what may disappear. Recompute on size, font,
+scale or model changes; no timer. Only visible neighbours get separators.
 
 ## 7. Platforms
 
 - **macOS:**
   - The window opens frameless (`app.Decorated(false)`), which gives a full-size content view.
-  - A small cgo file shows the standard window buttons again and positions them. It's driven by `app.AppKitViewEvent`, which hands Kaze the window's NSView, and re-applied on resize and on full screen enter and exit.
+  - A small cgo file shows the standard window buttons again and positions them.
+    Native view/window access, button positioning, observer registration/removal,
+    zoom and minimize all run on the native event thread through `Window.Run`
+    (or an equivalent main-thread bridge), never directly on Kaze's UI goroutine.
+  - Attach only on a valid `app.AppKitViewEvent`. A replacement or invalid event
+    detaches the previous bridge; close also removes observers on the native
+    thread. Queued work must reject an invalidated attachment, and must not
+    dereference a stale raw NSView handle. Native close notification must clean
+    up even when `Window.Run` can no longer execute after destruction.
+  - Resize and full-screen observers publish a synchronized inset snapshot and
+    request a redraw. The renderer reads that snapshot without AppKit calls;
+    native callbacks never mutate Gio/UI state directly.
   - Double-click calls the window's zoom or miniaturize according to the user's setting.
 - **Windows:** keeps today's frameless window and caption handling (`actionFor`, `captionState`), restyled and laid out per 5.1.
 - **Feasibility gate:** the macOS traffic-light step is proved first, in a throwaway build (plan Task 1). If the native buttons can't be shown and positioned reliably, the fallback is Kaze-drawn lights. They'd be three circles with hover glyphs, wired to close (Gio's `ActionClose`) and to cgo calls for miniaturize and zoom. That fallback needs the owner's yes, because hover and Option-click behaviour differ from native.
