@@ -23,7 +23,7 @@
     <h1 id="hero-title">Every Claude session.<br><span>One quiet terminal.</span></h1>
     <p class="hero-copy">See which session needs you, which one is working and which one is done.<br class="desktop-break"> Keep your servers floating close by. Find anything with one key.</p>
     <div class="hero-actions"><a class="button primary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-macOS.zip" data-download="mac"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>Download for macOS</a><a class="button secondary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-x64.zip" data-download="windows"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h11.377v11.372H0zm12.623 0H24v11.372H12.623zM0 12.623h11.377V24H0zm12.623 0H24V24H12.623z"/></svg>Download for Windows</a></div>
-    <p class="platform-note">Free and open source<span aria-hidden="true">/</span><b id="download-count" hidden></b><span id="download-sep" aria-hidden="true" hidden>/</span><a href="#install">First launch and other builds</a><span aria-hidden="true">/</span><a href="https://github.com/patrick-gogo/kaze-terminal">View source</a></p>
+    <p class="platform-note">Free and open source<span aria-hidden="true">/</span><b id="download-count" hidden></b><span id="download-sep" aria-hidden="true" hidden>/</span><a href="#first-launch">How to install</a><span aria-hidden="true">/</span><a href="https://github.com/patrick-gogo/kaze-terminal">View source</a></p>
     <figure class="product" id="product">
       <div class="product-caption"><div class="capture-switcher" role="group" aria-label="Product screenshots"><button type="button" data-shot="sessions" aria-pressed="true">Sessions</button><button type="button" data-shot="palette" aria-pressed="false">Palette</button><button type="button" data-shot="scratch" aria-pressed="false">Scratch shell</button><button type="button" data-shot="workspaces" aria-pressed="false">Workspaces</button><button type="button" data-shot="about" aria-pressed="false">About</button></div><span id="capture-description" aria-live="polite">The session sidebar with a server floating over a session</span></div>
       <div class="screenshot"><img id="product-shot" src="site-assets/kaze-sessions.png" alt="Kaze on macOS: a sidebar of sessions marked needs you, running and done, with an API server's log floating over the todo-api session" width="2200" height="1496" fetchpriority="high"></div>
@@ -101,20 +101,48 @@
       <div class="platform-tabs" role="tablist" aria-label="Platform"><button id="tab-mac" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" tabindex="0">macOS</button><button id="tab-windows" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" tabindex="-1">Windows</button></div>
       <div id="panel-mac" role="tabpanel" aria-labelledby="tab-mac">
         <div class="download-block"><a class="button primary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-macOS.zip"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>Download Kaze-macOS.zip</a>
-        <ol class="first-run"><li>Unzip it and drag <b>Kaze</b> into Applications.</li><li>Open it. macOS says it can’t verify the app: click <b>Done</b>.</li><li>In <b>System Settings › Privacy &amp; Security</b>, click <b>Open Anyway</b> next to Kaze. You only do this once.</li></ol></div>
+        <a class="guide-link" href="#first-launch">First time opening it? Follow the step-by-step guide <span aria-hidden="true">↓</span></a></div>
         <div class="command-heading"><span>Or build and open it from source</span><button type="button" data-copy="git clone https://github.com/patrick-gogo/kaze-terminal.git&#10;cd kaze-terminal&#10;./tools/package-macos.sh&#10;open dist/Kaze.app" aria-label="Copy macOS build commands">Copy</button></div><pre><code>git clone https://github.com/patrick-gogo/kaze-terminal.git
 cd kaze-terminal
 ./tools/package-macos.sh
 open dist/Kaze.app</code></pre><p class="installer-tip">Palette: <kbd>⌘</kbd> <kbd>K</kbd> · Scratch shell: <kbd>Ctrl</kbd> <kbd>`</kbd> · Settings: <kbd>⌘</kbd> <kbd>,</kbd></p></div>
       <div id="panel-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
         <div class="download-block"><a class="button primary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-x64.zip"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h11.377v11.372H0zm12.623 0H24v11.372H12.623zM0 12.623h11.377V24H0zm12.623 0H24V24H12.623z"/></svg>Download Kaze-Windows-x64.zip</a><a class="arm-link" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-arm64.zip">Windows on ARM</a>
-        <ol class="first-run"><li>Unzip it and run <b>kaze.exe</b>.</li><li>If SmartScreen says “Windows protected your PC”, click <b>More info</b>, then <b>Run anyway</b>.</li><li>If Smart App Control blocks it outright, build from source below.</li></ol></div>
+        <a class="guide-link" href="#first-launch">First time opening it? Follow the step-by-step guide <span aria-hidden="true">↓</span></a></div>
         <div class="command-heading"><span>Or build and run it from source in PowerShell</span><button type="button" data-copy='git clone https://github.com/patrick-gogo/kaze-terminal.git&#10;cd kaze-terminal&#10;go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze&#10;.\kaze.exe' aria-label="Copy Windows build commands">Copy</button></div><pre><code>git clone https://github.com/patrick-gogo/kaze-terminal.git
 cd kaze-terminal
 go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze
 .\kaze.exe</code></pre><p class="installer-tip">Palette: <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>K</kbd> · Scratch shell: <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>`</kbd> · Settings: <kbd>Ctrl</kbd> <kbd>,</kbd></p></div>
       <a class="build-docs" href="https://github.com/patrick-gogo/kaze-terminal#build-and-run-from-a-clone">Full build instructions <span aria-hidden="true">↗</span></a>
     </div>
+  </section>
+
+  <section class="guide wrap" id="first-launch" aria-labelledby="guide-title">
+    <div class="section-intro"><h2 id="guide-title">Opening Kaze<br><span>the first time.</span></h2><p>Kaze isn’t signed by Apple or Microsoft yet, so your computer asks you to confirm it once.<br class="desktop-break"> It takes a minute, and you won’t see it again, updates included.</p></div>
+    <div class="guide-grid">
+      <article class="guide-card" aria-labelledby="guide-mac">
+        <h3 id="guide-mac"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>macOS</h3>
+        <ol class="steps">
+          <li><b>Download and unzip.</b> Click <a href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-macOS.zip">Download for macOS</a>. Safari unzips it for you; otherwise double-click <code>Kaze-macOS.zip</code> in Downloads.</li>
+          <li><b>Drag Kaze into Applications.</b> Open it from there, not from Downloads: macOS runs apps from Downloads in a read-only copy, and Kaze can’t update itself there.</li>
+          <li><b>Open it, then click Done.</b> macOS says <q>“Kaze” Not Opened. Apple could not verify “Kaze” is free of malware.</q> Click <b>Done</b>, not Move to Trash.</li>
+          <li><b>Allow it in Privacy &amp; Security.</b> Open <b>System Settings › Privacy &amp; Security</b> and scroll down to <q>“Kaze” was blocked to protect your Mac.</q> Click <b>Open Anyway</b> and confirm with your password or Touch ID.</li>
+          <li><b>Click Open.</b> Kaze starts, and macOS won’t ask again.</li>
+        </ol>
+        <div class="guide-shortcut"><div class="command-heading"><span>Or skip steps 3 to 5 in Terminal, after step 2</span><button type="button" data-copy="xattr -dr com.apple.quarantine /Applications/Kaze.app" aria-label="Copy the Terminal command">Copy</button></div><pre><code>xattr -dr com.apple.quarantine /Applications/Kaze.app</code></pre></div>
+      </article>
+      <article class="guide-card" aria-labelledby="guide-windows">
+        <h3 id="guide-windows"><svg class="os-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M0 0h11.377v11.372H0zm12.623 0H24v11.372H12.623zM0 12.623h11.377V24H0zm12.623 0H24V24H12.623z"/></svg>Windows</h3>
+        <ol class="steps">
+          <li><b>Download and unzip.</b> Click <a href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-x64.zip">Download for Windows</a> (or the <a href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-arm64.zip">ARM build</a> on a Windows on ARM PC). Right-click the zip and choose <b>Extract All</b>.</li>
+          <li><b>Keep kaze.exe in a folder of your own,</b> like <code>Documents\Kaze</code>. Not Program Files: Kaze replaces its own exe when it updates.</li>
+          <li><b>Run kaze.exe.</b> If SmartScreen says <q>Windows protected your PC</q>, click <b>More info</b>, then <b>Run anyway</b>.</li>
+          <li><b>That’s it.</b> Pin it to the taskbar if you like; Windows won’t ask again.</li>
+        </ol>
+        <p class="guide-note">If <b>Smart App Control</b> is on, Windows blocks unsigned apps with no way past it. <a href="https://github.com/patrick-gogo/kaze-terminal#build-and-run-from-a-clone">Build Kaze from source</a> instead.</p>
+      </article>
+    </div>
+    <p class="guide-foot">Still stuck? <a href="https://github.com/patrick-gogo/kaze-terminal/issues">Open an issue</a> and say what you see.</p>
   </section>
 </main>
 <footer class="wrap"><a class="brand" href="#main"><img src="site-assets/kaze-icon.svg" alt="" width="28" height="28"><span>kaze</span></a><p>Made for the long session.</p><div><a href="https://github.com/patrick-gogo/kaze-terminal">GitHub</a><a href="https://github.com/patrick-gogo/kaze-terminal/blob/main/LICENSE">MIT License</a></div></footer>
