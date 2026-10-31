@@ -24,7 +24,7 @@ func waitCounts(t *testing.T, win *window, cond func() bool) {
 
 func TestCountsRunOnEventsOnly(t *testing.T) {
 	win, _ := sideWindow(t, false)
-	tab := openIn(t, win, `C:\code\app`)
+	tab := openIn(t, win, osPath("/code/app"))
 	var calls atomic.Int32
 	release := make(chan struct{})
 	win.lc.fn = func(ctx context.Context, dir string) (int, int, error) {
@@ -75,7 +75,7 @@ func TestCountsRunOnEventsOnly(t *testing.T) {
 
 func TestCountSkipsTabsWithoutARepo(t *testing.T) {
 	win, _ := sideWindow(t, false)
-	tab := openIn(t, win, `C:\elsewhere`)
+	tab := openIn(t, win, osPath("/elsewhere"))
 	var calls atomic.Int32
 	win.lc.fn = func(context.Context, string) (int, int, error) { calls.Add(1); return 1, 1, nil }
 	win.wantCount(tab)
@@ -86,7 +86,7 @@ func TestCountSkipsTabsWithoutARepo(t *testing.T) {
 
 func TestCountShowsOnTheRow(t *testing.T) {
 	win, _ := sideWindow(t, false)
-	tab := openIn(t, win, `C:\code\app`)
+	tab := openIn(t, win, osPath("/code/app"))
 	win.lc.fn = func(context.Context, string) (int, int, error) { return 212, 14, nil }
 	win.wantCount(tab)
 	waitCounts(t, win, func() bool { return win.lc.counts[tab.ID] != lineCount{} })
