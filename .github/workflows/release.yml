@@ -1,0 +1,85 @@
+# Builds the downloads and publishes them as a GitHub Release when a version
+# tag (v + internal/version.Number, like v0.10) is pushed. Run it by hand from
+# the Actions tab to build the downloads without releasing anything.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  # A pull request that changes how releases are built proves the builds still work.
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - tools/package-macos.sh
+      - assets/branding/macos/Info.plist
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build the app for Apple Silicon and Intel
+        run: KAZE_UNIVERSAL=1 ./tools/package-macos.sh
+      - name: Zip it
+        run: ditto -c -k --keepParent dist/Kaze.app dist/Kaze-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/Kaze-macOS.zip
+          if-no-files-found: error
+
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build kaze.exe for x64 and ARM
+        run: |
+          for arch in amd64 arm64; do
+            mkdir -p "dist/$arch"
+            GOOS=windows GOARCH=$arch go build -trimpath -ldflags "-s -w -H=windowsgui" -o "dist/$arch/kaze.exe" ./cmd/kaze
+          done
+          (cd dist/amd64 && zip -q ../Kaze-Windows-x64.zip kaze.exe)
+          (cd dist/arm64 && zip -q ../Kaze-Windows-arm64.zip kaze.exe)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/Kaze-Windows-*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag matches kaze's version
+        run: |
+          version=$(sed -n 's/^const Number = "\(.*\)"$/\1/p' internal/version/version.go)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match internal/version.Number $version (want v$version)" >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+            --title "Kaze ${GITHUB_REF_NAME#v}" \
+            --notes-file .github/release-notes.md \
+            --generate-notes

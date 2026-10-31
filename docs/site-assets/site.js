@@ -60,3 +60,15 @@ document.querySelectorAll('[data-show]').forEach(button => {
     document.getElementById('product').scrollIntoView({ block: 'start' });
   });
 });
+
+// Windows visitors get the Windows download first and the Windows steps open.
+if (/Windows/.test(navigator.userAgent)) {
+  const mac = document.querySelector('[data-download="mac"]');
+  const win = document.querySelector('[data-download="windows"]');
+  if (mac && win) {
+    mac.classList.replace('primary', 'secondary');
+    win.classList.replace('secondary', 'primary');
+    win.parentNode.insertBefore(win, mac);
+  }
+  selectPlatform('windows');
+}
