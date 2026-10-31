@@ -195,3 +195,60 @@ func (win *window) showServer() {
 		win.w.Invalidate()
 	}
 }
+
+// statusModel is what the redesigned status bar shows (spec 6.1).
+type statusModel struct {
+	Folder, Branch  string
+	Add, Del        int
+	Update          string // the newer version, "" for none
+	Agents, Waiting int    // running and waiting subagents; waiting includes session waits
+	Servers         []serverDot
+	Usage           []usage.Detail
+	MemMB, Tabs     int
+	Notice          string
+}
+
+func (win *window) statusModel(now time.Time) statusModel {
+	m := statusModel{Tabs: len(win.mgr.Tabs()), Agents: win.subs.Active(0)}
+	if now.Sub(win.memRead) > memEvery {
+		win.memMB = privateMB()
+		win.memRead = now
+	}
+	m.MemMB = int(win.memMB + 0.5)
+	if _, ok := win.noticeWake(now); ok {
+		m.Notice = win.notice
+	}
+	if win.updLabel() != "" {
+		m.Update = win.upd.rel.Version
+	}
+	_, waiting, _ := win.subs.Board()
+	m.Waiting = len(waiting) + len(win.subs.SessionWaits())
+	for _, r := range win.curRuns() {
+		for _, mem := range r.Members {
+			m.Servers = append(m.Servers, serverDot{Down: mem.Down, Up: !mem.Down && mem.Status == "Running"})
+		}
+	}
+	t := win.mgr.Active()
+	if win.opt.Config.ShowUsage {
+		u := win.acct
+		if t != nil {
+			if e, ok := win.ctx[t.ID]; ok && e.cwdSeq == cwdSeq(t) {
+				u.Ctx = &e.pct
+			}
+		}
+		m.Usage = usage.Details(u, now)
+	}
+	if t == nil {
+		return m
+	}
+	e := win.locOf(t)
+	if e.cwd == "" {
+		return m
+	}
+	m.Folder = cleanText(tildeHome(e.cwd, win.home))
+	m.Branch = cleanText(e.branch)
+	if m.Branch != "" {
+		m.Add, m.Del = win.linesOf(t.ID)
+	}
+	return m
+}

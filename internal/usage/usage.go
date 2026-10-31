@@ -116,3 +116,49 @@ func resetText(t, now time.Time) string {
 	}
 	return t.Format("3:04 PM")
 }
+
+// Detail is one limit for the status bar's usage card.
+type Detail struct {
+	Key   string // "5h", "wk", "ctx"
+	Name  string // "5-hour", "Week", "Context"
+	Pct   int
+	Level Level
+	Reset string // "resets in 2h 14m", "resets Mon 9:00 AM", "this session"; "" when unknown
+}
+
+// Details is Segments for the hover card: the same limits and levels, each
+// with when it resets.
+func Details(u notify.Usage, now time.Time) []Detail {
+	var out []Detail
+	for _, w := range []struct {
+		key, name string
+		win       *notify.Window
+	}{{"5h", "5-hour", u.FiveHour}, {"wk", "Week", u.Week}} {
+		if w.win == nil || expired(w.win, now) {
+			continue
+		}
+		p := clamp(w.win.Pct)
+		d := Detail{Key: w.key, Name: w.name, Pct: int(p), Level: level(p)}
+		if w.win.Resets > 0 {
+			d.Reset = resetIn(time.Unix(w.win.Resets, 0), now)
+		}
+		out = append(out, d)
+	}
+	if u.Ctx != nil {
+		p := clamp(*u.Ctx)
+		out = append(out, Detail{Key: "ctx", Name: "Context", Pct: int(p), Level: level(p), Reset: "this session"})
+	}
+	return out
+}
+
+// resetIn is "resets in 2h 14m" within a day, else "resets Mon 9:00 AM".
+func resetIn(t, now time.Time) string {
+	d := t.Sub(now).Round(time.Minute)
+	switch {
+	case d >= 24*time.Hour:
+		return "resets " + resetText(t, now)
+	case d >= time.Hour:
+		return fmt.Sprintf("resets in %dh %dm", int(d.Hours()), int(d.Minutes())%60)
+	}
+	return fmt.Sprintf("resets in %dm", int(d.Minutes()))
+}
