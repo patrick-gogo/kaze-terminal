@@ -318,6 +318,23 @@ touches no other entry. If the file is empty or not valid JSON, kaze reports tha
 
 Open Settings with Ctrl+, (Cmd+, on macOS), then choose **About** for the Kaze logo, version, build, and platform. **Copy build info** copies those details for a bug report; **View on GitHub** opens the repository.
 
+### Updates
+
+kaze asks GitHub for the latest release 10 seconds after it starts and then once a day while it
+runs. The request carries nothing about you beyond a `kaze/<version>` user agent, and a failed check
+stays quiet. Turn **Check for updates** off in About (or set `check_updates = false`) and kaze sends
+no request at all.
+
+- When a newer version is out, the status bar shows **Update 0.12** in the accent color. Click it
+  to open About, which says "Kaze 0.12 is available" with **Update and restart** and **What's new**.
+- **Update and restart** asks first ("Kaze will close your 3 sessions and restart in 0.12."), then
+  downloads the release's zip for your computer, checks it against the release's `SHA256SUMS`, swaps
+  the new kaze in and restarts it. If the swap fails, the old kaze is put back. The copy it replaced
+  is removed the next time kaze starts.
+- It only replaces a kaze from a release download: `Kaze.app` (macOS) or `kaze.exe` (Windows),
+  in a folder kaze can write to. A kaze built from a clone shows **Download**, which opens the
+  release page, and the reason it can't update in place.
+
 ## Workspaces
 
 A workspace is a saved launch recipe: a name and a list of tabs. Each tab has a title, a folder,
@@ -432,6 +449,7 @@ error makes kaze use all defaults.
 | `taskbar_flash` | Flash the taskbar button on alerts (Windows) | `true` |
 | `done_toast` | How long the "done" toast stays: `3s`, `6s`, `10s` or `until_seen` | `6s` |
 | `show_usage` | Show the Claude usage readout in the status bar | `true` |
+| `check_updates` | Ask GitHub once a day whether a newer kaze is out (see Updates) | `true` |
 | `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
 | `sidebar` | Show the session sidebar (the toggle saves it here) | `true` |
