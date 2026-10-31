@@ -132,29 +132,40 @@ func (win *window) listRows() []settingRow {
 		return []settingRow{{label: "The workspaces file has a problem", lines: []string{truncateRight(cleanText(p.loadErr), 120)},
 			hint: "Fix or delete " + tildeHome(workspaces.Path(win.cfgPath), win.home) + "; nothing runs from it until then.", ctrls: []ctrl{{kind: ctlButton, id: "ws.reload", text: "Reload"}}}}
 	}
-	newBtn := ctrl{kind: ctlButton, id: "ws.new", text: "+ New workspace"}
 	if len(p.doc.Workspaces) == 0 {
-		return []settingRow{{label: "No workspaces yet", hint: "Save a set of tabs, folders and commands to open together.", ctrls: []ctrl{newBtn}}}
+		return []settingRow{{label: "No workspaces yet", hint: "Save a set of tabs, folders and commands to open together.", ctrls: []ctrl{wsNewButton()}}}
 	}
 	var rows []settingRow
 	for i, w := range p.doc.Workspaces {
 		state := win.wsBadge(w.ID)
-		run := "Run"
-		if state != "Closed" {
-			run = "Go to tabs"
+		run, strong, tone := "Run", true, "off"
+		switch state {
+		case "Closed":
+		case "Open", "Starting":
+			run, strong, tone = "Go to tabs", false, "run"
+		default:
+			run, strong, tone = "Go to tabs", false, "warn"
 		}
-		row := settingRow{label: w.Name, lines: []string{state + " · " + plural(len(w.Tabs), "tab")}, ctrls: []ctrl{
-			{kind: ctlButton, id: "ws.run", text: run, arg: i, strong: true},
-			{kind: ctlButton, id: "ws.edit", text: "Edit", arg: i},
-			{kind: ctlButton, id: "ws.delete", text: "Delete", arg: i},
+		sub := plural(len(w.Tabs), "tab")
+		if w.ID == win.opt.Config.StartupWorkspace {
+			sub += " · runs at startup"
+		}
+		row := settingRow{label: w.Name, lines: []string{sub}, pill: state, tone: tone, newCard: true, ctrls: []ctrl{
+			{kind: ctlButton, id: "ws.run", text: run, arg: i, strong: strong},
+			{kind: ctlButton, id: "ws.edit", text: "Edit", arg: i, ghost: true},
+			{kind: ctlButton, id: "ws.delete", text: "Delete", arg: i, ghost: true},
 		}}
 		for _, t := range w.Tabs {
 			row.members = append(row.members, win.listMember(t))
 		}
 		rows = append(rows, row)
 	}
-	rows = append(rows, settingRow{ctrls: []ctrl{newBtn}})
-	return append(rows, win.startupRow())
+	return append(rows, settingRow{heading: "Startup"}, win.startupRow())
+}
+
+// wsNewButton starts a new workspace; the list puts it in the page's heading.
+func wsNewButton() ctrl {
+	return ctrl{kind: ctlButton, id: "ws.new", text: "+ New workspace", strong: true}
 }
 
 // listMember is one recipe tab in the list: color, title, folder, commands and wait.
@@ -165,6 +176,8 @@ func (win *window) listMember(t workspaces.Tab) rowMember {
 		m.tag = "after Docker"
 	case workspaces.WaitPort:
 		m.tag = fmt.Sprintf("after port %d", t.Port)
+	default:
+		m.tag = "right away"
 	}
 	return m
 }

@@ -153,7 +153,7 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
 submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The session, copy,
 paste, sidebar, next-waiting, palette, scratch shell and settings shortcuts can be changed under `[keys]` in the
-config. Settings, Commands lists every shortcut as this machine has it.
+config. Settings, Shortcuts lists every shortcut as this machine has it.
 
 ## Mouse
 
@@ -267,14 +267,17 @@ skills you started stay at the top while kaze runs.
 
 Open it with the gear button (in the title bar on Windows, at the top of the sidebar on macOS)
 or with Ctrl+, (Cmd+, on macOS). While it is open, a pinned Settings row sits at the top of the
-sidebar, and it closes with that row's ×. It has three sections in a menu on the left:
+sidebar, and it closes with that row's ×. Its menu on the left has:
 
-- **Appearance:** theme, font size, line spacing, cursor shape and blinking.
-- **Claude:** the alert and usage choices (chimes, taskbar flash, how long the "done" toast stays,
-  the usage readout in the status bar) and a check of your Claude Code setup (below).
-- **Workspaces:** saved launch recipes (see Workspaces below).
-- **Commands:** every shortcut with its key and config name, and kaze's command line
-  (`kaze --workspace`, `kaze --version`, and the hook commands). Read-only for now.
+- **Appearance:** theme cards (each a small terminal in that theme's colors), a live preview,
+  font size, line spacing, cursor shape and blinking.
+- **Workspaces:** saved launch recipes, one card each with its state (see Workspaces below).
+- **Claude:** a check of your Claude Code setup (below), then the alert and usage choices
+  (chimes, taskbar flash, how long the "done" toast stays, the usage readout in the status bar).
+- **Shortcuts:** every shortcut with its keys and config name, grouped and searchable, and kaze's
+  command line (`kaze --workspace`, `kaze --version`, and the hook commands). Read-only for now.
+- **Updates:** whether a newer kaze is out, and the update itself (see Updates below).
+- **About:** the logo, version, platform and license.
 
 A change applies right away and is saved when you make it. kaze edits only that one key in
 `config.toml` and leaves every other line and your comments as they are, so a hand-edited file
@@ -313,17 +316,18 @@ touches no other entry. If the file is empty or not valid JSON, kaze reports tha
 
 ## About
 
-Open Settings with Ctrl+, (Cmd+, on macOS), then choose **About** for the Kaze logo, version, build, and platform. **Copy build info** copies those details for a bug report; **View on GitHub** opens the repository.
+Open Settings with Ctrl+, (Cmd+, on macOS), then choose **About** for the Kaze logo, version, platform and license. **Copy build info** copies the version, build and platform for a bug report; **View on GitHub** opens the repository and **Report an issue** opens a new issue.
 
 ### Updates
 
 kaze asks GitHub for the latest release 10 seconds after it starts and then once a day while it
 runs. The request carries nothing about you beyond a `kaze/<version>` user agent, and a failed check
-stays quiet. Turn **Check for updates** off in About (or set `check_updates = false`) and kaze sends
+stays quiet. Turn **Check for updates automatically** off in Settings, Updates (or set `check_updates = false`) and kaze sends
 no request at all.
 
-- When a newer version is out, the status bar shows **Update 0.12** in the accent color. Click it
-  to open About, which says "Kaze 0.12 is available" with **Update and restart** and **What's new**.
+- When a newer version is out, the status bar shows **Update 0.12** in the accent color and the
+  Updates menu item gets a badge. Click either for the Updates page, which says "Kaze 0.12 is
+  available" with **Update and restart** and **What's new**.
 - **Update and restart** asks first ("Kaze will close your 3 sessions and restart in 0.12."), then
   downloads the release's zip for your computer, checks it against the release's `SHA256SUMS`, swaps
   the new kaze in and restarts it. If the swap fails, the old kaze is put back. The copy it replaced

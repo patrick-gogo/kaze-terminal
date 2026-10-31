@@ -69,6 +69,7 @@ type settingRow struct {
 	icon        string   // a line icon in a tile left of the label (see chrome.icon)
 	pill, tone  string   // a status pill left of the controls, and its kind (ok, warn, off, run, err)
 	preview     bool     // a terminal preview in the current theme, font size and cursor
+	newCard     bool     // starts a card of its own even without a heading (one workspace each)
 	lines       []string // extra lines between the label and the hint (the setup check)
 	ctrls       []ctrl
 	block       bool        // the controls sit under the label across the pane (theme swatches)
@@ -795,8 +796,8 @@ func (p *page) rows(r image.Rectangle, y int, rows []settingRow) int {
 			i++
 			continue
 		}
-		j := i
-		for j < len(rows) && rows[j].heading == "" {
+		j := i + 1
+		for j < len(rows) && rows[j].heading == "" && !rows[j].newCard {
 			j++
 		}
 		if drawn && (i == 0 || rows[i-1].heading == "") {
@@ -825,12 +826,6 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	lc, ls := p.textW(row.label, 13.5, col.title, font.SemiBold)
 	var hc op.CallOp
 	var hs image.Point
-	switch {
-	case row.hint != "" && row.monoHint:
-		hc, hs = p.mono(row.hint, 11, col.muted)
-	case row.hint != "":
-		hc, hs = p.text(row.hint, 12, col.muted)
-	}
 	type text struct {
 		call op.CallOp
 		size image.Point
@@ -838,9 +833,11 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	var extra []text
 	extraH := 0
 	for _, l := range row.lines {
-		call, size := p.text(l, 12, col.muted)
-		extra = append(extra, text{call, size})
-		extraH += size.Y
+		for _, w := range p.wrap(l, 12, max(r.Max.X-lx, 1)) {
+			call, size := p.text(w, 12, col.muted)
+			extra = append(extra, text{call, size})
+			extraH += size.Y
+		}
 	}
 	gap := gtx.Dp(8)
 	type laid struct {
@@ -865,6 +862,25 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 		h = max(h, size.Y)
 	}
 	r.Min.X = lx
+	// The hint goes last: a long one wraps in the room the controls leave.
+	switch {
+	case row.hint != "" && row.monoHint:
+		hc, hs = p.mono(row.hint, 11, col.muted)
+	case row.hint != "":
+		room := r.Dx()
+		if w > 0 {
+			room -= w + 2*gap
+		}
+		if _, full := p.c.sans(gtx, row.hint, 12, col.muted, font.Normal); full.X > room && room > gtx.Dp(160) {
+			for _, l := range p.wrap(row.hint, 12, room) {
+				call, size := p.text(l, 12, col.muted)
+				extra = append(extra, text{call, size})
+				extraH += size.Y
+			}
+		} else {
+			hc, hs = p.text(row.hint, 12, col.muted)
+		}
+	}
 	labelH := ls.Y + extraH + hs.Y
 	labelW := max(ls.X, hs.X)
 	for _, e := range extra {
@@ -888,7 +904,7 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 		place(ops, e.call, image.Pt(r.Min.X, ty))
 		ty += e.size.Y
 	}
-	if row.hint != "" {
+	if hs.Y > 0 {
 		place(ops, hc, image.Pt(r.Min.X, ty))
 	}
 	x := r.Max.X - w

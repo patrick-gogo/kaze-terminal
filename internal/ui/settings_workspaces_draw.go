@@ -18,11 +18,14 @@ func wsDraw(p *page, r image.Rectangle, win *window) int {
 	d := win.wsp.draft
 	if d == nil {
 		win.wsp.flagged = win.wsp.flagged[:0]
+		if win.wsp.loadErr == "" && len(win.wsp.doc.Workspaces) > 0 {
+			p.headerActions(r, []ctrl{wsNewButton()})
+		}
 		return p.rows(r, y, rows)
 	}
 	gtx := p.gtx
 	ed := win.editorParts(d)
-	y = p.rows(r, y, ed.head)
+	y = p.rows(r, y, ed.head) + gtx.Dp(16)
 
 	listW, gap, bar := gtx.Dp(200), gtx.Dp(20), gtx.Dp(3)
 	two := r.Dx() >= gtx.Dp(560)
@@ -75,7 +78,7 @@ func wsDraw(p *page, r image.Rectangle, win *window) int {
 	_, t := d.selected()
 	stripe := image.Rect(detail.Min.X-gtx.Dp(12), top, detail.Min.X-gtx.Dp(12)+bar, end)
 	paint.FillShape(gtx.Ops, p.c.memberColor(t.color), clip.UniformRRect(stripe, bar/2).Op(gtx.Ops))
-	return p.rows(r, max(end, listEnd)+gtx.Dp(8), ed.foot)
+	return p.rows(r, max(end, listEnd)+gtx.Dp(16), ed.foot)
 }
 
 // wsTabList draws one item per draft tab and + Add tab under them, and returns
