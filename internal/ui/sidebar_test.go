@@ -263,3 +263,22 @@ func TestRunningMarkIsStill(t *testing.T) {
 		}
 	}
 }
+
+func TestGroupHeaderDotsDoNotOverlap(t *testing.T) {
+	const dot, ring = 7, 2 // dp at scale 1; a running ring reaches ring past its dot, on either neighbour
+	rs := headerDots(20, 40, dot, 12)
+	if len(rs) != maxStackDots {
+		t.Fatalf("%d dots for 12 rows, want the cap %d", len(rs), maxStackDots)
+	}
+	for i := 1; i < len(rs); i++ {
+		if gap := rs[i].Min.X - rs[i-1].Max.X; gap < 2*ring+1 {
+			t.Fatalf("dots %d and %d are %d px apart, want room for two rings: %v", i-1, i, gap, rs)
+		}
+		if rs[i].Dy() != dot || rs[i].Min.Y != rs[0].Min.Y {
+			t.Fatalf("dot %d is %v, want one row of %d px dots", i, rs[i], dot)
+		}
+	}
+	if w := rs[len(rs)-1].Max.X - rs[0].Min.X; w > 60 {
+		t.Fatalf("the dots take %d px, too wide for the header", w)
+	}
+}

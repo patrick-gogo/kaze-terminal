@@ -106,6 +106,11 @@ func (c *chrome) fitSide(gtx layout.Context, s string, size unit.Sp, room int, c
 // sideDot draws a state mark: an amber dot with a soft halo for needs you, green for
 // done, an accent ring for running, muted otherwise.
 func (c *chrome) sideDot(gtx layout.Context, d image.Rectangle, mk mark, running bool) {
+	c.stateDot(gtx, d, mk, running, true)
+}
+
+// stateDot is sideDot; glow false leaves out the halo of a session that needs you.
+func (c *chrome) stateDot(gtx layout.Context, d image.Rectangle, mk mark, running, glow bool) {
 	ops := gtx.Ops
 	if running && mk == markNone {
 		paint.FillShape(ops, c.th.Accent, runningRing(gtx, d))
@@ -115,7 +120,7 @@ func (c *chrome) sideDot(gtx layout.Context, d image.Rectangle, mk mark, running
 	if !ok {
 		col = c.th.Muted
 	}
-	if mk == markNeeds {
+	if mk == markNeeds && glow {
 		h := gtx.Dp(3)
 		halo := col
 		halo.A = 0x40
@@ -485,12 +490,12 @@ func (c *chrome) rowTitle(gtx layout.Context, r sideRow, st sideState, h *sideHi
 	}
 }
 
-// sideGroupHeader draws one repo header: the dot stack, the name and the count, or the
+// sideGroupHeader draws one repo header: a row of dots, the name and the count, or the
 // amber "N waiting"; a folded group also names the shown session inside it.
 func (c *chrome) sideGroupHeader(gtx layout.Context, g sideGroup, st sideState, hd image.Rectangle) {
 	ops, th := gtx.Ops, c.th
 	gap := gtx.Dp(8)
-	dot, step := gtx.Dp(7), gtx.Dp(5)
+	dot := gtx.Dp(7)
 	mid := hd.Min.Y + hd.Dy()/2
 
 	cx := hd.Min.X + gap
@@ -502,12 +507,12 @@ func (c *chrome) sideGroupHeader(gtx layout.Context, g sideGroup, st sideState, 
 	place(ops, cCall, image.Pt(cx, mid-cSize.Y/2))
 	cx += cSize.X + gap
 
-	dots := min(len(g.Rows), maxStackDots)
-	for i := 0; i < dots; i++ {
-		c.sideDot(gtx, image.Rect(cx+i*step, mid-dot/2, cx+i*step+dot, mid-dot/2+dot), g.Rows[i].Mark, g.Rows[i].Running)
+	dots := headerDots(cx, mid, dot, len(g.Rows))
+	for i, d := range dots {
+		c.stateDot(gtx, d, g.Rows[i].Mark, g.Rows[i].Running, false) // the amber "N waiting" stands in for the glow
 	}
-	if dots > 0 {
-		cx += dot + (dots-1)*step + gap
+	if n := len(dots); n > 0 {
+		cx = dots[n-1].Max.X + gap
 	}
 
 	right, rcol := strconv.Itoa(g.Count), th.Muted
@@ -529,6 +534,18 @@ func (c *chrome) sideGroupHeader(gtx layout.Context, g sideGroup, st sideState, 
 	}
 	nCall, nSize := c.fitSide(gtx, name, 12, rx-gap-cx, th.ActiveFG)
 	place(ops, nCall, image.Pt(cx, mid-nSize.Y/2))
+}
+
+// headerDots places a group header's dots, one per row up to maxStackDots, in a
+// line from x, centred on mid.
+func headerDots(x, mid, dot, rows int) []image.Rectangle {
+	step := dot * 12 / 7 // a 5 dp gap at the 7 dp dot: two running rings (2 dp past their dots) never touch
+	var rs []image.Rectangle
+	for i := 0; i < min(rows, maxStackDots); i++ {
+		at := image.Pt(x+i*step, mid-dot/2)
+		rs = append(rs, image.Rectangle{Min: at, Max: at.Add(image.Pt(dot, dot))})
+	}
+	return rs
 }
 
 // sideRuns draws the workspaces section from secTop to the bottom: a header, then per
@@ -654,8 +671,8 @@ func (c *chrome) sideRuns(gtx layout.Context, h *sideHits, m sideModel, st sideS
 const (
 	// maxMemberLabel bounds the "› title" a folded group header adds for the shown session.
 	maxMemberLabel = 16
-	// maxStackDots bounds a group header's dot stack, so a big group cannot widen it.
-	maxStackDots = 8
+	// maxStackDots bounds a group header's dots, so a big group cannot widen it.
+	maxStackDots = 4
 )
 
 // cutRunes shortens s to n runes with a trailing "…"; short text is not copied.
