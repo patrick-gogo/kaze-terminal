@@ -54,8 +54,8 @@ func TestSidebarHitsMatchRows(t *testing.T) {
 			t.Fatalf("group %q rect %v outside %v", g.key, g.rect, box)
 		}
 	}
-	if h.plus.Empty() || h.filter.Empty() {
-		t.Fatalf("plus %v filter %v", h.plus, h.filter)
+	if h.filter.Empty() {
+		t.Fatalf("filter %v", h.filter)
 	}
 }
 
@@ -194,15 +194,12 @@ func TestSidebarDrawsInEveryTheme(t *testing.T) {
 			m := twoGroupsOneLoose()
 			m.Runs = []sideRun{fourMemberRun()}
 			size := image.Pt(sidebarW, 600)
-			h := c.layoutSidebar(pageContext(size.X, size.Y), m, sideState{shown: 2, settings: true, buttons: true}, size)
+			h := c.layoutSidebar(pageContext(size.X, size.Y), m, sideState{shown: 2, settings: true}, size)
 			if len(h.rows) == 0 {
 				t.Fatal("nothing drawn")
 			}
 			if th.UI.Active == th.UI.Chrome {
 				t.Fatalf("selected row fill %v equals the sidebar background", th.UI.Active)
-			}
-			if h.toggle.Empty() || h.gear.Empty() {
-				t.Fatalf("buttons: toggle %v gear %v", h.toggle, h.gear)
 			}
 		})
 	}

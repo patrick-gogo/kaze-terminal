@@ -32,8 +32,7 @@ These numbers were measured on Windows; the details are in
 
 - **Windows:** works. This is what I use every day (Windows 11, PowerShell 7).
 - **macOS:** works, and I use it too (Apple Silicon, zsh). Build it as an app with
-  `./tools/package-macos.sh`. Still missing on the Mac: the inset title bar (it keeps the native
-  one), a Dock bounce for alerts, an Option-as-Alt toggle, Japanese file names with dakuten
+  `./tools/package-macos.sh`. Still missing on the Mac: a Dock bounce for alerts, an Option-as-Alt toggle, Japanese file names with dakuten
   (macOS stores them decomposed and kaze drops the combining mark), and benchmark numbers.
 
 ## Requirements
@@ -206,9 +205,22 @@ Sessions are listed down the left side, in place of a tab strip.
 - **Hiding it:** the sidebar toggle (Ctrl+Shift+B, Cmd+B on macOS) hides or shows it, and kaze
   remembers the choice as `sidebar` in the config. Below 560 dp of window width it also hides
   by itself, without saving that, and the toggle does nothing until the window is wider.
-- **Title bar:** on Windows the toggle, the K mark, the gear and the window buttons sit in the
-  title bar. On macOS, with the native title bar, the toggle and the gear sit at the top of the
-  sidebar, and a thin rail with them stays when the sidebar is hidden.
+- **Title bar:** Kaze draws one title bar, laid out the same on macOS and Windows. On the left,
+  over the sidebar: the window buttons on macOS (the real traffic lights) or the K mark on Windows,
+  the sidebar toggle and **+** for a new session. Then the session you're in (repo, title, command
+  and its state), a search field that opens the palette, and on the right the scratch shell,
+  Agents (with a badge) and Settings; on Windows, minimize, maximize and close follow. Drag any
+  empty part of it to move the window; double-click it to zoom (macOS follows your setting) or
+  maximize. Hiding the sidebar leaves the title bar's buttons where they are.
+
+## The status bar
+
+Along the bottom, left to right: the folder and branch of the session in front (with its lines
+added and removed), then an **Update** pill when a newer kaze is out, the running subagents
+(amber when one waits on you), the workspace servers as dots with how many are up, Claude usage as
+small meters, and kaze's own memory and tab count. Clicking the update, agents, servers or usage
+opens what they point at. In a narrow window the least important parts give way first: the tab
+count, then memory, then labels, so nothing overlaps.
 
 ## Floating panes
 
@@ -230,8 +242,7 @@ in the status bar, or pick it in the palette.
 
 ### The scratch shell
 
-Ctrl+Shift+` (Ctrl+` on macOS), the terminal button left of the gear in the Windows title bar, or
-the same button at the top of the macOS sidebar shows a quick shell for the session in front, in
+Ctrl+Shift+` (Ctrl+` on macOS) or the terminal button in the title bar shows a quick shell for the session in front, in
 that session's folder, as a floating pane. The key hides it again; it keeps running with its
 screen. Each session has its own. It is not listed in the sidebar and Ctrl+Tab skips it. If its
 shell has exited, the next toggle starts a fresh one. Closing the session closes its scratch shell.
@@ -259,8 +270,8 @@ transcript files.
 
 ## The palette
 
-One key finds and starts things: Ctrl+Shift+K (Cmd+K on macOS), the search box in the middle of
-the Windows title bar, or the magnifier button next to the sidebar toggle on macOS. Type to
+One key finds and starts things: Ctrl+Shift+K (Cmd+K on macOS), or the search field in the
+middle of the title bar. Type to
 narrow the list; a leading `/` is ignored and the text can match anywhere in a name or
 description. It has four sections:
 
@@ -286,8 +297,7 @@ skills you started stay at the top while kaze runs.
 
 ## Settings
 
-Open it with the gear button (in the title bar on Windows, at the top of the sidebar on macOS)
-or with Ctrl+, (Cmd+, on macOS). While it is open, a pinned Settings row sits at the top of the
+Open it with the gear button in the title bar or with Ctrl+, (Cmd+, on macOS). While it is open, a pinned Settings row sits at the top of the
 sidebar, and it closes with that row's ×. Its menu on the left has:
 
 - **Appearance:** theme cards (each a small terminal in that theme's colors), a live preview,
@@ -382,7 +392,7 @@ runs. The request carries nothing about you beyond a `kaze/<version>` user agent
 stays quiet. Turn **Check for updates automatically** off in Settings, Updates (or set `check_updates = false`) and kaze sends
 no request at all.
 
-- When a newer version is out, the status bar shows **Update 0.12** in the accent color and the
+- When a newer version is out, the status bar shows an **Update 0.12** pill and the
   Updates menu item gets a badge. Click either for the Updates page, which says "Kaze 0.12 is
   available" with **Update and restart** and **What's new**.
 - **Update and restart** asks first ("Kaze will close your 3 sessions and restart in 0.12."), then
@@ -688,9 +698,10 @@ If you already have hooks, add these entries next to them. On macOS the command 
 
 ## Claude usage in the status bar
 
-kaze shows Claude's 5-hour and weekly plan usage and how full the current tab's context is, at the
-right of the status bar: `5h 23%  ·  wk 41%  ·  ctx 34%`. A number turns amber at 80% and red at
-95%, and then also says when that limit resets.
+kaze shows Claude's 5-hour and weekly plan usage and how full the current tab's context is, on the
+right of the status bar: a small meter and the percentage for each of 5h, wk and ctx. A meter
+turns amber at 80% and red at 95%. Hover the usage for a card with each limit and when it resets;
+click it for Settings, Agents.
 
 The numbers come from Claude Code's status line. Point it at `kaze statusline` in
 `~/.claude/settings.json`:

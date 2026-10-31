@@ -14,16 +14,6 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
 
-// statusParts is what the status bar shows: the active tab's folder and branch
-// on the left, the memory/tab count (and any notice) on the right.
-type statusParts struct {
-	Folder, Branch, Right string
-	Usage                 []usage.Segment // Claude usage, drawn right-aligned before Right
-	Servers               []serverDot     // one per workspace run member, drawn before Usage
-	Update                string          // "Update 0.11" when a newer kaze is out, drawn before Servers
-	Agents                int             // running and waiting subagents; "N agents running" before Update
-}
-
 // serverDot is one run member's status dot: red when Down, green when Up, muted otherwise.
 type serverDot struct{ Down, Up bool }
 
@@ -34,29 +24,6 @@ type locEntry struct {
 	branch   string
 	repo     string // common git folder, "" outside a repo
 	repoName string
-}
-
-func (win *window) statusParts() statusParts {
-	p := statusParts{Right: win.statusText(len(win.mgr.Tabs())), Update: win.updLabel(), Agents: win.subs.Active(0)}
-	for _, r := range win.curRuns() {
-		for _, m := range r.Members {
-			p.Servers = append(p.Servers, serverDot{Down: m.Down, Up: !m.Down && m.Status == "Running"})
-		}
-	}
-	t := win.mgr.Active()
-	if win.opt.Config.ShowUsage {
-		p.Usage = win.usageSegments(t, time.Now())
-	}
-	if t == nil {
-		return p
-	}
-	e := win.locOf(t)
-	if e.cwd == "" {
-		return p
-	}
-	p.Folder = cleanText(tildeHome(e.cwd, win.home))
-	p.Branch = cleanText(e.branch)
-	return p
 }
 
 // locOf returns t's folder, branch and repo. A new report (even for the same
@@ -194,4 +161,61 @@ func (win *window) showServer() {
 		win.floatMember(down)
 		win.w.Invalidate()
 	}
+}
+
+// statusModel is what the redesigned status bar shows (spec 6.1).
+type statusModel struct {
+	Folder, Branch  string
+	Add, Del        int
+	Update          string // the newer version, "" for none
+	Agents, Waiting int    // running and waiting subagents; waiting includes session waits
+	Servers         []serverDot
+	Usage           []usage.Detail
+	MemMB, Tabs     int
+	Notice          string
+}
+
+func (win *window) statusModel(now time.Time) statusModel {
+	m := statusModel{Tabs: len(win.mgr.Tabs()), Agents: win.subs.Active(0)}
+	if now.Sub(win.memRead) > memEvery {
+		win.memMB = privateMB()
+		win.memRead = now
+	}
+	m.MemMB = int(win.memMB + 0.5)
+	if _, ok := win.noticeWake(now); ok {
+		m.Notice = win.notice
+	}
+	if win.updLabel() != "" {
+		m.Update = win.upd.rel.Version
+	}
+	_, waiting, _ := win.subs.Board()
+	m.Waiting = len(waiting) + len(win.subs.SessionWaits())
+	for _, r := range win.curRuns() {
+		for _, mem := range r.Members {
+			m.Servers = append(m.Servers, serverDot{Down: mem.Down, Up: !mem.Down && mem.Status == "Running"})
+		}
+	}
+	t := win.mgr.Active()
+	if win.opt.Config.ShowUsage {
+		u := win.acct
+		if t != nil {
+			if e, ok := win.ctx[t.ID]; ok && e.cwdSeq == cwdSeq(t) {
+				u.Ctx = &e.pct
+			}
+		}
+		m.Usage = usage.Details(u, now)
+	}
+	if t == nil {
+		return m
+	}
+	e := win.locOf(t)
+	if e.cwd == "" {
+		return m
+	}
+	m.Folder = cleanText(tildeHome(e.cwd, win.home))
+	m.Branch = cleanText(e.branch)
+	if m.Branch != "" {
+		m.Add, m.Del = win.linesOf(t.ID)
+	}
+	return m
 }

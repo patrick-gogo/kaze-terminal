@@ -14,71 +14,8 @@ import (
 	"gioui.org/unit"
 )
 
-var testDims = barDims{buttonW: 46, gearW: 46, toggleW: 46, markW: 30}
-
-func TestButtonsAreRightAlignedInOrder(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), barDims{buttonW: 46}, true)
-	if b.Buttons[2] != image.Rect(954, 0, 1000, 38) {
-		t.Fatalf("close %v", b.Buttons[2])
-	}
-	if b.Buttons[1] != image.Rect(908, 0, 954, 38) {
-		t.Fatalf("max %v", b.Buttons[1])
-	}
-	if b.Buttons[0] != image.Rect(862, 0, 908, 38) {
-		t.Fatalf("min %v", b.Buttons[0])
-	}
-}
-
-// Left to right: toggle, mark, drag area, gear, caption buttons.
-func TestBarOrderToggleMarkDragGearButtons(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), testDims, true)
-	if b.Toggle != image.Rect(0, 0, 46, 38) {
-		t.Fatalf("toggle %v", b.Toggle)
-	}
-	if b.Mark != image.Rect(46, 0, 76, 38) || !b.Mark.In(b.Drag) {
-		t.Fatalf("mark %v, drag %v", b.Mark, b.Drag)
-	}
-	if b.Drag != image.Rect(46, 0, 816, 38) {
-		t.Fatalf("drag %v, want from the toggle to the gear", b.Drag)
-	}
-	if b.Gear != image.Rect(816, 0, 862, 38) {
-		t.Fatalf("gear %v, want just left of minimize", b.Gear)
-	}
-}
-
-func TestRegionsNeverOverlap(t *testing.T) {
-	for _, w := range []int{60, 120, 200, 400, 1000} {
-		b := layoutBar(image.Pt(w, 38), testDims, true)
-		rs := []image.Rectangle{b.Toggle, b.Drag, b.Gear, b.Buttons[0], b.Buttons[1], b.Buttons[2]}
-		bar := image.Rect(0, 0, w, 38)
-		for i, r := range rs {
-			if !r.Empty() && !r.In(bar) {
-				t.Fatalf("width %d: region %d %v outside the bar", w, i, r)
-			}
-			for j := i + 1; j < len(rs); j++ {
-				if r.Overlaps(rs[j]) {
-					t.Fatalf("width %d: region %d %v overlaps %d %v", w, i, r, j, rs[j])
-				}
-			}
-		}
-	}
-}
-
-func TestRegionsScaleWithDp(t *testing.T) {
-	b := layoutBar(image.Pt(1500, 57), barDims{buttonW: 69, toggleW: 69}, true) // 150%
-	if b.Buttons[2].Dx() != 69 || b.Buttons[2].Dy() != 57 || b.Toggle.Dx() != 69 {
-		t.Fatalf("%v %v", b.Buttons[2], b.Toggle)
-	}
-}
-
-func TestDecoratedHasNoBar(t *testing.T) {
-	if b := layoutBar(image.Pt(1000, 38), testDims, false); b != (barLayout{}) {
-		t.Fatalf("%+v", b)
-	}
-}
-
 func TestClickFiresOnReleaseInside(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), testDims, true)
+	b := titleAt(1000, false, 248)
 	var s captionState
 	p := b.Buttons[0].Min.Add(image.Pt(5, 5))
 	if s.pointer(pointer.Press, p, b) != capNone {
@@ -95,7 +32,7 @@ func TestClickFiresOnReleaseInside(t *testing.T) {
 }
 
 func TestReleaseOutsideButtonDoesNothing(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), testDims, true)
+	b := titleAt(1000, false, 248)
 	var s captionState
 	s.pointer(pointer.Press, b.Buttons[2].Min.Add(image.Pt(5, 5)), b)
 	if s.pointer(pointer.Release, image.Pt(500, 20), b) != capNone {
@@ -118,21 +55,8 @@ func TestMaximizeTogglesWithRealState(t *testing.T) {
 	}
 }
 
-func TestNarrowBarKeepsButtonsInside(t *testing.T) {
-	bar := image.Rect(0, 0, 100, 38) // narrower than three 46px buttons
-	b := layoutBar(bar.Max, testDims, true)
-	for i, r := range b.Buttons {
-		if !r.In(bar) {
-			t.Fatalf("button %d %v outside bar %v", i, r, bar)
-		}
-	}
-	if !b.Toggle.Empty() && b.Toggle.Overlaps(b.Buttons[0]) {
-		t.Fatalf("toggle %v overlaps %v", b.Toggle, b.Buttons[0])
-	}
-}
-
 func TestPressOnOneButtonReleaseOnAnotherFiresNothing(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), testDims, true)
+	b := titleAt(1000, false, 248)
 	var s captionState
 	s.pointer(pointer.Press, b.Buttons[0].Min.Add(image.Pt(5, 5)), b)
 	if got := s.pointer(pointer.Release, b.Buttons[2].Min.Add(image.Pt(5, 5)), b); got != capNone {
@@ -141,7 +65,7 @@ func TestPressOnOneButtonReleaseOnAnotherFiresNothing(t *testing.T) {
 }
 
 func TestCancelClearsState(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), testDims, true)
+	b := titleAt(1000, false, 248)
 	var s captionState
 	p := b.Buttons[2].Min.Add(image.Pt(5, 5))
 	s.pointer(pointer.Press, p, b)
@@ -155,7 +79,7 @@ func TestCancelClearsState(t *testing.T) {
 }
 
 func TestLeaveClearsHover(t *testing.T) {
-	b := layoutBar(image.Pt(1000, 38), testDims, true)
+	b := titleAt(1000, false, 248)
 	var s captionState
 	s.pointer(pointer.Move, b.Buttons[1].Min.Add(image.Pt(5, 5)), b)
 	if s.hover != capMaximize {
@@ -179,7 +103,7 @@ func captionWindow(t *testing.T, width int) (*window, *[]system.Action) {
 	if _, err := win.mgr.New(); err != nil {
 		t.Fatal(err)
 	}
-	win.drawBar(barContext(width), 38)
+	win.drawBar(barContext(width), 42)
 	return win, &got
 }
 
@@ -187,7 +111,7 @@ func barContext(width int) layout.Context {
 	return layout.Context{
 		Ops:         new(op.Ops),
 		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
-		Constraints: layout.Exact(image.Pt(width, 38)),
+		Constraints: layout.Exact(image.Pt(width, 42)),
 	}
 }
 
@@ -228,48 +152,6 @@ func TestLosingFocusClearsCaptionHover(t *testing.T) {
 	win.setFocused(false)
 	if win.caption.hover != capNone || win.side.st.hover != 0 {
 		t.Fatalf("caption hover %v, sidebar hover %d after the window lost focus", win.caption.hover, win.side.st.hover)
-	}
-}
-
-var searchDims = barDims{buttonW: 46, gearW: 46, toggleW: 46, markW: 30, searchMin: 160, searchMax: 460, searchH: 24}
-
-func TestBarHasASearchBoxBetweenTheDragAreas(t *testing.T) {
-	b := layoutBar(image.Pt(1200, 38), searchDims, true)
-	if b.Search.Empty() || b.Search.Dx() > 460 || b.Search.Dx() < 160 {
-		t.Fatalf("search %v", b.Search)
-	}
-	mid := (b.Mark.Max.X + b.Gear.Min.X) / 2
-	if c := (b.Search.Min.X + b.Search.Max.X) / 2; c < mid-1 || c > mid+1 {
-		t.Fatalf("search centred at %d, want %d", c, mid)
-	}
-	rs := []image.Rectangle{b.Drag, b.Search, b.DragR}
-	for i := range rs {
-		for j := i + 1; j < len(rs); j++ {
-			if rs[i].Overlaps(rs[j]) {
-				t.Fatalf("%v overlaps %v", rs[i], rs[j])
-			}
-		}
-	}
-	if b.Drag.Min.X != b.Toggle.Max.X || b.Drag.Max.X != b.Search.Min.X || b.DragR.Min.X != b.Search.Max.X || b.DragR.Max.X != b.Gear.Min.X {
-		t.Fatalf("gaps: drag %v search %v dragR %v gear %v", b.Drag, b.Search, b.DragR, b.Gear)
-	}
-	if !b.Mark.In(b.Drag) {
-		t.Fatalf("mark %v outside drag %v", b.Mark, b.Drag)
-	}
-}
-
-func TestBarDropsSearchWhenNarrow(t *testing.T) {
-	b := layoutBar(image.Pt(400, 38), searchDims, true)
-	plain := layoutBar(image.Pt(400, 38), testDims, true)
-	if !b.Search.Empty() || !b.DragR.Empty() || b.Drag != plain.Drag {
-		t.Fatalf("search %v dragR %v drag %v, want %v", b.Search, b.DragR, b.Drag, plain.Drag)
-	}
-}
-
-func TestCaptionAtSearch(t *testing.T) {
-	b := layoutBar(image.Pt(1200, 38), searchDims, true)
-	if got := b.captionAt(centre(b.Search)); got != capSearch {
-		t.Fatalf("got %v", got)
 	}
 }
 

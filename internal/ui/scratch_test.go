@@ -207,8 +207,13 @@ func TestScratchUsageIsNotMoved(t *testing.T) {
 func TestScratchButtonInTheTitleBar(t *testing.T) {
 	win, _, r, a, _, _, _ := paneWindow(t)
 	b := win.bar
-	if b.Scratch.Empty() || b.Scratch.Max.X > b.Gear.Min.X || b.Scratch.Overlaps(b.Drag) || b.Scratch.Overlaps(b.DragR) {
-		t.Fatalf("scratch %v gear %v drag %v %v", b.Scratch, b.Gear, b.Drag, b.DragR)
+	if b.Scratch.Empty() || b.Scratch.Max.X > b.Gear.Min.X {
+		t.Fatalf("scratch %v gear %v", b.Scratch, b.Gear)
+	}
+	for _, d := range b.Drag {
+		if b.Scratch.Overlaps(d) {
+			t.Fatalf("scratch %v overlaps drag %v", b.Scratch, d)
+		}
 	}
 	c := centre(b.Scratch)
 	win.captionEvent(pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: at(c)})
@@ -219,30 +224,16 @@ func TestScratchButtonInTheTitleBar(t *testing.T) {
 	}
 }
 
+// macOS draws the same title bar, so its scratch button works the same way.
 func TestScratchButtonOnMac(t *testing.T) {
 	win, _ := sideWindow(t, false)
 	a := openIn(t, win, "")
 	win.wantFocus = true
 	var r input.Router
 	sideFrame(t, win, &r)
-	h := win.side.hits
-	if h.scratch.Empty() || h.scratch.Overlaps(h.palette) || h.scratch.Max.X > h.gear.Min.X {
-		t.Fatalf("scratch %v palette %v gear %v", h.scratch, h.palette, h.gear)
-	}
-	sideClick(win, &r, h.scratch, pointer.ButtonPrimary)
+	click(win, win.bar.Scratch)
 	floatFrames(t, win, &r)
 	if scratchOf(win, a.ID) == nil {
-		t.Fatal("the sidebar button did not start a scratch shell")
-	}
-	win.toggleSidebar()
-	sideFrame(t, win, &r)
-	h = win.side.hits
-	if h.scratch.Empty() || h.scratch.Min.Y < h.palette.Max.Y || h.scratch.Max.Y > h.gear.Min.Y {
-		t.Fatalf("rail: palette %v scratch %v gear %v", h.palette, h.scratch, h.gear)
-	}
-	sideClick(win, &r, h.scratch, pointer.ButtonPrimary)
-	floatFrames(t, win, &r)
-	if p := paneOf(t, win, scratchOf(win, a.ID).ID); !p.hidden {
-		t.Fatal("the rail button did not hide the scratch shell")
+		t.Fatal("the title bar button did not start a scratch shell on macOS")
 	}
 }

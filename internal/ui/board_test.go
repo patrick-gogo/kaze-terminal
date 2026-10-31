@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gioui.org/io/key"
 
@@ -184,8 +185,8 @@ func TestStatusAgentsText(t *testing.T) {
 		t.Fatal("status text")
 	}
 	win, _ := boardWindow(t)
-	if win.statusParts().Agents != 2 {
-		t.Fatalf("status count %d", win.statusParts().Agents)
+	if win.statusModel(time.Now()).Agents != 2 {
+		t.Fatalf("status count %d", win.statusModel(time.Now()).Agents)
 	}
 }
 
@@ -195,14 +196,6 @@ func TestMoreAgentsOpensFilteredBoard(t *testing.T) {
 	win.sidePress(image.Pt(20, 20), 1, 0)
 	if !win.board.open || win.board.tab != id {
 		t.Fatalf("board %+v", win.board)
-	}
-}
-
-func TestSidebarAgentsButtonBadge(t *testing.T) {
-	m := sideModel{Loose: sideRows(1, 1, "s")}
-	h, _ := sideDraw(t, m, sideState{buttons: true, agentsBadge: 3}, 400)
-	if h.agentsBtn.Empty() {
-		t.Fatal("no Agents button")
 	}
 }
 

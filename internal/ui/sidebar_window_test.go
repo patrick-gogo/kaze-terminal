@@ -372,72 +372,51 @@ func TestKeyboardSelectionScrollsIntoView(t *testing.T) {
 	}
 }
 
-func TestMacHasNoTopBar(t *testing.T) {
+// macOS draws Kaze's own title bar too (spec 5): the sidebar starts below it,
+// and hiding the sidebar leaves no rail behind.
+func TestMacHasTheSharedTitleBar(t *testing.T) {
 	win, _ := sideWindow(t, false)
 	openIn(t, win, "")
 	var r input.Router
 	sideFrame(t, win, &r)
-	if win.gridMin.Y != 4 {
-		t.Fatalf("grid starts at y=%d, want 4 (terminal at y=0)", win.gridMin.Y)
+	if win.bar.Toggle.Empty() || win.bar.Gear.Empty() || win.bar.Buttons[0] != (image.Rectangle{}) {
+		t.Fatalf("mac bar %+v", win.bar)
 	}
-	if win.side.at != (image.Point{}) {
-		t.Fatalf("sidebar at %v, want the window's top-left", win.side.at)
+	if win.side.at != image.Pt(0, 42) || win.gridMin.Y != 42+4 {
+		t.Fatalf("sidebar at %v, grid at %v", win.side.at, win.gridMin)
 	}
-	h := win.side.hits
-	if h.toggle.Empty() || h.gear.Empty() {
-		t.Fatalf("toggle %v gear %v, want both in the sidebar", h.toggle, h.gear)
-	}
-	if !win.bar.Gear.Empty() || !win.bar.Toggle.Empty() {
-		t.Fatalf("a top bar on macOS: %+v", win.bar)
-	}
-	sideClick(win, &r, h.gear, pointer.ButtonPrimary)
-	sideFrame(t, win, &r)
+	click(win, win.bar.Gear)
 	if !win.set.shown {
-		t.Fatal("the sidebar's gear did not open settings")
+		t.Fatal("the title bar gear did not open settings")
 	}
 	win.hideSettings()
-
-	// Hidden, a 36dp rail keeps the toggle and the gear.
-	sideClick(win, &r, win.side.hits.toggle, pointer.ButtonPrimary)
+	click(win, win.bar.Toggle)
 	sideFrame(t, win, &r)
-	sideFrame(t, win, &r)
-	if !win.side.hidden || win.opt.Config.Sidebar {
-		t.Fatal("the sidebar's toggle did not hide it")
+	if !win.side.hidden || win.gridMin.X != 8 {
+		t.Fatalf("hidden: grid x %d, want 8 (no rail)", win.gridMin.X)
 	}
-	if win.gridMin.X != 36+8 || win.side.hits.toggle.Empty() || win.side.hits.gear.Empty() || len(win.side.hits.rows) != 0 {
-		t.Fatalf("rail: grid x %d, hits %+v", win.gridMin.X, win.side.hits)
-	}
-	sideClick(win, &r, win.side.hits.toggle, pointer.ButtonPrimary)
-	sideFrame(t, win, &r)
+	click(win, win.bar.Toggle)
 	sideFrame(t, win, &r)
 	if win.side.hidden {
-		t.Fatal("the rail's toggle did not bring the sidebar back")
+		t.Fatal("the toggle did not bring the sidebar back")
 	}
 }
 
-// Windows keeps the 38dp bar: toggle, mark, drag area, gear, caption buttons.
+// Windows: toggle and mark at the left, gear before the caption buttons.
 func TestWindowsBarHasTheToggleAndGear(t *testing.T) {
 	win, _ := sideWindow(t, true)
 	openIn(t, win, "")
 	var r input.Router
 	sideFrame(t, win, &r)
 	b := win.bar
-	if b.Toggle.Empty() || b.Toggle.Min.X != 0 || b.Gear.Empty() || b.Drag.Empty() {
+	if b.Toggle.Empty() || b.Mark.Empty() || b.Gear.Empty() || len(b.Drag) == 0 {
 		t.Fatalf("bar %+v", b)
 	}
-	if !(b.Toggle.Max.X <= b.Drag.Min.X && b.Drag.Max.X <= b.Gear.Min.X && b.Gear.Max.X <= b.Buttons[0].Min.X) {
+	if !(b.Mark.Max.X <= b.Toggle.Min.X && b.Toggle.Max.X <= b.Search.Min.X && b.Gear.Max.X <= b.Buttons[0].Min.X) {
 		t.Fatalf("bar out of order: %+v", b)
 	}
-	if win.side.at != image.Pt(0, 38) || win.gridMin != image.Pt(260+8, 38+4) {
+	if win.side.at != image.Pt(0, 42) || win.gridMin != image.Pt(260+8, 42+4) {
 		t.Fatalf("sidebar at %v, grid at %v", win.side.at, win.gridMin)
-	}
-	if !win.side.hits.toggle.Empty() {
-		t.Fatal("the sidebar draws its own toggle under a custom title bar")
-	}
-	click(win, b.Toggle)
-	sideFrame(t, win, &r)
-	if !win.side.hidden {
-		t.Fatal("the title bar's toggle did not hide the sidebar")
 	}
 }
 
@@ -490,7 +469,7 @@ func TestPlusOpensASessionAndMemberClickShowsIt(t *testing.T) {
 		t.Fatalf("member click: active %d, floating over %d; want it floating over %d", win.mgr.Active().ID, win.fl.owner(m.ID), a.ID)
 	}
 	n := len(win.mgr.Tabs())
-	sideClick(win, &r, win.side.hits.plus, pointer.ButtonPrimary)
+	click(win, win.bar.Plus) // + moved to the title bar
 	sideFrame(t, win, &r)
 	if len(win.mgr.Tabs()) != n+1 {
 		t.Fatalf("+ left %d tabs, want %d", len(win.mgr.Tabs()), n+1)
@@ -659,11 +638,7 @@ func TestToggleInANarrowWindowChangesNothing(t *testing.T) {
 		sizedFrame(t, win, &r, 500, 600)
 		win.route(layout.Context{}, []event.Event{key.Event{Name: "B", Modifiers: key.ModCtrl | key.ModShift, State: key.Press}}, 8, 16)
 		sizedFrame(t, win, &r, 500, 600)
-		if custom {
-			click(win, win.bar.Toggle)
-		} else {
-			sideClick(win, &r, win.side.hits.toggle, pointer.ButtonPrimary)
-		}
+		click(win, win.bar.Toggle)
 		sizedFrame(t, win, &r, 500, 600)
 		if !win.opt.Config.Sidebar {
 			t.Fatalf("custom %v: the toggle in a narrow window turned the setting off", custom)
@@ -796,35 +771,20 @@ func TestNextWaitingButtonSitsAboveWorkspaces(t *testing.T) {
 	}
 }
 
-func TestMacSidebarPaletteButton(t *testing.T) {
+// The search field opens the palette on macOS too, with or without the sidebar.
+func TestMacTitleSearchOpensPalette(t *testing.T) {
 	win, _ := sideWindow(t, false)
 	openIn(t, win, "")
 	var r input.Router
-	sideFrame(t, win, &r)
-	h := win.side.hits
-	if h.palette.Empty() || h.palette.Min.X < h.toggle.Max.X || h.palette.Max.X > h.gear.Min.X || h.palette.Overlaps(h.toggle) || h.palette.Overlaps(h.gear) {
-		t.Fatalf("palette %v, toggle %v, gear %v", h.palette, h.toggle, h.gear)
-	}
-	sideClick(win, &r, h.palette, pointer.ButtonPrimary)
-	sideFrame(t, win, &r)
-	if !win.palette.open {
-		t.Fatal("the palette button did not open the palette")
-	}
-}
-
-func TestMacRailPaletteButton(t *testing.T) {
-	win, _ := sideWindow(t, false)
-	openIn(t, win, "")
-	var r input.Router
-	win.toggleSidebar()
-	sideFrame(t, win, &r)
-	h := win.side.hits
-	if !win.side.hidden || h.palette.Empty() || h.palette.Min.Y < h.toggle.Max.Y || h.palette.Max.Y > h.gear.Min.Y {
-		t.Fatalf("hidden %v: toggle %v, palette %v, gear %v", win.side.hidden, h.toggle, h.palette, h.gear)
-	}
-	sideClick(win, &r, h.palette, pointer.ButtonPrimary)
-	sideFrame(t, win, &r)
-	if !win.palette.open {
-		t.Fatal("the rail's palette button did not open the palette")
+	for _, hide := range []bool{false, true} {
+		if hide {
+			win.toggleSidebar()
+		}
+		sideFrame(t, win, &r)
+		click(win, win.bar.Search)
+		if !win.palette.open {
+			t.Fatalf("hidden=%v: the search field did not open the palette", hide)
+		}
+		win.closePalette()
 	}
 }

@@ -126,3 +126,30 @@ func TestMergeKeepsTheNewestWindowAndItsHighestUse(t *testing.T) {
 		}
 	}
 }
+
+func TestUsageDetails(t *testing.T) {
+	soon := now.Add(2*time.Hour + 14*time.Minute)
+	later := time.Date(2026, 11, 2, 9, 0, 0, 0, time.Local) // a Monday
+	u := notify.Usage{FiveHour: win(23.4, soon), Week: win(41, later), Ctx: pct(34)}
+	got := Details(u, now)
+	want := []Detail{
+		{Key: "5h", Name: "5-hour", Pct: 23, Level: Normal, Reset: "resets in 2h 14m"},
+		{Key: "wk", Name: "Week", Pct: 41, Level: Normal, Reset: "resets Mon 9:00 AM"},
+		{Key: "ctx", Name: "Context", Pct: 34, Level: Normal, Reset: "this session"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("%d: got %+v want %+v", i, got[i], want[i])
+		}
+	}
+	d := Details(notify.Usage{FiveHour: win(80, now.Add(40*time.Minute)), Week: win(95, time.Time{})}, now)
+	if d[0].Level != Warn || d[0].Reset != "resets in 40m" || d[1].Level != High || d[1].Reset != "" {
+		t.Fatalf("levels and short resets %+v", d)
+	}
+	if len(Details(notify.Usage{FiveHour: win(50, now)}, now)) != 0 {
+		t.Fatal("an expired window is listed")
+	}
+}
