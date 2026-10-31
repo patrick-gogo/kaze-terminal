@@ -59,16 +59,16 @@
         <button type="button" class="show-shot" data-show="scratch">See the scratch shell <span aria-hidden="true">↑</span></button>
       </article>
       <article>
+        <span class="feature-symbol" aria-hidden="true">⋔</span>
+        <h3>See every subagent.</h3>
+        <p>When Claude hands work to subagents, each one shows under its session with its task and current step. Click one to watch its steps live and read its report, or press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> for a board of every subagent: running, waiting on you and done.</p>
+        <a href="https://github.com/patrick-gogo/kaze-terminal#subagents">How it works <span aria-hidden="true">↗</span></a>
+      </article>
+      <article>
         <span class="feature-symbol" aria-hidden="true">⌕</span>
         <h3>One key finds everything.</h3>
         <p><kbd>⌘</kbd> <kbd>K</kbd> opens the palette: waiting sessions first, then every session and server, your Claude Code skills and slash commands, and Kaze’s own actions.</p>
         <button type="button" class="show-shot" data-show="palette">See the palette <span aria-hidden="true">↑</span></button>
-      </article>
-      <article>
-        <span class="feature-symbol" aria-hidden="true">▤</span>
-        <h3>Context in the status bar.</h3>
-        <p>Your folder and branch, your servers at a glance, and optional Claude plan and context usage. The useful details stay out of your output.</p>
-        <a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <span aria-hidden="true">↗</span></a>
       </article>
     </div>
   </section>
@@ -88,6 +88,7 @@
   </section>
 
   <section class="details wrap" aria-label="More features">
+    <article><span class="feature-symbol" aria-hidden="true">▤</span><h3>Context in the status bar.</h3><p>Your folder and branch, your servers at a glance, and optional Claude plan and context usage. The useful details stay out of your output.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <span aria-hidden="true">↗</span></a></article>
     <article><span class="feature-symbol" aria-hidden="true">⌘</span><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing and cursor controls. Change them in Settings, or edit the small config file directly.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <span aria-hidden="true">↗</span></a></article>
     <article><span class="feature-symbol" aria-hidden="true">✓</span><h3>Checks your Claude setup.</h3><p>Settings shows which Claude Code hooks are missing and adds them for you, after showing the change and backing up your file.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-code-setup-check">See the setup check <span aria-hidden="true">↗</span></a></article>
     <article><span class="feature-symbol" aria-hidden="true">⌨</span><h3>Your keys, your way.</h3><p>Every shortcut can be changed in the config, and Settings lists the commands so far with their keys.</p><a href="https://github.com/patrick-gogo/kaze-terminal#shortcuts">See the shortcuts <span aria-hidden="true">↗</span></a></article>
@@ -99,7 +100,20 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>Release by release.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.13</span><span class="badge">Latest</span><time datetime="2026-10-31">Oct 31, 2026</time></div>
+        <div class="release-meta"><span class="version">0.14</span><span class="badge">Latest</span><time datetime="2026-10-31">Oct 31, 2026</time></div>
+        <div class="release-body">
+          <h3>See what your subagents are doing</h3>
+          <ul>
+            <li><b>Subagents in the sidebar:</b> each session lists its subagents with their task, how long they’ve run and the step they’re on.</li>
+            <li><b>A live pane per subagent:</b> click one to follow its steps as they happen and read its report when it finishes, with a Copy report button.</li>
+            <li><b>The agents board:</b> every subagent in every session, in running, waiting on you and done. Open it with the Agents button, the status bar, the palette or <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> (<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>A</kbd> on Windows).</li>
+            <li><b>Setup in one click:</b> Settings, Agents checks the three new Claude Code hooks and Fix adds them, showing the change first.</li>
+            <li><b>Fixed:</b> pressing Command on its own no longer types a <code>⌘</code> into the terminal.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
+        <div class="release-meta"><span class="version">0.13</span><time datetime="2026-10-31">Oct 31, 2026</time></div>
         <div class="release-body">
           <h3>Claude Code and Codex, side by side</h3>
           <ul>
