@@ -1,5 +1,7 @@
 # Product captures
 
+> **Needs retaking:** since the window chrome redesign (Kaze 0.15), every capture below shows the old title bar and status bar. Retake them all with the same demo home and input-blocked overlay.
+
 Native macOS window captures (2200 × 1496 px, Retina) taken October 31, 2026, from Kaze 0.12 (main build 044336a).
 
 - `kaze-sessions.png`: the session sidebar with three demo repos (one a git worktree), the "Todo API"

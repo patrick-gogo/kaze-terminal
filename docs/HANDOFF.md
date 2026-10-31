@@ -141,6 +141,8 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 | Keypress to glyph < 10ms | ~25ms typical; kaze's own part ~8ms p50, ~24ms p99 | **no** |
 | Launch to prompt < 500ms | ~1.3s with pwsh (kaze's first frame ~0.45s) | **no** |
 
+**Window chrome redesign (feat/window-chrome):** one Kaze-drawn 42dp title bar on macOS and Windows (spec `docs/superpowers/specs/2026-10-31-kaze-window-chrome-design.md`) and the direction-A status bar (32dp). macOS is now frameless: `internal/ui/maclights_darwin.go` shows the native traffic lights again and keeps them centred; its callbacks never call Gio inline (that deadlocked once). Native double-click on empty bar space zooms or minimizes per `AppleActionOnDoubleClick`. Owner checked the Mac behaviour by hand on 2026-10-31. The Windows build compiles (amd64, arm64) but has not been run since the redesign: try it on the Windows laptop. Every lander capture still shows the old chrome.
+
 ## Next
 
 1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-app\kaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.8.
