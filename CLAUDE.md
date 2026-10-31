@@ -44,6 +44,32 @@ checklist and what's next. The authority for behaviour is the spec
 - **History:** `docs/history/` holds the full Plan 1 ledger (every ruling, incident and deferred item) and key
   task reports. Check it before re-deciding something.
 
+## Shipping a feature: lander and release
+
+When a PR that changes what users get (a feature, a visible UI change, a user-facing fix) is merged,
+follow it with a release, without being asked again. Internal changes (refactors, tests, docs, the
+lander alone) don't get one.
+
+1. **Release PR** on a `release/<version>` branch, with:
+   - **Version:** bump `internal/version.Number` (and its test, RED first) and
+     `CFBundleShortVersionString` in `assets/branding/macos/Info.plist`. A feature bumps the minor
+     version (0.12 → 0.13); a fix-only release adds a patch number (0.13 → 0.13.1).
+   - **Changelog:** a new row at the top of the lander's "What's new" section (`docs/index.html`,
+     `#changelog`): the version, today's date, a short title and plain bullets of what users get. Move
+     the "Latest" badge to it.
+   - **Lander:** if the feature is worth showing, add or update its card in the feature grid
+     (`#sessions`) or its section. If the UI changed, say whether the screenshots need retaking
+     (`docs/site-assets/SCREENSHOTS.md` has how); don't fake them.
+   - **README:** keep it in step with the feature (its section and the Roadmap).
+2. **Merge and tag:** after the checks pass, merge the release PR, then tag `v<version>` on `main` and push
+   the tag. `.github/workflows/release.yml` builds the downloads, checksums and GitHub Release; watch it
+   finish and confirm the release has `Kaze-macOS.zip`, both Windows zips and `SHA256SUMS`. Installed
+   copies (0.11 and later) then offer the update in Settings, Updates.
+3. **Tell the owner** the version, the release link and what to check.
+
+The owner set this up on 2026-10-31, so a merged feature PR is the go-ahead for its release. If several
+feature PRs land close together, one release can cover them all.
+
 ## Build and test
 
 - Go version: see `go.mod` (1.27). macOS also needs the Xcode Command Line Tools (`xcode-select --install`), because Gio uses cgo on darwin.
