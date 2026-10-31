@@ -68,6 +68,7 @@ type settingRow struct {
 	monoHint    bool     // the hint is a path or command, drawn in the terminal font
 	icon        string   // a line icon in a tile left of the label (see chrome.icon)
 	pill, tone  string   // a status pill left of the controls, and its kind (ok, warn, off, run, err)
+	preview     bool     // a terminal preview in the current theme, font size and cursor
 	lines       []string // extra lines between the label and the hint (the setup check)
 	ctrls       []ctrl
 	block       bool        // the controls sit under the label across the pane (theme swatches)

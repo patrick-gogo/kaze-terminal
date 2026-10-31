@@ -52,10 +52,12 @@ func (p *page) card(r image.Rectangle, y int, rows []settingRow) int {
 	rec := op.Record(ops)
 	yy := y
 	for k, row := range rows {
-		if k > 0 {
+		if k > 0 && !row.preview {
 			paint.FillShape(ops, col.line, clip.Rect(image.Rect(r.Min.X, yy, r.Max.X, yy+1)).Op())
 		}
 		switch {
+		case row.preview:
+			yy = p.preview(inner, yy)
 		case row.block:
 			yy = p.blockRow(inner, yy+gtx.Dp(14), row) + gtx.Dp(6)
 		case len(row.members) > 0:
@@ -199,4 +201,65 @@ func (c *chrome) icon(gtx layout.Context, name string, r image.Rectangle, col co
 	if fill != nil {
 		fill()
 	}
+}
+
+// preview draws a small terminal in the current theme, at the font size and
+// with the cursor shape, under the theme cards.
+func (p *page) preview(r image.Rectangle, y int) int {
+	gtx, ops := p.gtx, p.gtx.Ops
+	c := p.win.opt.Config
+	t := startTheme(c)
+	size := unit.Sp(min(max(c.FontSize, 8), 22) * 0.9) // capped, so a big font keeps the page usable
+	box := image.Rect(r.Min.X, y, r.Max.X, y)
+	bar := gtx.Dp(26)
+	green, yellow := t.Term.ANSI[2], t.Term.ANSI[3]
+	prompt := []any{t.UI.Accent, "todo-api ", green, "main ", t.Term.FG, "> "}
+	lines := [][]any{
+		append(append([]any{}, prompt...), t.Term.FG, "go test ./..."),
+		{t.Term.FG, "ok   example.com/todo-api/api    0.21s"},
+		{t.Term.FG, "ok   example.com/todo-api/store  0.08s"},
+		{yellow, "! ", t.Term.FG, "1 todo left in store.go"},
+		prompt,
+	}
+	rec := op.Record(ops)
+	ly := y + bar + gtx.Dp(12)
+	var lastX, lineH int
+	for i, l := range lines {
+		x := r.Min.X + gtx.Dp(14)
+		h := 0
+		for k := 0; k+1 < len(l); k += 2 {
+			call, sz := p.mono(l[k+1].(string), size, l[k].(color.NRGBA))
+			place(ops, call, image.Pt(x, ly))
+			x += sz.X
+			h = max(h, sz.Y)
+		}
+		if i == len(lines)-1 {
+			lastX, lineH = x, h
+		}
+		ly += h + gtx.Dp(2)
+	}
+	// The cursor after the last prompt, in its shape.
+	cw := max(lineH*6/10, 2)
+	cy := ly - gtx.Dp(2) - lineH
+	cur := image.Rect(lastX, cy, lastX+cw, cy+lineH)
+	switch c.CursorStyle {
+	case "bar":
+		cur.Max.X = lastX + max(gtx.Dp(2), 1)
+	case "underline":
+		cur.Min.Y = cur.Max.Y - max(gtx.Dp(2), 1)
+	}
+	paint.FillShape(ops, t.Term.Cursor, clip.Rect(cur).Op())
+	call := rec.Stop()
+	box.Max.Y = ly + gtx.Dp(10)
+	radius := gtx.Dp(10)
+	paint.FillShape(ops, t.Term.BG, clip.UniformRRect(box, radius).Op(ops))
+	stroke(ops, box, radius, p.col.line2)
+	paint.FillShape(ops, p.col.line2, clip.Rect(image.Rect(box.Min.X, box.Min.Y+bar, box.Max.X, box.Min.Y+bar+1)).Op())
+	for i := 0; i < 3; i++ {
+		d := gtx.Dp(8)
+		x := box.Min.X + gtx.Dp(12) + i*gtx.Dp(14)
+		paint.FillShape(ops, tint(t.Term.FG, 0x40), clip.Ellipse(image.Rect(x, box.Min.Y+(bar-d)/2, x+d, box.Min.Y+(bar-d)/2+d)).Op(ops))
+	}
+	call.Add(ops)
+	return box.Max.Y + gtx.Dp(18)
 }

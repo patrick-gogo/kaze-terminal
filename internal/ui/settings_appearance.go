@@ -31,18 +31,21 @@ func appearanceRows(win *window) []settingRow {
 		swatches = append(swatches, ctrl{kind: ctlSwatch, id: "theme", theme: t, current: t.Key == cur, arg: i})
 	}
 	return []settingRow{
-		{label: "Theme", block: true, ctrls: swatches},
-		{label: "Font size", hint: "JetBrains Mono, bundled", ctrls: []ctrl{{
+		{label: "Theme", hint: "Sets the terminal colors and kaze's own chrome.", block: true, ctrls: swatches},
+		{preview: true},
+		{heading: "Text"},
+		{label: "Font size", hint: "JetBrains Mono, with Japanese and symbol fallback.", ctrls: []ctrl{{
 			kind: ctlStepper, id: "font", min: pageFontMin, max: pageFontMax,
 			value: int(math.Round(float64(c.FontSize))),
 		}}},
-		{label: "Line spacing", ctrls: []ctrl{{
+		{label: "Line spacing", hint: "Room between rows of text.", ctrls: []ctrl{{
 			kind: ctlSegmented, id: "spacing", options: []string{"Tight", "Normal", "Roomy"},
 			selected: choiceIndex(spacings, c.LineSpacing, 1),
 		}}},
-		{label: "Cursor", ctrls: []ctrl{{
+		{heading: "Cursor"},
+		{label: "Shape", hint: "How the cursor looks in the terminal.", ctrls: []ctrl{{
 			kind: ctlSegmented, id: "cursor", options: []string{"Block", "Bar", "Underline"},
-			selected: choiceIndex(cursorStyles, c.CursorStyle, 0),
+			selected: choiceIndex(cursorStyles, c.CursorStyle, 0), cursorChips: true,
 		}}},
 		{label: "Blinking cursor", hint: "Off keeps idle CPU at zero", ctrls: []ctrl{{kind: ctlToggle, id: "blink", on: c.CursorBlink}}},
 	}

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"slices"
 	"strings"
 	"testing"
@@ -53,5 +54,24 @@ func TestHeadingRowsStartCards(t *testing.T) {
 	}
 	if !in("a", 0) || !in("b", 0) || !in("c", 1) {
 		t.Fatalf("controls not inside their cards: cards %v", win.set.cards)
+	}
+}
+
+func TestAppearanceHasALivePreviewAndCards(t *testing.T) {
+	win, _ := alertWindow(t, 1)
+	win.opt.Config.CursorStyle = "bar"
+	win.openSettings()
+	win.drawSettings(pageContext(1100, 900), image.Rect(0, 38, 1100, 876))
+	text := strings.Join(win.set.texts, "\n")
+	for _, want := range []string{"TEXT", "CURSOR", "go test ./...", "Shape"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("Appearance lacks %q", want)
+		}
+	}
+	if n := len(controlsOf(win, "cursor")); n != 3 {
+		t.Fatalf("%d cursor chips, want 3", n)
+	}
+	if len(win.set.cards) != 3 {
+		t.Fatalf("%d cards, want theme, text and cursor", len(win.set.cards))
 	}
 }

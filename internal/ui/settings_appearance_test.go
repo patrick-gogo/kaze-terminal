@@ -32,14 +32,7 @@ func appearanceWindow(t *testing.T, path string) *window {
 // press clicks the control with id and arg, then lays the page out again.
 func press(t *testing.T, win *window, id string, arg int) {
 	t.Helper()
-	for _, c := range controlsOf(win, id) {
-		if c.arg == arg {
-			win.settingsPointer(pressAt(center(c.rect)))
-			win.drawSettings(pageContext(800, 600), pageRect)
-			return
-		}
-	}
-	t.Fatalf("no %s control with arg %d in %+v", id, arg, win.set.controls)
+	pressAny(t, win, id, arg)
 }
 
 func themeIndex(t *testing.T, key string) int {
@@ -65,9 +58,9 @@ func TestAppearanceRows(t *testing.T) {
 	all := strings.Join(win.set.texts, "|")
 	for _, want := range []string{
 		"Theme", "Midnight", "Sumi", "Tide", "Washi", "Sakura",
-		"Font size", "JetBrains Mono, bundled", "14",
+		"Font size", "JetBrains Mono, with Japanese and symbol fallback.", "14",
 		"Line spacing", "Tight", "Normal", "Roomy",
-		"Cursor", "Block", "Bar", "Underline",
+		"CURSOR", "Shape", "Block", "Bar", "Underline",
 		"Blinking cursor", "Off keeps idle CPU at zero",
 	} {
 		if !slices.Contains(win.set.texts, want) {
@@ -170,7 +163,7 @@ func TestFontStepperClamps(t *testing.T) {
 			t.Fatalf("stepper does not show %v: %q", c.from, win.set.texts)
 		}
 		end := controlsOf(win, "font")[c.end]
-		win.settingsPointer(pressAt(center(end.rect)))
+		pressAny(t, win, "font", end.arg)
 		if win.opt.Config.FontSize != float32(c.got) {
 			t.Fatalf("from %v: font size %v, want %d", c.from, win.opt.Config.FontSize, c.got)
 		}

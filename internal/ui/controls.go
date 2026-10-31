@@ -50,6 +50,7 @@ type ctrl struct {
 	arg             int  // button, swatch, color
 	dead            bool // button: drawn dim and does nothing (Save while the draft is invalid)
 	ghost           bool // button: an outline only, for quiet actions
+	cursorChips     bool // segmented: options drawn as cursor-shape chips instead of words
 
 	// Text field: val is its value, placed in the editor when the field first shows
 	// and again whenever the row passes a different one; set gets every edit.
@@ -174,6 +175,9 @@ func (p *page) toggle(k ctrl) image.Point {
 }
 
 func (p *page) segmented(k ctrl) image.Point {
+	if k.cursorChips {
+		return p.cursorChips(k)
+	}
 	gtx, ops := p.gtx, p.gtx.Ops
 	padX, in, h := gtx.Dp(12), gtx.Dp(3), gtx.Dp(32)
 	type opt struct {
@@ -236,27 +240,48 @@ func (p *page) stepper(k ctrl) image.Point {
 	return outer.Size()
 }
 
-// swatch draws a theme in its own colors: its name, five sample colors and its accent.
+// swatch draws a theme as a card: a small terminal in its own colors, then
+// its name and a radio dot; the theme in use gets the accent ring.
 func (p *page) swatch(k ctrl, w int) image.Point {
-	gtx, ops, t := p.gtx, p.gtx.Ops, k.theme
-	pad, chip, gap := gtx.Dp(8), gtx.Dp(12), gtx.Dp(3)
-	call, size := p.text(t.Name, 11, t.Term.FG)
-	r := image.Rect(0, 0, w, pad+size.Y+gtx.Dp(6)+chip+pad)
-	paint.FillShape(ops, t.Term.BG, clip.UniformRRect(r, gtx.Dp(8)).Op(ops))
-	if k.current {
-		paint.FillShape(ops, p.col.accent, clip.Stroke{Path: clip.UniformRRect(r, gtx.Dp(8)).Path(ops), Width: float32(gtx.Dp(2))}.Op())
-	} else {
-		stroke(ops, r, gtx.Dp(8), t.UI.Border)
+	gtx, ops, t, col := p.gtx, p.gtx.Ops, k.theme, p.col
+	pad := gtx.Dp(8)
+	shotH := gtx.Dp(62)
+	shot := image.Rect(pad, pad, w-pad, pad+shotH)
+	paint.FillShape(ops, t.Term.BG, clip.UniformRRect(shot, gtx.Dp(6)).Op(ops))
+	lines := [][]any{
+		{t.UI.Accent, "~/todo-api ", t.Term.ANSI[2], "main"},
+		{t.Term.FG, "> make"},
+		{t.Term.FG, "ok api 0.21s"},
+		{t.Term.ANSI[3], "warn ", t.Term.FG, "1 left"},
 	}
-	place(ops, call, image.Pt(pad, pad))
-	colors := []color.NRGBA{t.Term.ANSI[1], t.Term.ANSI[2], t.Term.ANSI[3], t.Term.ANSI[4], t.Term.ANSI[5], t.UI.Accent}
-	x, y := pad, pad+size.Y+gtx.Dp(6)
-	for _, c := range colors {
-		if x+chip > w-pad {
-			break
+	ly := shot.Min.Y + gtx.Dp(6)
+	for _, l := range lines {
+		x, h := shot.Min.X+gtx.Dp(7), 0
+		for i := 0; i+1 < len(l); i += 2 {
+			call, sz := p.c.label(gtx, l[i+1].(string), 8, l[i].(color.NRGBA))
+			if x+sz.X <= shot.Max.X-gtx.Dp(4) {
+				place(ops, call, image.Pt(x, ly))
+			}
+			x += sz.X
+			h = max(h, sz.Y)
 		}
-		paint.FillShape(ops, c, clip.UniformRRect(image.Rect(x, y, x+chip, y+chip), gtx.Dp(3)).Op(ops))
-		x += chip + gap
+		ly += h
+	}
+	nc, ns := p.textW(t.Name, 12.5, col.title, font.SemiBold)
+	nameY := shot.Max.Y + gtx.Dp(8)
+	place(ops, nc, image.Pt(pad+gtx.Dp(2), nameY))
+	d := gtx.Dp(14)
+	dot := image.Rect(w-pad-d, nameY+(ns.Y-d)/2, w-pad, nameY+(ns.Y-d)/2+d)
+	r := image.Rect(0, 0, w, nameY+ns.Y+pad+gtx.Dp(2))
+	if k.current {
+		paint.FillShape(ops, col.accent, clip.Ellipse(dot).Op(ops))
+		in := dot.Inset(gtx.Dp(4))
+		paint.FillShape(ops, color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}, clip.Ellipse(in).Op(ops))
+		paint.FillShape(ops, tint(col.accent, 0x30), clip.Stroke{Path: clip.UniformRRect(r.Inset(-gtx.Dp(2)), gtx.Dp(12)).Path(ops), Width: float32(gtx.Dp(3))}.Op())
+		stroke(ops, r, gtx.Dp(10), col.accent)
+	} else {
+		paint.FillShape(ops, col.line2, clip.Stroke{Path: clip.Ellipse(dot).Path(ops), Width: float32(max(gtx.Dp(1), 1)) * 1.5}.Op())
+		stroke(ops, r, gtx.Dp(10), col.line2)
 	}
 	p.hit(ctlSwatch, r, k.id, k.arg, false)
 	return r.Size()
@@ -450,4 +475,41 @@ func (win *window) fieldKey(gtx layout.Context, f *textField, e key.Event) bool 
 		win.moveFocus(-1)
 	}
 	return false
+}
+
+// cursorChips draws a segmented choice of cursor shapes as chips, each an "a"
+// with the shape after it; the chosen one gets the accent ring.
+func (p *page) cursorChips(k ctrl) image.Point {
+	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
+	w, h, gap := gtx.Dp(46), gtx.Dp(34), gtx.Dp(8)
+	x := 0
+	for i, o := range k.options {
+		r := image.Rect(x, 0, x+w, h)
+		radius := gtx.Dp(8)
+		paint.FillShape(ops, col.nav, clip.UniformRRect(r, radius).Op(ops))
+		if i == k.selected {
+			paint.FillShape(ops, tint(col.accent, 0x30), clip.Stroke{Path: clip.UniformRRect(r.Inset(-gtx.Dp(2)), radius+gtx.Dp(2)).Path(ops), Width: float32(gtx.Dp(3))}.Op())
+			stroke(ops, r, radius, col.accent)
+		} else {
+			stroke(ops, r, radius, col.line2)
+		}
+		ac, as := p.mono("a", 12, col.title)
+		p.st.texts = append(p.st.texts, o)
+		cw, ch := gtx.Dp(7), gtx.Dp(14)
+		total := as.X + gtx.Dp(1) + cw
+		ax := r.Min.X + (w-total)/2
+		place(ops, ac, image.Pt(ax, (h-as.Y)/2))
+		cx, cy := ax+as.X+gtx.Dp(1), (h-ch)/2
+		cur := image.Rect(cx, cy, cx+cw, cy+ch)
+		switch i {
+		case 1:
+			cur.Max.X = cx + max(gtx.Dp(2), 1)
+		case 2:
+			cur.Min.Y = cur.Max.Y - max(gtx.Dp(2), 1)
+		}
+		paint.FillShape(ops, col.accent, clip.Rect(cur).Op())
+		p.hit(ctlSegmented, r, k.id, i, false)
+		x += w + gap
+	}
+	return image.Pt(x-gap, h)
 }
