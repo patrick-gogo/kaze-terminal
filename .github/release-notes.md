@@ -1,3 +1,11 @@
+## What’s new in Kaze 0.13
+
+- **Agents settings:** Claude Code and Codex have separate setup checks, with shared alert controls and Claude-only usage.
+- **Codex session awareness:** hooks report needs you, running, done and interrupts. Rows and the palette identify the agent and support Codex slash commands and `$skill` names.
+- **Codex setup with a preview:** Fix preserves other hooks, backs up existing hooks.json, and checks for edits made while the preview is open. Inline hooks are read to avoid duplicate handlers. Codex’s config.toml and notify command are left unchanged.
+- **After Codex Fix:** open Codex and run `/hooks` to review and trust Kaze’s hooks. Kaze does not grant hook trust or make approval decisions. Windows builds are included; Windows hook execution still needs a manual check.
+- **Site refresh:** native Kaze 0.12 captures, an Appearance gallery option, and a mobile layout fix.
+
 ## Download
 
 | | File |
