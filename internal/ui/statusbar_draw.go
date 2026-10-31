@@ -145,7 +145,7 @@ func (win *window) drawStatus(gtx layout.Context, y int, now time.Time) {
 			} else {
 				paint.FillShape(ops, col, runningRing(gtx, dot.Inset(-gtx.Dp(1))))
 			}
-			text(dot.Max.X+gap/2, agentsPill(m, l.Compact.Agents), false, col)
+			text(dot.Max.X+gap, agentsPill(m, l.Compact.Agents), false, col)
 		case grpServers:
 			dots := m.Servers
 			if l.Compact.AggregateServers {

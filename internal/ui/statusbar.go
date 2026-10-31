@@ -172,7 +172,7 @@ func statusPlace(m statusModel, width int, measure func(s string, mono bool) int
 		right = append(right, item{grpUpdate, 2*ip + w, false})
 	}
 	if m.Agents > 0 && !f.noAgents {
-		right = append(right, item{grpAgents, 2*ip + 2*d.PillPad + d.Dot + gap/2 + measure(agentsPill(m, f.compactPills), false), true})
+		right = append(right, item{grpAgents, 2*ip + 2*d.PillPad + d.Dot + gap + measure(agentsPill(m, f.compactPills), false), true}) // the ring is drawn a little wider than the dot
 	}
 	if len(m.Servers) > 0 && !f.noServers {
 		n := len(m.Servers)
