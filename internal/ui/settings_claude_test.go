@@ -46,10 +46,10 @@ func newClaudeFixture(t *testing.T, statusCmd string, dropStop bool) claudeFixtu
 			"Stop":             stop,
 			"UserPromptSubmit": []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify prompt", "timeout": 3}}}},
 			"Notification":     []any{map[string]any{"matcher": claudesetup.NeedsMatcher, "hooks": []any{map[string]any{"type": "command", "command": q + "notify needs", "timeout": 3}}}},
-	
-			"SubagentStart":    []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify agent-start"}}}},
-			"SubagentStop":     []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify agent-stop"}}}},
-			"PreToolUse":       []any{map[string]any{"matcher": "*", "hooks": []any{map[string]any{"type": "command", "command": q + "notify tool"}}}},
+
+			"SubagentStart": []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify agent-start"}}}},
+			"SubagentStop":  []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify agent-stop"}}}},
+			"PreToolUse":    []any{map[string]any{"matcher": "*", "hooks": []any{map[string]any{"type": "command", "command": q + "notify tool"}}}},
 		},
 		"statusLine": map[string]any{"type": "command", "command": statusCmd},
 	}
