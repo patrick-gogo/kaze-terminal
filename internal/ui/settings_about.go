@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"io"
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"gioui.org/io/clipboard"
 	"gioui.org/op"
@@ -28,27 +30,76 @@ func aboutSection() settingsSection {
 	return settingsSection{title: "About", draw: drawAbout, act: aboutAct}
 }
 
-func aboutAct(win *window, id string, _ int) {
+func aboutAct(win *window, id string, arg int) {
 	switch id {
 	case "about_copy":
 		win.set.aboutCopy = "kaze " + version.Number + "\n" + win.set.build + "\n" + runtime.GOOS + "/" + runtime.GOARCH
 	case "about_github":
-		if err := openAboutRepository(); err != nil {
+		if err := openURL(aboutRepository); err != nil {
 			win.note("Could not open GitHub: " + err.Error())
+		}
+	case "check_updates":
+		win.opt.Config.CheckUpdates = arg == 1
+		win.upd.next = time.Time{} // turning it back on checks soon, not a day later
+		win.saveSetting("check_updates", arg == 1)
+	case "upd_check":
+		win.checkUpdates()
+	case "upd_install":
+		win.upd.confirm = true
+	case "upd_cancel":
+		win.upd.confirm = false
+	case "upd_confirm":
+		win.installUpdate()
+	case "upd_page":
+		if err := win.upd.open(win.upd.rel.Page); err != nil {
+			win.note("Could not open the release page: " + err.Error())
 		}
 	}
 }
 
-// Start the platform URL handler without blocking the UI while the browser runs.
-func openAboutRepository() error {
+// aboutUpdate is the About page's update block: a status line, its buttons
+// and any reason the update can't install in place.
+func (win *window) aboutUpdate() (status string, accent bool, buttons []ctrl, reason string) {
+	u := &win.upd
+	switch {
+	case !win.opt.Config.CheckUpdates:
+		return "Update checks are off", false, nil, ""
+	case u.busy != "":
+		return u.busy, false, nil, ""
+	case u.confirm:
+		sessions := fmt.Sprintf("your %d sessions", len(win.mgr.Tabs()))
+		if len(win.mgr.Tabs()) == 1 {
+			sessions = "your session"
+		}
+		return "Kaze will close " + sessions + " and restart in " + u.rel.Version + ".", false,
+			[]ctrl{{kind: ctlButton, id: "upd_confirm", text: "Update now", strong: true}, {kind: ctlButton, id: "upd_cancel", text: "Cancel"}}, ""
+	case u.newer:
+		status = "Kaze " + u.rel.Version + " is available"
+		if ok, why := win.updInstallable(); !ok {
+			return status, true, []ctrl{{kind: ctlButton, id: "upd_page", text: "Download"}}, "Can't update in place: " + why
+		}
+		buttons = []ctrl{{kind: ctlButton, id: "upd_install", text: "Update and restart", strong: true}, {kind: ctlButton, id: "upd_page", text: "What's new"}}
+		return status, true, buttons, u.err
+	case u.err != "":
+		status = u.err
+	case u.checking:
+		status = "Checking for updates…"
+	case u.checked:
+		status = "Up to date"
+	}
+	return status, false, []ctrl{{kind: ctlButton, id: "upd_check", text: "Check now"}}, ""
+}
+
+// openURL starts the platform URL handler without blocking the UI while the browser runs.
+func openURL(url string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", aboutRepository)
+		cmd = exec.Command("open", url)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", aboutRepository)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	default:
-		cmd = exec.Command("xdg-open", aboutRepository)
+		cmd = exec.Command("xdg-open", url)
 	}
 	if err := cmd.Start(); err != nil {
 		return err
@@ -102,6 +153,55 @@ func drawAbout(p *page, r image.Rectangle, win *window) int {
 	y += gtx.Dp(12)
 	text("MIT License", 11)
 	y += gtx.Dp(20)
+	status, accent, upButtons, reason := win.aboutUpdate()
+	if status != "" {
+		col := p.col.muted
+		if accent {
+			col = p.col.accent
+		}
+		textIn(status, 12, col)
+		y += gtx.Dp(8)
+	}
+	if len(upButtons) > 0 {
+		type laid struct {
+			call     op.CallOp
+			size     image.Point
+			from, to int
+		}
+		var row []laid
+		w, gap := 0, gtx.Dp(8)
+		for _, b := range upButtons {
+			call, sz, from := p.ctrl(b, 0)
+			row = append(row, laid{call, sz, from, len(p.st.controls)})
+			w += sz.X + gap
+		}
+		x := r.Min.X + (r.Dx()-(w-gap))/2
+		h := 0
+		for _, l := range row {
+			at := image.Pt(x, y)
+			p.st.shift(l.from, l.to, at)
+			place(ops, l.call, at)
+			x += l.size.X + gap
+			h = max(h, l.size.Y)
+		}
+		y += h + gtx.Dp(8)
+	}
+	if reason != "" {
+		textIn(reason, 11, p.col.muted)
+		y += gtx.Dp(8)
+	}
+	{
+		lc, ls := p.text("Check for updates", 12, p.col.fg)
+		call, sz, from := p.ctrl(ctrl{kind: ctlToggle, id: "check_updates", on: win.opt.Config.CheckUpdates}, 0)
+		gap := gtx.Dp(10)
+		x := r.Min.X + (r.Dx()-(ls.X+gap+sz.X))/2
+		h := max(ls.Y, sz.Y)
+		place(ops, lc, image.Pt(x, y+(h-ls.Y)/2))
+		at := image.Pt(x+ls.X+gap, y+(h-sz.Y)/2)
+		p.st.shift(from, len(p.st.controls), at)
+		place(ops, call, at)
+		y += h + gtx.Dp(20)
+	}
 	for _, button := range []ctrl{{kind: ctlButton, id: "about_copy", text: "Copy build info"}, {kind: ctlButton, id: "about_github", text: "View on GitHub"}} {
 		call, sz, from := p.ctrl(button, 0)
 		at := image.Pt(r.Min.X+(r.Dx()-sz.X)/2, y)
