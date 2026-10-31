@@ -78,6 +78,7 @@ func (win *window) sideIn() sideInput {
 		Agent:    win.agentOf,
 		Name:     func(id tabs.TabID) string { return win.names[id] },
 		Lines:    win.linesOf,
+		Agents:   win.sideAgents,
 	}
 	if win.ui != nil {
 		in.Clean = win.ui.fit
@@ -202,6 +203,8 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		}
 		s.st.buttons = !win.custom
 		s.st.nextKey = win.nextWaitingKey()
+		_, waiting, _ := win.subs.Board()
+		s.st.agentsBadge, s.st.agentsWaiting = win.subs.Active(0), len(waiting) > 0 || len(win.subs.SessionWaits()) > 0
 		rec := op.Record(ops)
 		h := win.ui.layoutSidebar(sg, m, s.st, r.Size())
 		call := rec.Stop()
@@ -237,7 +240,7 @@ func revealScroll(gtx layout.Context, m sideModel, st sideState, h sideHits) (in
 			if r.ID == st.shown && !found {
 				top, found = y, true
 			}
-			y += rH
+			y += rowSpan(gtx, r)
 		}
 	}
 	for _, g := range m.Groups {
@@ -540,6 +543,11 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 			win.toggleScratch()
 		}
 		return
+	case p.In(h.agentsBtn):
+		if primary {
+			win.toggleBoard()
+		}
+		return
 	case p.In(h.settings):
 		switch {
 		case middle, primary && p.In(h.settingsClose):
@@ -560,6 +568,16 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 		return
 	case p.In(h.filter):
 		return // the frame gives the field the keyboard
+	}
+	for _, a := range h.agents {
+		if primary && p.In(a.rect) {
+			if a.more {
+				win.openBoard(a.tab)
+			} else {
+				win.openAgentPane(a.tab, a.key)
+			}
+			return
+		}
 	}
 	if r, ok := h.lineAt(p); ok {
 		switch {

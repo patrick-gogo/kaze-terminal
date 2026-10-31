@@ -70,6 +70,8 @@ A small benchmark harness that measures these is part of the work. Warp is measu
 
 ### 6.3 Tabs and subagent child tabs
 
+> **Replaced (2026-10-31)** by the [subagents design](2026-10-31-kaze-subagents-design.md): a sidebar tree, a live pane and an agents board, fed by Claude Code hooks instead of watching transcript files. The text below is kept for history.
+
 - Normal tabs for Patrick's 3 to 4 concurrent sessions. Patrick flips between them; he does not normally need them side by side.
 - When a Claude Code session in a tab spawns subagents, each subagent appears as a **child tab** attached right after its lead's tab (mockup option B, chosen by Patrick).
 - Clicking a child tab opens that subagent's transcript **split beside its lead**, updating live.

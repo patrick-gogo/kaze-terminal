@@ -17,15 +17,19 @@ type sideRow struct {
 	Claude                bool // Claude Code has reported from this tab
 	Add, Del              int  // lines added and removed in the folder's repo
 	Mark                  mark
+	Agents                []sideAgent // its subagents, as the tree shows them
+	MoreAgents            int         // subagents past the tree's limit
+	AgentCount            int         // running and waiting, for the chip
 }
 
 // sideGroup is one repo's sessions. Rows is filtered; Count is not.
 type sideGroup struct {
-	Key, Name string
-	Rows      []sideRow
-	Count     int  // all members, before the filter
-	Waiting   int  // members with markNeeds
-	Folded    bool // as drawn: false while a filter is active
+	Key, Name  string
+	Rows       []sideRow
+	Count      int  // all members, before the filter
+	Waiting    int  // members with markNeeds
+	AgentCount int  // running and waiting subagents of every member
+	Folded     bool // as drawn: false while a filter is active
 }
 
 // sideMember is one workspace run member.
@@ -62,10 +66,11 @@ type sideInput struct {
 	Filter   string
 	Home     string
 	DefTitle string
-	Clean    func(string) string             // drops runes the fonts lack before a title is shortened; nil keeps them
-	Agent    func(tabs.TabID) agentState     // nil: no tab runs an agent
-	Name     func(tabs.TabID) string         // the owner's name for a row; nil or "" for none
-	Lines    func(tabs.TabID) (add, del int) // nil: no counts
+	Clean    func(string) string                                    // drops runes the fonts lack before a title is shortened; nil keeps them
+	Agent    func(tabs.TabID) agentState                            // nil: no tab runs an agent
+	Name     func(tabs.TabID) string                                // the owner's name for a row; nil or "" for none
+	Lines    func(tabs.TabID) (add, del int)                        // nil: no counts
+	Agents   func(tabs.TabID) (shown []sideAgent, more, active int) // nil: no subagents
 }
 
 // branchPrefixes are the leading segments dropped from a branch name.
@@ -86,6 +91,11 @@ func (r sideRow) matches(lowerFilter string) bool {
 	}
 	for _, s := range []string{r.Title, r.Command, r.Folder, r.Branch, r.Agent} {
 		if strings.Contains(strings.ToLower(s), lowerFilter) {
+			return true
+		}
+	}
+	for _, a := range r.Agents {
+		if strings.Contains(strings.ToLower(a.Type), lowerFilter) || strings.Contains(strings.ToLower(a.Task), lowerFilter) {
 			return true
 		}
 	}
@@ -123,6 +133,9 @@ func buildSide(in sideInput) sideModel {
 		if in.Lines != nil {
 			row.Add, row.Del = in.Lines(t.ID)
 		}
+		if in.Agents != nil {
+			row.Agents, row.MoreAgents, row.AgentCount = in.Agents(t.ID)
+		}
 		if loc.cwd == "" || loc.repo == "" {
 			loose = append(loose, row)
 			continue
@@ -142,6 +155,7 @@ func buildSide(in sideInput) sideModel {
 			if r.Mark == markNeeds {
 				g.Waiting++
 			}
+			g.AgentCount += r.AgentCount
 			if r.matches(filter) {
 				g.Rows = append(g.Rows, r)
 			}
