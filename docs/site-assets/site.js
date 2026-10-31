@@ -38,17 +38,25 @@ document.querySelectorAll('[data-copy]').forEach(button => {
 });
 
 const captures = {
-  terminal: { alt: 'Kaze 0.6 running on macOS with a four-tab workspace menu and real Go test output', caption: 'Workspace tabs on macOS' },
-  workspaces: { alt: 'The real Kaze Workspaces settings page with a saved four-tab demo recipe and startup selection', caption: 'Workspaces settings on macOS' },
-  about: { alt: 'The real Kaze About page showing the logo, version 0.6, build details, and copy button', caption: 'About Kaze 0.6 on macOS' }
+  sessions: { alt: 'Kaze on macOS: a sidebar of sessions marked needs you, running and done, with an API server\'s log floating over the todo-api session', caption: 'The session sidebar with a server floating over a session' },
+  palette: { alt: 'The Kaze palette listing a waiting session, every session and server, and Claude Code skills', caption: 'The palette, opened with Cmd+K' },
+  scratch: { alt: 'A scratch shell floating over the todo-api session, showing git status and git diff', caption: 'A scratch shell in the session\'s folder' },
+  workspaces: { alt: 'The Kaze Workspaces settings page with a running three-tab demo workspace', caption: 'Workspaces settings on macOS' },
+  about: { alt: 'The Kaze About page showing the logo, version 0.10 and build details', caption: 'About Kaze 0.10 on macOS' }
 };
+function showShot(shot) {
+  const image = document.getElementById('product-shot');
+  image.src = `site-assets/kaze-${shot}.png`;
+  image.alt = captures[shot].alt;
+  document.getElementById('capture-description').textContent = captures[shot].caption;
+  document.querySelectorAll('[data-shot]').forEach(item => item.setAttribute('aria-pressed', String(item.dataset.shot === shot)));
+}
 document.querySelectorAll('[data-shot]').forEach(button => {
+  button.addEventListener('click', () => showShot(button.dataset.shot));
+});
+document.querySelectorAll('[data-show]').forEach(button => {
   button.addEventListener('click', () => {
-    const shot = button.dataset.shot;
-    const image = document.getElementById('product-shot');
-    image.src = `site-assets/kaze-${shot}.png`;
-    image.alt = captures[shot].alt;
-    document.getElementById('capture-description').textContent = captures[shot].caption;
-    document.querySelectorAll('[data-shot]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    showShot(button.dataset.show);
+    document.getElementById('product').scrollIntoView({ block: 'start' });
   });
 });
