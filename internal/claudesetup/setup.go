@@ -31,9 +31,10 @@ type Entry struct {
 	Exe, Command string
 }
 
-// Report is the check of all four entries.
+// Report is the check of all seven entries.
 type Report struct {
 	Stop, Needs, Prompt, StatusLine Entry
+	AgentStart, AgentStop, Tools    Entry // the subagent hooks
 }
 
 // NeedsMatcher is the Notification matcher for the alerts that mean "Claude needs you".
@@ -44,6 +45,10 @@ const (
 	argsNeeds  = "notify needs"
 	argsPrompt = "notify prompt"
 	argsStatus = "statusline"
+
+	argsAgentStart = "notify agent-start"
+	argsAgentStop  = "notify agent-stop"
+	argsTool       = "notify tool"
 )
 
 // Inspect checks the settings; exists reports whether an exe path is a file.
@@ -51,13 +56,17 @@ func Inspect(settings []byte, exists func(string) bool) Report {
 	root, err := load(settings)
 	if err != nil {
 		u := Entry{State: Unreadable}
-		return Report{Stop: u, Needs: u, Prompt: u, StatusLine: u}
+		return Report{Stop: u, Needs: u, Prompt: u, StatusLine: u, AgentStart: u, AgentStop: u, Tools: u}
 	}
 	hooks := root.Get("hooks")
 	r := Report{
 		Stop:   findHook(hooks.Get("Stop"), argsDone, exists),
 		Needs:  findHook(hooks.Get("Notification"), argsNeeds, exists),
 		Prompt: findHook(hooks.Get("UserPromptSubmit"), argsPrompt, exists),
+
+		AgentStart: findHook(hooks.Get("SubagentStart"), argsAgentStart, exists),
+		AgentStop:  findHook(hooks.Get("SubagentStop"), argsAgentStop, exists),
+		Tools:      findHook(hooks.Get("PreToolUse"), argsTool, exists),
 	}
 	r.StatusLine = Entry{State: Missing}
 	if s := root.Get("statusLine"); s != nil {
@@ -203,6 +212,9 @@ func Fix(settings []byte, r Report, exe string) (out []byte, summary []string, e
 		{r.Stop, "Stop", argsDone, "", "the Stop hook (alerts when Claude is done)"},
 		{r.Needs, "Notification", argsNeeds, NeedsMatcher, "the Notification hook (alerts when Claude needs you)"},
 		{r.Prompt, "UserPromptSubmit", argsPrompt, "", "the prompt hook (shows which command each session runs)"},
+		{r.AgentStart, "SubagentStart", argsAgentStart, "", "the subagent start hook (shows subagents)"},
+		{r.AgentStop, "SubagentStop", argsAgentStop, "", "the subagent stop hook (subagent reports)"},
+		{r.Tools, "PreToolUse", argsTool, "*", "the tool hook (each subagent's steps)"},
 	} {
 		switch h.e.State {
 		case Missing:

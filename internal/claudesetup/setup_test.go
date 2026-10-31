@@ -54,12 +54,24 @@ func ownerWithPrompt(stop, needs, status string, noPrompt bool) string {
     "Stop": [` + stopGroups + `],
     "Notification": [` + notif + `],
     "UserPromptSubmit": [` + promptGroups + `],
-    "PreToolUse": [{"matcher": "*", "hooks": [` + node + `]}],
-    "PostToolUse": [{"matcher": "*", "hooks": [` + node + `]}]
+    "PreToolUse": [{"matcher": "*", "hooks": [` + node + `]}` + subagentTool + `],
+    "PostToolUse": [{"matcher": "*", "hooks": [` + node + `]}]` + subagentStartStop + `
   },
   "cleanupPeriodDays": 99999,
   "alwaysThinkingEnabled": true` + statusLine + `
 }`
+}
+
+// The kaze subagent hooks in the owner's shape; noSubagentHooks takes them out.
+var (
+	subagentTool      = `, {"matcher": "*", "hooks": [{"type": "command", "command": ` + jsonString(q(kazeExe)+" notify tool") + `}]}`
+	subagentStartStop = `,
+    "SubagentStart": [{"hooks": [{"type": "command", "command": ` + jsonString(q(kazeExe)+" notify agent-start") + `}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": ` + jsonString(q(kazeExe)+" notify agent-stop") + `}]}]`
+)
+
+func noSubagentHooks(s string) string {
+	return strings.Replace(strings.Replace(s, subagentTool, "", 1), subagentStartStop, "", 1)
 }
 
 func jsonString(s string) string {
@@ -271,7 +283,7 @@ func TestEmptyObjectGetsEverything(t *testing.T) {
 		t.Fatalf("report %+v", r)
 	}
 	out, summary, err := Fix([]byte("{}"), r, newExe)
-	if err != nil || len(summary) != 4 {
+	if err != nil || len(summary) != 7 {
 		t.Fatalf("summary %q err %v", summary, err)
 	}
 	if r2 := Inspect(out, onlyKaze); r2.Stop.State != OK || r2.Needs.State != OK || r2.StatusLine.State != OK {
@@ -487,5 +499,60 @@ func TestBrokenPromptHookIsRepointed(t *testing.T) {
 	}
 	if r2 := Inspect(out, func(p string) bool { return p == newExe }); r2.Prompt.State != OK || r2.Prompt.Exe != newExe {
 		t.Fatalf("after Fix: %+v", r2.Prompt)
+	}
+}
+
+func TestInspectSubagentHooks(t *testing.T) {
+	r := Inspect([]byte(noSubagentHooks(ownerSettings(stopCmd, needsCmd, statusCmd))), onlyKaze)
+	if r.AgentStart.State != Missing || r.AgentStop.State != Missing || r.Tools.State != Missing {
+		t.Fatalf("without: %+v", r)
+	}
+	s := ownerSettings(stopCmd, needsCmd, statusCmd)
+	r = Inspect([]byte(s), onlyKaze)
+	if r.AgentStart.State != OK || r.AgentStop.State != OK || r.Tools.State != OK {
+		t.Fatalf("with: %+v\n%s", r, s)
+	}
+	r = Inspect([]byte(s), func(string) bool { return false })
+	if r.AgentStart.State != Broken || r.Tools.State != Broken {
+		t.Fatalf("gone exe: %+v", r)
+	}
+	if u := Inspect([]byte("nope"), onlyKaze); u.AgentStart.State != Unreadable || u.AgentStop.State != Unreadable || u.Tools.State != Unreadable {
+		t.Fatalf("unreadable: %+v", u)
+	}
+}
+
+func TestFixAddsSubagentHooks(t *testing.T) {
+	r := Inspect([]byte("{}"), onlyKaze)
+	out, summary, err := Fix([]byte("{}"), r, newExe)
+	if err != nil || len(summary) != 7 {
+		t.Fatalf("summary %q err %v", summary, err)
+	}
+	for _, want := range []string{"Add the subagent start hook (shows subagents)", "Add the subagent stop hook (subagent reports)", "Add the tool hook (each subagent's steps)"} {
+		if !strings.Contains(strings.Join(summary, "\n"), want) {
+			t.Errorf("summary lacks %q: %q", want, summary)
+		}
+	}
+	pre := hooksOf(t, out, "PreToolUse")[0].(map[string]any)
+	if pre["matcher"] != "*" {
+		t.Fatalf("PreToolUse matcher %v", pre["matcher"])
+	}
+	if r2 := Inspect(out, onlyKaze); r2.AgentStart.State != OK || r2.AgentStop.State != OK || r2.Tools.State != OK {
+		t.Fatalf("after Fix %+v", r2)
+	}
+}
+
+func TestFixKeepsOtherPreToolUse(t *testing.T) {
+	in := noSubagentHooks(ownerSettings(stopCmd, needsCmd, statusCmd))
+	out, _, err := Fix([]byte(in), Inspect([]byte(in), onlyKaze), newExe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pre := hooksOf(t, out, "PreToolUse")
+	if len(pre) != 2 {
+		t.Fatalf("PreToolUse groups %d", len(pre))
+	}
+	first, _ := json.Marshal(pre[0])
+	if !strings.Contains(string(first), "agent-flow") || strings.Contains(string(first), "notify tool") {
+		t.Fatalf("the owner's group changed: %s", first)
 	}
 }

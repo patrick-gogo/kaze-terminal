@@ -46,6 +46,10 @@ func newClaudeFixture(t *testing.T, statusCmd string, dropStop bool) claudeFixtu
 			"Stop":             stop,
 			"UserPromptSubmit": []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify prompt", "timeout": 3}}}},
 			"Notification":     []any{map[string]any{"matcher": claudesetup.NeedsMatcher, "hooks": []any{map[string]any{"type": "command", "command": q + "notify needs", "timeout": 3}}}},
+	
+			"SubagentStart":    []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify agent-start"}}}},
+			"SubagentStop":     []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify agent-stop"}}}},
+			"PreToolUse":       []any{map[string]any{"matcher": "*", "hooks": []any{map[string]any{"type": "command", "command": q + "notify tool"}}}},
 		},
 		"statusLine": map[string]any{"type": "command", "command": statusCmd},
 	}
@@ -461,5 +465,20 @@ func TestClaudeSectionShowsThePromptHook(t *testing.T) {
 	}
 	if len(controlsOf(win, "claude_fix")) != 1 {
 		t.Fatal("Fix not shown when only the prompt hook is missing")
+	}
+}
+
+func TestSetupRowsListSubagentHooks(t *testing.T) {
+	f := newClaudeFixture(t, "", false)
+	win := claudeWindow(t, f, 800, 900)
+	short := filepath.Join("kaze-app", "kaze.exe")
+	for _, want := range []string{
+		"Subagents start", "SubagentStart hook · " + short,
+		"Subagent reports", "SubagentStop hook · " + short,
+		"Subagent steps", "PreToolUse hook · " + short,
+	} {
+		if !pageHas(win, want) {
+			t.Errorf("no %q in %q", want, win.set.texts)
+		}
 	}
 }
