@@ -45,7 +45,7 @@ const captures = {
   scratch: { alt: 'A scratch shell floating over the todo-api session, showing git status and git diff', caption: 'A scratch shell in the session\'s folder' },
   workspaces: { alt: 'The Kaze Workspaces settings page with a card for the running three-member Todo API demo workspace', caption: 'The workspace card with API, Web and Health running' },
   settings: { alt: 'Kaze Appearance settings with five theme cards, Midnight selected, and a live terminal preview', caption: 'Appearance settings with theme cards and a live preview' },
-  about: { alt: 'The Kaze About page showing the logo, version 0.12 and platform, chip and license details', caption: 'About Kaze 0.12 on macOS' }
+  about: { alt: 'The Kaze About page showing the logo, version 0.15 and platform, chip and license details', caption: 'About Kaze 0.15 on macOS' }
 };
 function showShot(shot) {
   const image = document.getElementById('product-shot');

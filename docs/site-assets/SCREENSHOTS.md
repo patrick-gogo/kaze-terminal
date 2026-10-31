@@ -1,8 +1,7 @@
 # Product captures
 
-> **Needs retaking:** since the window chrome redesign (Kaze 0.15), every capture below shows the old title bar and status bar. Retake them all with the same demo home and input-blocked overlay.
 
-Native macOS window captures (2200 × 1496 px, Retina) taken October 31, 2026, from Kaze 0.12 (main build 044336a).
+Native macOS window captures (2200 × 1440 px, Retina) retaken November 1, 2026, from Kaze 0.15 with the redesigned title bar and status bar. Kaze draws its own title bar now, so the captures have no system title bar above it.
 
 - `kaze-sessions.png`: the session sidebar with three demo repos (one a git worktree), the "Todo API"
   workspace running, and its API member floating over the `todo-api` session.
@@ -12,7 +11,7 @@ Native macOS window captures (2200 × 1496 px, Retina) taken October 31, 2026, f
   `git diff --stat`.
 - `kaze-workspaces.png`: the redesigned Workspaces section of Settings with the Todo API workspace card
   and its API, Web and Health members running.
-- `kaze-about.png`: the redesigned About section displaying the shipped logo and byline, version 0.12,
+- `kaze-about.png`: the redesigned About section displaying the shipped logo and byline, version 0.15,
   platform, chip and license facts.
 - `kaze-settings.png`: Appearance settings with five theme cards, Midnight selected, and the live
   terminal preview.
