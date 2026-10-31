@@ -14,15 +14,15 @@
 <header class="site-header">
   <div class="header-inner wrap">
     <a class="brand" href="#main" aria-label="Kaze home"><img src="site-assets/kaze-icon.svg" alt="" width="32" height="32"><span>kaze</span></a>
-    <nav aria-label="Main navigation"><a href="#sessions">Features</a><a href="#workspaces">Workspaces</a><a href="#install">Build</a><a class="source-link" href="https://github.com/patrick-gogo/kaze-terminal">GitHub <span aria-hidden="true">↗</span></a></nav>
+    <nav aria-label="Main navigation"><a href="#sessions">Features</a><a href="#workspaces">Workspaces</a><a href="#install">Download</a><a class="source-link" href="https://github.com/patrick-gogo/kaze-terminal">GitHub <span aria-hidden="true">↗</span></a></nav>
   </div>
 </header>
 <main id="main">
   <section class="hero wrap" aria-labelledby="hero-title">
     <h1 id="hero-title">Every Claude session.<br><span>One quiet terminal.</span></h1>
     <p class="hero-copy">See which session needs you, which one is working and which one is done.<br class="desktop-break"> Keep your servers floating close by. Find anything with one key.</p>
-    <div class="hero-actions"><a class="button primary" href="#install" data-platform="mac">Build for macOS <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/patrick-gogo/kaze-terminal">View source <span aria-hidden="true">↗</span></a></div>
-    <p class="platform-note">Also on <a href="#install" data-platform="windows">Windows</a><span aria-hidden="true">/</span>Go + Gio<span aria-hidden="true">/</span>MIT licensed</p>
+    <div class="hero-actions"><a class="button primary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-macOS.zip" data-download="mac">Download for macOS <span aria-hidden="true">↓</span></a><a class="button secondary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-x64.zip" data-download="windows">Download for Windows <span aria-hidden="true">↓</span></a></div>
+    <p class="platform-note">Free and open source<span aria-hidden="true">/</span><a href="#install">First launch and other builds</a><span aria-hidden="true">/</span><a href="https://github.com/patrick-gogo/kaze-terminal">View source</a></p>
     <figure class="product" id="product">
       <div class="product-caption"><div class="capture-switcher" role="group" aria-label="Product screenshots"><button type="button" data-shot="sessions" aria-pressed="true">Sessions</button><button type="button" data-shot="palette" aria-pressed="false">Palette</button><button type="button" data-shot="scratch" aria-pressed="false">Scratch shell</button><button type="button" data-shot="workspaces" aria-pressed="false">Workspaces</button><button type="button" data-shot="about" aria-pressed="false">About</button></div><span id="capture-description" aria-live="polite">The session sidebar with a server floating over a session</span></div>
       <div class="screenshot"><img id="product-shot" src="site-assets/kaze-sessions.png" alt="Kaze on macOS: a sidebar of sessions marked needs you, running and done, with an API server's log floating over the todo-api session" width="2200" height="1496" fetchpriority="high"></div>
@@ -95,14 +95,22 @@
   <section class="engineering wrap" aria-labelledby="engineering-title"><div><h2 id="engineering-title">Quiet, down to the renderer.</h2><p>Kaze redraws the cells that changed and caches its glyphs. When nothing changes, there’s no frame to draw, floating panes included.</p></div><div class="engineering-facts"><span><b>Go + Gio</b>macOS and Windows</span><span><b>Open source</b>Small enough to make your own</span></div></section>
 
   <section class="install wrap" id="install" aria-labelledby="install-title">
-    <div class="install-intro"><h2 id="install-title">Make room for<br><span>your next project.</span></h2><p>Build Kaze from source. You’ll need Go 1.27 or newer; macOS also needs the Xcode Command Line Tools.</p><p class="release-note">Used every day on macOS and Windows. A few Mac touches are still to come.</p><a class="inline-link" href="https://github.com/patrick-gogo/kaze-terminal/issues">Follow development <span aria-hidden="true">↗</span></a></div>
+    <div class="install-intro"><h2 id="install-title">Make room for<br><span>your next project.</span></h2><p>Download Kaze for macOS 13 or newer (Apple Silicon and Intel) or Windows 10 and 11. Or build it from source with Go 1.27 or newer.</p><p class="release-note">Kaze isn’t signed by Apple or Microsoft yet, so the first launch asks you to confirm it once.</p><a class="inline-link" href="https://github.com/patrick-gogo/kaze-terminal/releases">All releases <span aria-hidden="true">↗</span></a></div>
     <div class="installer">
-      <div class="platform-tabs" role="tablist" aria-label="Build platform"><button id="tab-mac" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" tabindex="0">macOS</button><button id="tab-windows" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" tabindex="-1">Windows</button></div>
-      <div class="clone-block"><div class="command-heading"><span>Clone the repository</span><button type="button" data-copy="git clone https://github.com/patrick-gogo/kaze-terminal.git&#10;cd kaze-terminal" aria-label="Copy clone commands">Copy</button></div><pre><code>git clone https://github.com/patrick-gogo/kaze-terminal.git
-cd kaze-terminal</code></pre></div>
-      <div id="panel-mac" role="tabpanel" aria-labelledby="tab-mac"><div class="command-heading"><span>Build and open the app</span><button type="button" data-copy="./tools/package-macos.sh&#10;open dist/Kaze.app" aria-label="Copy macOS build commands">Copy</button></div><pre><code>./tools/package-macos.sh
+      <div class="platform-tabs" role="tablist" aria-label="Platform"><button id="tab-mac" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" tabindex="0">macOS</button><button id="tab-windows" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" tabindex="-1">Windows</button></div>
+      <div id="panel-mac" role="tabpanel" aria-labelledby="tab-mac">
+        <div class="download-block"><a class="button primary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-macOS.zip">Download Kaze-macOS.zip <span aria-hidden="true">↓</span></a>
+        <ol class="first-run"><li>Unzip it and drag <b>Kaze</b> into Applications.</li><li>Open it. macOS says it can’t verify the app: click <b>Done</b>.</li><li>In <b>System Settings › Privacy &amp; Security</b>, click <b>Open Anyway</b> next to Kaze. You only do this once.</li></ol></div>
+        <div class="command-heading"><span>Or build and open it from source</span><button type="button" data-copy="git clone https://github.com/patrick-gogo/kaze-terminal.git&#10;cd kaze-terminal&#10;./tools/package-macos.sh&#10;open dist/Kaze.app" aria-label="Copy macOS build commands">Copy</button></div><pre><code>git clone https://github.com/patrick-gogo/kaze-terminal.git
+cd kaze-terminal
+./tools/package-macos.sh
 open dist/Kaze.app</code></pre><p class="installer-tip">Palette: <kbd>⌘</kbd> <kbd>K</kbd> · Scratch shell: <kbd>Ctrl</kbd> <kbd>`</kbd> · Settings: <kbd>⌘</kbd> <kbd>,</kbd></p></div>
-      <div id="panel-windows" role="tabpanel" aria-labelledby="tab-windows" hidden><div class="command-heading"><span>Build and run in PowerShell</span><button type="button" data-copy='go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze&#10;.\kaze.exe' aria-label="Copy Windows build commands">Copy</button></div><pre><code>go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze
+      <div id="panel-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
+        <div class="download-block"><a class="button primary" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-x64.zip">Download Kaze-Windows-x64.zip <span aria-hidden="true">↓</span></a><a class="arm-link" href="https://github.com/patrick-gogo/kaze-terminal/releases/latest/download/Kaze-Windows-arm64.zip">Windows on ARM</a>
+        <ol class="first-run"><li>Unzip it and run <b>kaze.exe</b>.</li><li>If SmartScreen says “Windows protected your PC”, click <b>More info</b>, then <b>Run anyway</b>.</li><li>If Smart App Control blocks it outright, build from source below.</li></ol></div>
+        <div class="command-heading"><span>Or build and run it from source in PowerShell</span><button type="button" data-copy='git clone https://github.com/patrick-gogo/kaze-terminal.git&#10;cd kaze-terminal&#10;go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze&#10;.\kaze.exe' aria-label="Copy Windows build commands">Copy</button></div><pre><code>git clone https://github.com/patrick-gogo/kaze-terminal.git
+cd kaze-terminal
+go build -ldflags "-H=windowsgui" -o kaze.exe ./cmd/kaze
 .\kaze.exe</code></pre><p class="installer-tip">Palette: <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>K</kbd> · Scratch shell: <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>`</kbd> · Settings: <kbd>Ctrl</kbd> <kbd>,</kbd></p></div>
       <a class="build-docs" href="https://github.com/patrick-gogo/kaze-terminal#build-and-run-from-a-clone">Full build instructions <span aria-hidden="true">↗</span></a>
     </div>

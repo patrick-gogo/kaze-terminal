@@ -52,6 +52,21 @@ Windows needs nothing else; the Windows build uses no cgo.
 
 ## Install
 
+### Download
+
+Get the latest build from [Releases](https://github.com/patrick-gogo/kaze-terminal/releases/latest):
+`Kaze-macOS.zip` (macOS 13 or newer, Apple Silicon and Intel), `Kaze-Windows-x64.zip` or
+`Kaze-Windows-arm64.zip` (Windows 10 and 11).
+
+kaze isn't signed by Apple or Microsoft yet, so the first launch needs one extra step:
+
+- **macOS:** unzip, drag Kaze into Applications and open it. When macOS says it can't verify the
+  app, click Done, then click **Open Anyway** next to Kaze in System Settings > Privacy & Security.
+- **Windows:** unzip and run `kaze.exe`. If SmartScreen warns, click More info, then Run anyway.
+  Smart App Control may block it with no way past; build it from source then.
+
+### With Go
+
 With Go installed, this puts a `kaze` binary in your Go bin folder (`go env GOPATH`, then `bin`):
 
 ```
@@ -627,6 +642,19 @@ replaces any you have.
 opening a window. The settings page shows the version at the bottom.
 
 `kaze --workspace "<name>"` starts kaze with that workspace's tabs (see Workspaces).
+
+## Releases
+
+Pushing a tag `v` + the version in `internal/version` (for example `v0.10`) runs the Release
+workflow (`.github/workflows/release.yml`). It builds the universal Mac app
+(`KAZE_UNIVERSAL=1 ./tools/package-macos.sh`) and the Windows exes for x64 and ARM, then publishes
+them as a GitHub Release with the first-launch notes from `.github/release-notes.md`. A tag that
+doesn't match the version fails before anything is published. Running the workflow by hand from
+the Actions tab builds the files without releasing them.
+
+```
+git tag v0.10 && git push origin v0.10
+```
 
 ## Benchmarks
 
