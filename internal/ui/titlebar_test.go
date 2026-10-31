@@ -14,12 +14,6 @@ import (
 	"gioui.org/unit"
 )
 
-
-
-
-
-
-
 func TestClickFiresOnReleaseInside(t *testing.T) {
 	b := titleAt(1000, false, 248)
 	var s captionState
@@ -60,7 +54,6 @@ func TestMaximizeTogglesWithRealState(t *testing.T) {
 		t.Fatal("the toggle maps to a window action")
 	}
 }
-
 
 func TestPressOnOneButtonReleaseOnAnotherFiresNothing(t *testing.T) {
 	b := titleAt(1000, false, 248)
@@ -161,10 +154,6 @@ func TestLosingFocusClearsCaptionHover(t *testing.T) {
 		t.Fatalf("caption hover %v, sidebar hover %d after the window lost focus", win.caption.hover, win.side.st.hover)
 	}
 }
-
-
-
-
 
 func TestClickingSearchOpensThePalette(t *testing.T) {
 	win, _ := sideWindow(t, true)
