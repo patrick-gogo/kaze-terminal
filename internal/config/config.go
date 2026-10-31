@@ -45,6 +45,7 @@ type Config struct {
 	ShowUsage        bool              `toml:"show_usage"`        // usage readout in the status bar; default true
 	Sidebar          bool              `toml:"sidebar"`           // agent sidebar beside the terminal; default true
 	StartupWorkspace string            `toml:"startup_workspace"` // workspace ID to run at startup; "" opens a home tab
+	CheckUpdates     bool              `toml:"check_updates"`     // ask GitHub for a newer release once a day; default true
 }
 
 // KnownActions are the action names accepted under [keys]; the window binds each one.
@@ -76,6 +77,7 @@ func Default() Config {
 		TaskbarFlash:    true,
 		DoneToast:       "6s",
 		ShowUsage:       true,
+		CheckUpdates:    true,
 		Sidebar:         true,
 		Colors:          map[string]string{},
 		Keys:            map[string]string{},
@@ -206,6 +208,8 @@ func Load(path string) (Config, []string, error) {
 			loadBool(v, k, &cfg.ShowUsage, warn)
 		case "sidebar":
 			loadBool(v, k, &cfg.Sidebar, warn)
+		case "check_updates":
+			loadBool(v, k, &cfg.CheckUpdates, warn)
 		case "startup_workspace":
 			s, ok := v.(string)
 			if !ok {

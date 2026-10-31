@@ -262,3 +262,14 @@ func TestSetSkipsTableHeaderInsideMultilineString(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestCheckUpdatesDefaultsOnAndCanBeTurnedOff(t *testing.T) {
+	if !Default().CheckUpdates {
+		t.Fatal("check_updates is off by default")
+	}
+	p := write(t, "check_updates = false\n")
+	cfg, warns, err := Load(p)
+	if err != nil || len(warns) != 0 || cfg.CheckUpdates {
+		t.Fatalf("cfg %v warns %v err %v", cfg.CheckUpdates, warns, err)
+	}
+}

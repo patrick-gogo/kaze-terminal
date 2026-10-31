@@ -76,8 +76,13 @@ type window struct {
 	// binds is each [keys] action's shortcut, overrides included, for display.
 	binds map[string]input.Shortcut
 
-	mgr       *tabs.Manager
-	rend      *render.Renderer
+	mgr  *tabs.Manager
+	rend *render.Renderer
+
+	upd       updater  // the update check and install; idle unless Run set its URL
+	updIn     updInbox // results from the updater's goroutines
+	updTag    *int     // the status bar's update notice
+	updAt     image.Rectangle
 	rendPx    float32
 	rendStale bool // a setting changed: rebuild before the next layout, never mid-frame
 	ui        *chrome
@@ -208,6 +213,7 @@ func Run(w *app.Window, opt Options) error {
 	if exe, err := os.Executable(); err == nil {
 		win.exePath = exe
 	}
+	win.initUpdates()
 	if c := opt.Config; c.ChimeNeeds || c.ChimeDone {
 		if warn := win.ensureChime(); warn != "" {
 			win.opt.Warnings = append(win.opt.Warnings, warn)
@@ -543,6 +549,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.paletteEvents(gtx) // first: while open it takes every click
 	win.barEvents(gtx)
 	win.dotsEvents(gtx)
+	win.updEvents(gtx)
 	win.sideEvents(gtx)
 	win.filterEvents(gtx)
 	win.renameEvents(gtx)
@@ -583,6 +590,10 @@ func (win *window) frame(gtx layout.Context) error {
 		win.visit(v.tab) // the pane being typed into is seen too
 	}
 	win.autoScrollSelection(gtx, active, cw, ch)
+	win.drainUpdates()
+	if at, ok := win.updTick(gtx.Now); ok {
+		gtx.Execute(op.InvalidateCmd{At: at}) // one wake per update check, a day apart
+	}
 	if at, ok := win.wsTick(win.wsNow()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
 	}
@@ -640,9 +651,10 @@ func (win *window) frame(gtx layout.Context) error {
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
-	dots := win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	dots, upd := win.ui.layoutStatus(sg, win.statusParts(), statusH)
 	win.frameRuns = nil
 	win.serverDots = dots.Add(image.Pt(0, size.Y-statusH))
+	win.updAt = upd.Add(image.Pt(0, size.Y-statusH))
 	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
 	}
@@ -654,6 +666,12 @@ func (win *window) frame(gtx layout.Context) error {
 	if !win.serverDots.Empty() {
 		area := clip.Rect(win.serverDots).Push(ops)
 		event.Op(ops, win.dotsTag)
+		area.Pop()
+	}
+	if !win.updAt.Empty() {
+		area := clip.Rect(win.updAt).Push(ops)
+		pointer.CursorPointer.Add(ops)
+		event.Op(ops, win.updTag)
 		area.Pop()
 	}
 
@@ -908,6 +926,22 @@ func (win *window) dotsEvents(gtx layout.Context) {
 		}
 		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
 			win.showServer()
+		}
+	}
+}
+
+// updEvents opens About when the status bar's update notice is clicked.
+func (win *window) updEvents(gtx layout.Context) {
+	if win.updTag == nil {
+		win.updTag = new(int)
+	}
+	for {
+		ev, ok := gtx.Event(pointer.Filter{Target: win.updTag, Kinds: pointer.Press})
+		if !ok {
+			return
+		}
+		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
+			win.updClick()
 		}
 	}
 }

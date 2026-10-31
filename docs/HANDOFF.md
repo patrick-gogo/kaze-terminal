@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-10-31, after Plan 6d (floating panes and the scratch shell) was built on `feat/floating-panes`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-10-31, after downloads (Releases from version tags) and the in-place updater were built on `feat/updates`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -30,6 +30,14 @@ Last updated: 2026-10-31, after Plan 6d (floating panes and the scratch shell) w
 - **Claude setup check** (`internal/claudesetup`): inspects the Stop hook, the Notification hook and the status line in `~/.claude/settings.json` (OK / missing / broken / taken). Fix and Replace only after a confirm dialog, with a timestamped `.bak` copy first; other entries are never touched.
 - **`kaze --version`** (`internal/version`) prints the version and build commit without opening a window.
 - Not done: the Windows app icon, the notification card redesign.
+
+**Downloads and updates are built** (spec `docs/superpowers/specs/2026-10-31-kaze-updates-design.md`, plan `docs/superpowers/plans/2026-10-31-kaze-updates.md`). Version 0.11:
+
+- **Releases** (`.github/workflows/release.yml`, PR #35): pushing tag `v` + `version.Number` builds the universal Mac app (`KAZE_UNIVERSAL=1 ./tools/package-macos.sh`) and the Windows x64/ARM exes, and publishes them with `SHA256SUMS` and the first-launch notes in `.github/release-notes.md`. Unsigned. The lander's Download buttons point at `releases/latest/download/<zip>`.
+- **Updater** (`internal/update`, `internal/ui/updates.go`): checks `releases/latest` 10 s after start and every 24 h (`check_updates`, on). Status bar "Update X" opens About; About has Update and restart (asks first), What's new, Check now and the switch. The install downloads the zip and `SHA256SUMS` next to the installed app, verifies, unzips (no `..`, absolute paths or links), renames the old `Kaze.app`/`kaze.exe` aside (`Kaze.app.old`, `kaze-old.exe`, removed on the next start), moves the new one in (and back on failure), relaunches (`open -n` / the exe) and quits.
+- **Source builds are never replaced:** a `.git` in the app's or exe's folder or its parent (a clone's root or `dist/`) means Download (release page) only.
+- **Test windows never reach the network:** the updater is idle unless `initUpdates` (called from `Run`) set its URL; tests point it at `httptest` servers.
+- **Not tested for real yet:** an actual update needs two releases with the updater (0.11, then 0.11.1 or 0.12). Check on the Mac and on Windows that the relaunch comes up and the old copy is removed.
 
 **Plan 6d (floating panes and the scratch shell) is built** on `feat/floating-panes` (plan `docs/superpowers/plans/2026-10-30-kaze-plan-6d-floating-panes.md`, spec sections 7, 8, 11). Version 0.10:
 
