@@ -108,15 +108,12 @@ func (win *window) sessionName(id tabs.TabID) (title, repo string) {
 	if t == nil {
 		return "", ""
 	}
-	if n := win.names[id]; n != "" {
-		title = n
-	} else {
-		title = tabLabel(t, win.defTitle)
-	}
+	loc := win.locOf(t)
+	title = win.sideIn().label(t, loc, win.agentOf(id)) // the sidebar's rule: a rename, the command's argument, the folder
 	if title == "" {
 		title = "session"
 	}
-	return title, win.locOf(t).repoName
+	return title, loc.repoName
 }
 
 // boardColumns is the board's cards: running, waiting on you, done.
