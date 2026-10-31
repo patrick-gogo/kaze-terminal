@@ -171,7 +171,7 @@ Not yet confirmed on a real session. **The first plan task checks it** by captur
 
 ## 10. Claude's calls (for the owner to check)
 
-1. Hooks only, no transcript reading (3, 5), even though #23 Part 1 hands kaze the transcript path. That also replaces the main design's 6.3 data source, which watched transcript files.
+1. Hooks only, no transcript reading (3, 5), even though #23 Part 1 hands kaze the transcript path. **Owner's decision (2026-10-31):** the live pane shows steps and the final report only. Reading the transcript when a pane opens (the subagent's own messages, and steps from before kaze saw it) may come later, with #23 Part 4's transcript reader. That also replaces the main design's 6.3 data source, which watched transcript files.
 2. The waiting fallback marks the session, not a guessed subagent (5.4).
 3. Finished subagents leave the tree at the next prompt but stay on the board (6.1, 6.3).
 4. Esc closes the board (unlike panes, where Esc goes to the program).
