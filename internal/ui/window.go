@@ -37,6 +37,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/screen"
 	"github.com/patrick-gogo/kaze-terminal/internal/skills"
 	"github.com/patrick-gogo/kaze-terminal/internal/sound"
+	"github.com/patrick-gogo/kaze-terminal/internal/subagents"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/term"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
@@ -152,12 +153,18 @@ type window struct {
 	hwnd        atomic.Uintptr // native window handle, 0 until known
 
 	// Claude usage from `kaze statusline`.
-	usageIn usageBox                  // notify goroutines -> UI goroutine
-	acct    notify.Usage              // plan limits (no Ctx); UI goroutine only
-	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
-	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
-	names   map[tabs.TabID]string     // row names the owner gave; UI goroutine only
-	lc      lineCounter               // git lines added and removed per tab; UI goroutine only
+	usageIn   usageBox                  // notify goroutines -> UI goroutine
+	acct      notify.Usage              // plan limits (no Ctx); UI goroutine only
+	ctx       map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
+	agents    map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
+	subs      subagents.Tracker         // every subagent the hooks reported; UI goroutine only
+	subIn     subInbox                  // subagent events on their way to subs
+	subTabs   map[int]bool              // tabs subs has seen, so closing one forgets its subagents
+	board     boardState                // the agents board; UI goroutine only
+	agentsTag *int                      // the status bar's "N agents running"
+	agentsAt  image.Rectangle
+	names     map[tabs.TabID]string // row names the owner gave; UI goroutine only
+	lc        lineCounter           // git lines added and removed per tab; UI goroutine only
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
@@ -421,6 +428,7 @@ func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 func (win *window) newTab() {
 	win.dropSideEdit()
 	win.hideSettings() // the new tab is shown
+	win.closeBoard()
 	if _, err := win.mgr.New(); err != nil {
 		log.Printf("kaze: new tab: %v", err)
 		// A windowsgui build has no console, so the status bar is where this can be seen.
@@ -553,6 +561,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.barEvents(gtx)
 	win.dotsEvents(gtx)
 	win.updEvents(gtx)
+	win.agentsEvents(gtx)
 	win.sideEvents(gtx)
 	win.filterEvents(gtx)
 	win.renameEvents(gtx)
@@ -561,6 +570,8 @@ func (win *window) frame(gtx layout.Context) error {
 	active := win.mgr.Active()
 	if win.set.shown {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
+	} else if win.board.open {
+		win.boardEvents(gtx) // likewise
 	} else if active != nil {
 		win.paneEvents(gtx, cw, ch) // before the session: a pane sits over it
 		if win.fl.refocus {
@@ -586,6 +597,10 @@ func (win *window) frame(gtx layout.Context) error {
 	})
 	win.publish(win.shownTab(), win.focused)
 	win.drainAlerts(gtx.Now)
+	win.drainSubs(gtx.Now)
+	if at, ok := win.subTimer(gtx.Now); ok {
+		gtx.Execute(op.InvalidateCmd{At: at}) // the elapsed minutes, only while a subagent runs
+	}
 	win.drainUsage()
 	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
 	win.visit(win.shownTab())
@@ -641,6 +656,9 @@ func (win *window) frame(gtx layout.Context) error {
 	if win.set.shown {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
 		win.wsr.hits = win.wsr.hits[:0]
+	} else if win.board.open {
+		win.drawBoard(gtx, termRect)
+		win.wsr.hits = win.wsr.hits[:0]
 	} else {
 		win.rend.SetFocused(win.viewFocused(0))
 		win.drawTerminal(gtx, active, termRect, grid, &sel)
@@ -654,7 +672,8 @@ func (win *window) frame(gtx layout.Context) error {
 	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
-	dots, upd := win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	dots, upd, agentsAt := win.ui.layoutStatus(sg, win.statusParts(), statusH)
+	win.agentsAt = agentsAt.Add(image.Pt(0, size.Y-statusH))
 	win.frameRuns = nil
 	win.serverDots = dots.Add(image.Pt(0, size.Y-statusH))
 	win.updAt = upd.Add(image.Pt(0, size.Y-statusH))
@@ -669,6 +688,12 @@ func (win *window) frame(gtx layout.Context) error {
 	if !win.serverDots.Empty() {
 		area := clip.Rect(win.serverDots).Push(ops)
 		event.Op(ops, win.dotsTag)
+		area.Pop()
+	}
+	if !win.agentsAt.Empty() {
+		area := clip.Rect(win.agentsAt).Push(ops)
+		pointer.CursorPointer.Add(ops)
+		event.Op(ops, win.agentsTag)
 		area.Pop()
 	}
 	if !win.updAt.Empty() {
@@ -736,7 +761,7 @@ func (win *window) drawTerminal(gtx layout.Context, active *tabs.Tab, termRect, 
 
 // shownTab is the terminal tab in front of the user, or nil while settings is shown.
 func (win *window) shownTab() *tabs.Tab {
-	if win.set.shown {
+	if win.set.shown || win.board.open {
 		return nil
 	}
 	return win.mgr.Active()
@@ -911,6 +936,9 @@ func (win *window) focusTarget() event.Tag {
 		}
 		return &win.set.tag
 	}
+	if win.board.open {
+		return &win.board.tag
+	}
 	if v, ok := win.paneKeyView(); ok {
 		return v.tag
 	}
@@ -934,6 +962,22 @@ func (win *window) dotsEvents(gtx layout.Context) {
 }
 
 // updEvents opens About when the status bar's update notice is clicked.
+// agentsEvents opens the board when the status bar's agents text is clicked.
+func (win *window) agentsEvents(gtx layout.Context) {
+	if win.agentsTag == nil {
+		win.agentsTag = new(int)
+	}
+	for {
+		ev, ok := gtx.Event(pointer.Filter{Target: win.agentsTag, Kinds: pointer.Press})
+		if !ok {
+			return
+		}
+		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
+			win.openBoard(0)
+		}
+	}
+}
+
 func (win *window) updEvents(gtx layout.Context) {
 	if win.updTag == nil {
 		win.updTag = new(int)
@@ -1168,7 +1212,9 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 	case actNewTab:
 		win.newTab()
 	case actCloseTab:
-		if win.set.shown {
+		if win.board.open {
+			win.closeBoard() // like Settings: never the session hidden behind it
+		} else if win.set.shown {
 			win.closeSettings()
 		} else if t := win.mgr.Active(); t != nil {
 			win.closeTab(t.ID)
@@ -1187,6 +1233,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 		win.togglePalette()
 	case actScratch:
 		win.toggleScratch()
+	case actAgentsBoard:
+		win.toggleBoard()
 	case actPaste:
 		if v, ok := win.keyView(); ok {
 			gtx.Execute(clipboard.ReadCmd{Tag: v.tag})

@@ -27,6 +27,7 @@ var kazeCommands = []kazeCommand{
 	{"toggle_sidebar", "Toggle sidebar", actToggleSidebar},
 	{"next_waiting", "Go to the next session that needs you", actNextWaiting},
 	{"scratch_shell", "Scratch shell", actScratch},
+	{"agents_board", "Show agents", actAgentsBoard},
 	{"palette", "Open the palette", actPalette},
 }
 

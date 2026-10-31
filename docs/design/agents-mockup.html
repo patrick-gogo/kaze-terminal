@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subagents Mockup</title>
+<style>
+@font-face{font-family:Manrope;src:url(../site-assets/Manrope.ttf) format('truetype');font-weight:200 800}
+@font-face{font-family:JetBrains;src:url(../site-assets/JetBrainsMono-Regular.ttf) format('truetype')}
+:root{--chrome:#0b0d12;--page:#0f1117;--card:#13161e;--raised:#1a1e29;--line:#1d2230;--line2:#2a3142;--fg:#e8eaf1;--muted:#8a90a2;--dim:#5d6476;--accent:#8b7bff;--accent2:#b9a6ff;--soft:rgba(139,123,255,.14);--needs:#f2b84b;--done:#62d39a;--red:#ff6b6b;--sans:Manrope,system-ui,sans-serif;--mono:JetBrains,ui-monospace,monospace}
+*{box-sizing:border-box}html,body{margin:0;background:#05060a;color:var(--fg);font:13px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+.stage{padding:26px 20px 40px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.top{width:min(1320px,100%);display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+.top h1{margin:0;font:650 20px var(--sans)}.top p{margin:4px 0 0;color:#9097a8;max-width:760px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button{border:1px solid var(--line2);border-radius:999px;padding:6px 13px;color:#aeb4c4;font-size:12px}
+.tabs button.on{border-color:rgba(139,123,255,.45);color:var(--accent2);background:var(--soft)}
+.note{width:min(1320px,100%);border:1px solid var(--line);background:#0c0e14;border-radius:10px;padding:12px 16px;color:#a7adbd;font-size:12.5px;line-height:1.7}
+.note b{color:#e3e6ee}
+.win{width:min(1320px,100%);height:760px;border:1px solid #232838;border-radius:12px;overflow:hidden;display:grid;grid-template-rows:30px 1fr 26px;background:var(--chrome);box-shadow:0 30px 90px rgba(0,0,0,.55)}
+.titlebar{background:#2a2c33;display:flex;align-items:center;justify-content:center;position:relative;color:#c7c9d1;font-size:12.5px;font-weight:600}
+.lights{position:absolute;left:12px;display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%}.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.body{display:grid;grid-template-columns:300px 1fr;min-height:0}
+.status{border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 14px;font:11px var(--mono);color:#7d8394}
+.status b{color:var(--accent2);font-weight:400}
+
+/* sidebar */
+.side{border-right:1px solid var(--line);padding:10px 10px;display:flex;flex-direction:column;gap:6px;font-family:var(--mono);min-height:0;overflow:auto}
+.icons{display:flex;gap:16px;padding:4px 6px 6px;color:#aab0c0;font-size:13px}
+.filter{border:1px solid var(--line2);border-radius:7px;padding:6px 9px;color:#646b7d;font-size:11.5px;margin-bottom:6px}
+.group{display:flex;justify-content:space-between;padding:4px 6px;color:#cfd3de;font-size:12px}.group span{color:var(--needs)}
+.row{border-radius:8px;padding:7px 8px 7px 10px;position:relative}
+.row.on{background:#121620}.row.on:before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--accent)}
+.row .t{display:flex;gap:8px;align-items:center;font-size:12px;color:#e6e8ef}
+.row .t .cmd{color:#c58af9}
+.row .m{display:flex;justify-content:space-between;color:#646b7d;font-size:11px;padding-left:16px;margin-top:2px}
+.row .m .br{color:#62d39a}.row .m .st{color:var(--accent2)}
+.ring{width:9px;height:9px;border-radius:50%;border:1.6px solid var(--accent);border-top-color:transparent;flex:none}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.chip{margin-left:auto;font:600 10px var(--sans);color:var(--accent2);background:var(--soft);border-radius:999px;padding:1px 7px}
+.agents{margin:4px 0 2px 14px;border-left:1px solid var(--line2);padding-left:8px;display:flex;flex-direction:column;gap:1px}
+.ag{display:grid;grid-template-columns:12px 1fr auto;gap:7px;align-items:center;padding:4px 6px;border-radius:6px;font-size:11px;cursor:pointer}
+.ag:hover,.ag.on{background:#151925}
+.ag .ty{color:#9aa2b8}.ag .ds{color:#d5d8e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--sans);font-size:11.5px}
+.ag .tm{color:#646b7d;font-size:10.5px}
+.ag .act{grid-column:2/4;color:#646b7d;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-2px}
+.ag .act b{color:#8fd0ff;font-weight:400}
+.ok{color:var(--done)}.fail{color:var(--red)}
+.check{width:10px;height:10px;display:grid;place-items:center;font-size:10px}
+
+/* main */
+.main{position:relative;background:var(--page);min-height:0;overflow:hidden}
+.term{padding:14px 18px;font:12.5px/1.65 var(--mono);color:#cfd3de;white-space:pre}
+.term .p{color:var(--accent)}.term .g{color:#62d39a}.term .y{color:#f2b84b}.term .c{color:#c58af9}.term .d{color:#646b7d}
+.pane{position:absolute;border:1px solid var(--accent);border-radius:10px;background:#0d0f15;box-shadow:0 18px 50px rgba(0,0,0,.5);overflow:hidden;display:flex;flex-direction:column}
+.pane .hd{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line2);background:#121520;font-size:12px}
+.pane .hd .x{margin-left:auto;color:#69718a;font-family:var(--sans)}
+.pane .hd .ty{font:600 11px var(--sans);color:var(--accent2);background:var(--soft);border-radius:999px;padding:2px 8px}
+.pane .bd{padding:10px 14px;font:11.5px/1.75 var(--mono);color:#c9cdd8;overflow:auto;flex:1}
+.ev{display:grid;grid-template-columns:58px 74px 1fr;gap:10px}.ev .t{color:#5d6476}.ev .k{color:#8fd0ff}.ev.done .k{color:var(--done)}
+.report{margin-top:8px;border:1px solid var(--line2);border-radius:8px;padding:10px 12px;font-family:var(--sans);font-size:12.5px;line-height:1.65;color:#d9dce6;background:#121520}
+.report b{display:block;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+
+/* board */
+.board{position:absolute;inset:0;background:var(--page);padding:22px 26px;overflow:auto}
+.board h2{margin:0;font:650 20px var(--sans)}.board .sub{color:var(--muted);margin:2px 0 18px}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.col h3{margin:0 0 10px;font:600 12px var(--sans);color:#aeb4c4;display:flex;gap:8px;align-items:center}
+.col h3 .n{color:var(--dim)}
+.card{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:12px 13px;margin-bottom:10px;font-family:var(--sans)}
+.card .h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card .h b{font-size:13px}.card .h .ty{font:600 10.5px var(--sans);color:var(--accent2);background:var(--soft);border-radius:999px;padding:2px 8px}
+.card .s{color:var(--muted);font-size:11.5px;margin-top:3px}
+.card .a{font:11px var(--mono);color:#7d8394;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.card .a b{color:#8fd0ff;font-weight:400}
+.bar{height:4px;background:var(--line);border-radius:4px;margin-top:9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+
+/* tasks hover */
+.taskcard{position:absolute;left:12px;top:150px;width:300px;border:1px solid var(--line2);border-radius:10px;background:#141823;box-shadow:0 18px 50px rgba(0,0,0,.5);padding:12px 14px;font-family:var(--sans);z-index:5}
+.taskcard h4{margin:0 0 8px;font:600 12.5px var(--sans);display:flex;justify-content:space-between}.taskcard h4 span{color:var(--muted);font-weight:400}
+.task{display:flex;gap:9px;align-items:flex-start;font-size:12px;padding:3px 0;color:#cfd3de}.task i{width:13px;height:13px;border-radius:4px;border:1.5px solid #3a4054;flex:none;margin-top:3px;display:grid;place-items:center;font-size:9px;font-style:normal}
+.task.d{color:#69718a;text-decoration:line-through}.task.d i{background:var(--done);border-color:var(--done);color:#0b0d12}
+.task.n i{border-color:var(--accent)}
+.hide{display:none!important}
+.row .t,.row .m{white-space:nowrap;min-width:0}.row .t{overflow:hidden}.chip{white-space:nowrap;flex:none}.row .m{gap:10px}.row .m>span:first-child{overflow:hidden;text-overflow:ellipsis}
+.ag>span:nth-child(2){min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="top">
+    <div><h1>Subagents in kaze · ideas</h1><p>All of these read what Claude Code already reports: <code>SubagentStart</code> / <code>SubagentStop</code> hooks (id, type, final report), each agent's <code>.meta.json</code> (its task line, model, depth) and its transcript (live tool calls). Click agents in the sidebar.</p></div>
+    <div class="tabs" id="tabs">
+      <button data-v="a" class="on">A · Tree in the sidebar</button>
+      <button data-v="b">B · Live agent pane</button>
+      <button data-v="c">C · Agents board</button>
+      <button data-v="d">D · Claude's task list</button>
+    </div>
+  </div>
+  <div class="note" id="note"></div>
+
+  <div class="win">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div>kaze · todo-api</div>
+    <div class="body">
+      <aside class="side">
+        <div class="icons"><span>▯</span><span>⌕</span><span>›_</span><span style="margin-left:auto">⚙</span></div>
+        <div class="filter">Filter sessions…</div>
+        <div class="group"><b style="font-weight:400">▾ todo-api</b><span>1 waiting</span></div>
+        <div class="row on">
+          <div class="t"><span class="ring"></span>todo-api · <span class="cmd">/review-pr</span><span class="chip" id="chip">3 agents</span></div>
+          <div class="m"><span>~/projects/todo-api <span class="br">main</span></span><span class="st">running</span></div>
+          <div class="agents" id="tree">
+            <div class="ag on" data-ag="1"><span class="ring"></span><span><span class="ty">Explore</span> · <span class="ds">find the auth handlers</span></span><span class="tm">1m 12s</span><span class="act">Grep <b>func.*Auth</b> in api/</span></div>
+            <div class="ag" data-ag="2"><span class="ring"></span><span><span class="ty">Explore</span> · <span class="ds">list the token tests</span></span><span class="tm">48s</span><span class="act">Read <b>api/token_test.go</b></span></div>
+            <div class="ag" data-ag="3"><span class="check ok">✓</span><span><span class="ty">reviewer</span> · <span class="ds">check the error paths</span></span><span class="tm">2m 05s</span><span class="act">done · 14 tool calls</span></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="t"><span class="dot" style="background:var(--needs);box-shadow:0 0 0 3px rgba(242,184,75,.2)"></span>auth-tokens · <span class="cmd">/fix-tests</span></div>
+          <div class="m"><span>~/projects/todo-api-auth <span class="br">auth</span></span><span style="color:var(--needs)">needs you</span></div>
+        </div>
+        <div class="group"><b style="font-weight:400">▾ web-app</b><span style="color:#646b7d">1</span></div>
+        <div class="row">
+          <div class="t"><span class="ring"></span>dark-mode · <span class="cmd">/frontend-design</span><span class="chip">1 agent</span></div>
+          <div class="m"><span>~/projects/web-app <span class="br">dark-mode</span></span><span class="st">running</span></div>
+          <div class="agents"><div class="ag"><span class="ring"></span><span><span class="ty">Plan</span> · <span class="ds">plan the dark palette</span></span><span class="tm">22s</span><span class="act">Read <b>src/app.css</b></span></div></div>
+        </div>
+      </aside>
+
+      <main class="main" id="main">
+        <div class="term"><span class="p">todo-api</span> <span class="g">main</span> ❯ claude
+<span class="d">╭──────────────────────────────────────────────╮</span>
+<span class="d">│</span> <span class="c">/review-pr</span> auth-tokens
+<span class="d">╰──────────────────────────────────────────────╯</span>
+
+● I'll review the auth-tokens PR in parallel:
+  ⎿ <span class="c">Explore</span>(find the auth handlers)   <span class="d">running…</span>
+  ⎿ <span class="c">Explore</span>(list the token tests)    <span class="d">running…</span>
+  ⎿ <span class="c">reviewer</span>(check the error paths) <span class="g">done</span>
+</div>
+
+        <!-- B: live pane -->
+        <div class="pane hide" id="pane" style="left:260px;top:150px;width:560px;height:420px">
+          <div class="hd"><span class="ring" id="paneRing"></span><b id="paneTitle">find the auth handlers</b><span class="ty" id="paneType">Explore</span><span style="color:#69718a;font-size:11.5px" id="paneMeta">sonnet · 1m 12s · 9 tool calls</span><span class="x">Expand  ×</span></div>
+          <div class="bd" id="paneBody"></div>
+        </div>
+
+        <!-- C: board -->
+        <div class="board hide" id="board">
+          <h2>Agents</h2><div class="sub">Every subagent across your sessions · <span style="font-family:var(--mono)">⌘⇧A</span></div>
+          <div class="cols">
+            <div class="col"><h3><span class="ring"></span>Running <span class="n">3</span></h3>
+              <div class="card"><div class="h"><b>find the auth handlers</b><span class="ty">Explore</span></div><div class="s">todo-api · /review-pr · 1m 12s · 9 tool calls</div><div class="a">Grep <b>func.*Auth</b> in api/</div></div>
+              <div class="card"><div class="h"><b>list the token tests</b><span class="ty">Explore</span></div><div class="s">todo-api · /review-pr · 48s · 5 tool calls</div><div class="a">Read <b>api/token_test.go</b></div></div>
+              <div class="card"><div class="h"><b>plan the dark palette</b><span class="ty">Plan</span></div><div class="s">web-app · /frontend-design · 22s · 2 tool calls</div><div class="a">Read <b>src/app.css</b></div></div>
+            </div>
+            <div class="col"><h3><span class="dot" style="background:var(--needs)"></span>Waiting on you <span class="n">1</span></h3>
+              <div class="card" style="border-color:rgba(242,184,75,.35)"><div class="h"><b>run the migration</b><span class="ty">general</span></div><div class="s">auth-tokens · /fix-tests · asks to run <span style="font-family:var(--mono)">make migrate</span></div><div class="a" style="color:var(--needs)">Permission needed · Bash</div></div>
+            </div>
+            <div class="col"><h3><span class="check ok">✓</span>Done today <span class="n">5</span></h3>
+              <div class="card"><div class="h"><b>check the error paths</b><span class="ty">reviewer</span></div><div class="s">todo-api · 2m 05s · 14 tool calls</div><div class="a" style="white-space:normal;font-family:var(--sans);font-size:12px;color:#c9cdd8">Found 3 unchecked errors in api/token.go: lines 41, 77 and 102…</div></div>
+              <div class="card"><div class="h"><b>find flaky tests</b><span class="ty">Explore</span></div><div class="s">notes-cli · 58s · 6 tool calls</div></div>
+              <div class="card" style="border-color:rgba(255,107,107,.3)"><div class="h"><b>bump the go version</b><span class="ty">general</span></div><div class="s">web-app · failed after 12s</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- D: task list -->
+        <div class="taskcard hide" id="tasks">
+          <h4>Claude's plan <span>2 of 5 done</span></h4>
+          <div class="task d"><i>✓</i>Read the PR diff</div>
+          <div class="task d"><i>✓</i>Check the error paths</div>
+          <div class="task n"><i></i>Find the auth handlers</div>
+          <div class="task"><i></i>Review the token tests</div>
+          <div class="task"><i></i>Write the review summary</div>
+        </div>
+      </main>
+    </div>
+    <div class="status"><span>~/projects/todo-api ⌥ main</span><span><b id="statusAgents">4 agents running</b>   ●●● servers   kaze 0.12 · 4 tabs</span></div>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const notes = {
+  a: '<b>A · Tree in the sidebar.</b> Each session row gets its subagents nested under it: type, the task line from the agent’s meta file, elapsed time, and what it is doing right now (its last tool call, from its transcript). A chip on the row counts them, so a folded group still shows it. Done agents get a check, failed ones a red mark, and they fold away a minute after the session goes idle. The status bar counts running agents. Cheapest to build; needs the two hooks (Fix in Settings › Claude adds them).',
+  b: '<b>B · Live agent pane.</b> Click an agent in the tree and it opens as a floating pane, like a workspace server: a live, read-only timeline of its tool calls (Read, Grep, Bash…) and, when it finishes, its final report. Expand gives it the main view. Builds on A and on the floating panes kaze already has.',
+  c: '<b>C · Agents board.</b> One page (a shortcut or the palette) with every subagent across all sessions in three columns: running, waiting on you, done today. Good when several sessions fan out at once; more to build, and overlaps with A for one session.',
+  d: '<b>D · Claude’s task list.</b> Hover a session row to see the task list Claude keeps for itself (TaskCreated / TaskCompleted hooks): what’s done, what it is on, what’s next. Small and independent of the others; works even when no subagents run.'
+};
+const timelines = {
+  1: {title:'find the auth handlers', type:'Explore', meta:'sonnet · 1m 12s · 9 tool calls', running:true, ev:[['0:02','Glob','api/**/*.go'],['0:05','Grep','func.*Auth in api/'],['0:11','Read','api/auth.go'],['0:19','Read','api/middleware.go'],['0:31','Grep','RequireToken'],['0:44','Read','api/routes.go'],['1:02','Grep','func.*Auth in api/']]},
+  2: {title:'list the token tests', type:'Explore', meta:'sonnet · 48s · 5 tool calls', running:true, ev:[['0:03','Glob','**/*_test.go'],['0:09','Grep','Token in api/'],['0:21','Read','api/token_test.go']]},
+  3: {title:'check the error paths', type:'reviewer', meta:'opus · 2m 05s · 14 tool calls', running:false, ev:[['0:04','Read','api/token.go'],['0:38','Grep','err != nil'],['1:12','Bash','go vet ./api/...'],['1:58','Read','api/errors.go']], report:'Found 3 unchecked errors in <code>api/token.go</code> (lines 41, 77, 102) and one error wrapped without context in <code>api/errors.go</code>. Suggest returning <code>fmt.Errorf("parse token: %w", err)</code>.'}
+};
+function showAgent(id){
+  const t = timelines[id];
+  $$('.ag').forEach(a => a.classList.toggle('on', a.dataset.ag == id));
+  $('#paneTitle').textContent = t.title; $('#paneType').textContent = t.type; $('#paneMeta').textContent = t.meta;
+  $('#paneRing').className = t.running ? 'ring' : 'check ok'; $('#paneRing').textContent = t.running ? '' : '✓';
+  $('#paneBody').innerHTML = t.ev.map(e => `<div class="ev"><span class="t">${e[0]}</span><span class="k">${e[1]}</span><span>${e[2]}</span></div>`).join('') +
+    (t.running ? '<div class="ev"><span class="t">now</span><span class="k" style="color:var(--accent2)">…</span><span style="color:#69718a">thinking</span></div>' : `<div class="ev done"><span class="t">2:05</span><span class="k">done</span><span>14 tool calls</span></div><div class="report"><b>Final report</b>${t.report}</div>`);
+}
+function view(v){
+  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $('#note').innerHTML = notes[v];
+  $('#pane').classList.toggle('hide', v !== 'b');
+  $('#board').classList.toggle('hide', v !== 'c');
+  $('#tasks').classList.toggle('hide', v !== 'd');
+  $('#tree').parentElement.querySelectorAll('.agents').forEach(a => a.classList.toggle('hide', v === 'd'));
+  $$('.agents').forEach(a => a.classList.toggle('hide', v === 'd'));
+  $$('.chip').forEach(c => c.classList.toggle('hide', v === 'd'));
+  if (v === 'b') showAgent(1);
+}
+$$('#tabs button').forEach(b => b.onclick = () => view(b.dataset.v));
+$$('.ag[data-ag]').forEach(a => a.onclick = () => { view('b'); showAgent(a.dataset.ag); });
+view(new URLSearchParams(location.search).get('v') || 'a');
+</script>
+</body>
+</html>

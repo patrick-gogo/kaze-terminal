@@ -129,6 +129,7 @@ func (win *window) publish(active *tabs.Tab, focused bool) {
 // frames to a minimized window, which is exactly when the owner is away.
 func (win *window) onNotify(m notify.Msg) {
 	id := tabs.TabID(m.Tab)
+	src := m.Tab // the tab the hook ran in, before a scratch shell maps to its session
 	var t *tabs.Tab
 	if mgr := win.liveMgr.Load(); mgr != nil {
 		// A scratch shell's messages count on its session's row (spec 8.3).
@@ -143,6 +144,15 @@ func (win *window) onNotify(m notify.Msg) {
 	// Taken now, so a shell prompt that comes back before the next frame still
 	// counts as after this message: it hides ctx and ends Claude.
 	shell := shellSeq(t)
+	if m.Kind != notify.KindUsage {
+		win.subIn.put(eventsOf(m, src, time.Now())...)
+	}
+	if subKind(m.Kind) {
+		if win.w != nil {
+			win.w.Invalidate() // state only: never a chime, flash, toast or mark
+		}
+		return
+	}
 	if m.Kind == notify.KindUsage {
 		// Never an alert: no chime, flash or mark.
 		if m.Usage != nil {
@@ -209,6 +219,7 @@ func (win *window) deliver(q queued, now time.Time) {
 func (win *window) selectTab(id tabs.TabID) {
 	win.dropSideEdit()
 	win.hideSettings()
+	win.closeBoard()
 	win.mgr.SetActive(id)
 	win.wantFocus = true
 }

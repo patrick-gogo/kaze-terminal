@@ -63,6 +63,10 @@ func (win *window) paneEvents(gtx layout.Context, cw, ch int) {
 		}
 	}
 	for _, pv := range views {
+		if pv.p.kind == paneAgent {
+			win.agentPaneEvents(gtx, pv.p)
+			continue
+		}
 		if win.mgr.Lookup(pv.v.tab.ID) == nil || win.fl.owner(pv.p.id) == 0 {
 			continue // closed or removed by an earlier event this frame
 		}
@@ -82,6 +86,11 @@ func (win *window) paneFrame(gtx layout.Context, p *pane, e pointer.Event) {
 		switch {
 		case pt.In(p.hits.close):
 			win.closePane(p.id)
+			return
+		case pt.In(p.hits.copy):
+			if a := win.subs.Get(p.agent); a != nil {
+				win.copyReport(gtx, a)
+			}
 			return
 		case pt.In(p.hits.expand):
 			win.expandMember(p.id)
@@ -164,6 +173,9 @@ func (win *window) moveKeys(id tabs.TabID) {
 func (win *window) focusPane(id tabs.TabID) {
 	if o := win.fl.owner(id); o != 0 {
 		win.fl.raise(o, id)
+		if p := win.fl.set(o).find(id); p != nil && p.kind == paneAgent {
+			return // a live pane only scrolls: the keyboard stays put
+		}
 	}
 	win.dropSideEdit()
 	win.moveKeys(id)
@@ -183,9 +195,12 @@ func (win *window) closePane(id tabs.TabID) {
 		win.focusSession()
 	}
 	p := win.fl.set(o).find(id)
-	if p.kind == paneScratch {
+	switch p.kind {
+	case paneScratch:
 		p.hidden = true
-	} else {
+	case paneAgent:
+		win.fl.remove(id)
+	default:
 		win.fl.remove(id)
 		win.mgr.Dock(id)
 	}
