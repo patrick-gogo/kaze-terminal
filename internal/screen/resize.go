@@ -12,9 +12,13 @@ func (s *Screen) Resize(cols, rows int) {
 	if drop > 0 && !s.alt {
 		s.recordScrolled(drop)
 	}
-	s.cells = resizeGrid(s.cells, s.cols, s.rows, cols, rows, drop)
+	s.cells = resizeGrid(s.lines, s.cols, s.rows, cols, rows, drop)
 	if s.otherCells != nil {
-		s.otherCells = resizeGrid(s.otherCells, s.cols, s.rows, cols, rows, 0)
+		s.otherCells = resizeGrid(s.otherLines, s.cols, s.rows, cols, rows, 0)
+	}
+	s.lines = gridLines(s.cells, cols, rows)
+	if s.otherCells != nil {
+		s.otherLines = gridLines(s.otherCells, cols, rows)
 	}
 	if s.cols != cols {
 		s.wrapPending = false                        // the pending wrap belonged to the old right edge
@@ -35,14 +39,14 @@ func (s *Screen) Resize(cols, rows int) {
 }
 
 // resizeGrid copies old rows [drop, ...) into a blank cols x rows grid and blanks any wide-char half the new edge split.
-func resizeGrid(old []Cell, oldCols, oldRows, cols, rows, drop int) []Cell {
+func resizeGrid(old [][]Cell, oldCols, oldRows, cols, rows, drop int) []Cell {
 	out := make([]Cell, cols*rows)
 	for i := range out {
 		out[i] = blankCell
 	}
 	w := min(cols, oldCols)
 	for r := 0; r < rows && r+drop < oldRows; r++ {
-		copy(out[r*cols:r*cols+w], old[(r+drop)*oldCols:(r+drop)*oldCols+w])
+		copy(out[r*cols:r*cols+w], old[r+drop][:w])
 		if last := out[r*cols+w-1]; last.Width == 2 {
 			out[r*cols+w-1] = blankCell
 		}

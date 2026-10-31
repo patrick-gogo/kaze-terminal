@@ -44,14 +44,14 @@ func (b *macBridge) setDrag(rects []image.Rectangle, pxPerPt float32) {
 	if b == nil || pxPerPt <= 0 {
 		return
 	}
-	pt := make([]image.Rectangle, 0, len(rects))
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	pt := b.drag[:0]
 	for _, r := range rects {
 		pt = append(pt, image.Rect(int(float32(r.Min.X)/pxPerPt), int(float32(r.Min.Y)/pxPerPt),
 			int(float32(r.Max.X)/pxPerPt+0.999), int(float32(r.Max.Y)/pxPerPt+0.999)))
 	}
-	b.mu.Lock()
 	b.drag = pt
-	b.mu.Unlock()
 }
 
 // dragAt reports whether a point, in points from the window's top-left, is

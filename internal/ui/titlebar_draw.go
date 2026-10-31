@@ -68,15 +68,21 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 	side := win.side.w
 	key := formatShortcut(runtime.GOOS, win.binds["palette"])
 	measure := func(s string, mono bool) int {
+		face := font.Font{Typeface: sansFace, Weight: font.SemiBold}
+		size := unit.Sp(12.5)
 		if mono {
-			_, sz := c.label(gtx, s, 11.5, th.Muted)
-			return sz.X
+			face, size = font.Font{Typeface: chromeFace}, 11.5
 		}
-		_, sz := c.sans(gtx, s, 12.5, th.Muted, font.SemiBold) // the widest weight the crumb draws in
-		return sz.X
+		return c.textWidth(gtx, s, size, face)
 	}
-	b := layoutTitle(titleIn{Size: size, Mac: !win.custom, LightsW: lights, SideW: side, Crumb: win.crumb(),
-		Key: key, Dims: d, Measure: measure})
+	// Use the same font/locale invalidation as the status cache.
+	if win.titleCache.locale != gtx.Locale {
+		win.titleCache.valid = false
+		win.titleCache.locale = gtx.Locale
+	}
+	b := win.titleCache.layout(titleIn{Size: size, Mac: !win.custom, LightsW: lights, SideW: side, Crumb: win.crumb(),
+		Key: key, Dims: d, Measure: measure}, gtx.Metric, c.shaper)
+	win.titleCache.font = c.shaper
 	win.bar = b
 	win.lights.setDrag(b.Drag, gtx.Metric.PxPerDp)
 

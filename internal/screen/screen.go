@@ -1,10 +1,12 @@
 // Package screen is the terminal's cell grid with per-row dirty tracking.
 package screen
 
-// Screen is a flat row-major grid so rows are contiguous and nothing allocates per cell.
+// Screen stores cells in contiguous row buffers. Logical row references
+// rotate during scrolling, and nothing allocates per cell.
 type Screen struct {
 	cols, rows int
-	cells      []Cell
+	cells      []Cell // backing storage; logical row order is in lines
+	lines      [][]Cell
 	dirty      []bool
 	curCol     int
 	curRow     int
@@ -22,6 +24,7 @@ type Screen struct {
 
 	alt        bool
 	otherCells []Cell // the buffer that is not showing
+	otherLines [][]Cell
 }
 
 // New returns a blank screen with every row dirty, so the first frame paints fully.
@@ -46,6 +49,7 @@ func New(cols, rows int) *Screen {
 	for i := range s.cells {
 		s.cells[i] = blankCell
 	}
+	s.lines = gridLines(s.cells, cols, rows)
 	s.MarkAllDirty()
 	return s
 }
@@ -61,7 +65,7 @@ func (s *Screen) Cell(col, row int) Cell {
 	if !s.inBounds(col, row) {
 		return blankCell
 	}
-	return s.cells[row*s.cols+col]
+	return s.row(row)[col]
 }
 
 // SetCell stores c and marks the row dirty only if the cell actually changed.
@@ -69,11 +73,11 @@ func (s *Screen) SetCell(col, row int, c Cell) {
 	if !s.inBounds(col, row) {
 		return
 	}
-	i := row*s.cols + col
-	if s.cells[i] == c {
+	line := s.row(row)
+	if line[col] == c {
 		return
 	}
-	s.cells[i] = c
+	line[col] = c
 	s.dirty[row] = true
 }
 
@@ -87,8 +91,11 @@ func (s *Screen) SetCursor(col, row int) {
 }
 
 // TakeDirty returns changed rows in ascending order and clears the flags.
-func (s *Screen) TakeDirty() []int {
-	var out []int
+func (s *Screen) TakeDirty() []int { return s.TakeDirtyInto(nil) }
+
+// TakeDirtyInto appends changed rows to dst and clears their flags. A caller
+// retaining its buffer can collect dirty rows without per-frame allocations.
+func (s *Screen) TakeDirtyInto(out []int) []int {
 	for r, d := range s.dirty {
 		if d {
 			out = append(out, r)
@@ -113,3 +120,15 @@ func clamp(v, lo, hi int) int {
 	}
 	return v
 }
+
+// gridLines indexes the backing allocation once. Scrolling rotates these
+// references, keeping each row contiguous without copying all of its cells.
+func gridLines(cells []Cell, cols, rows int) [][]Cell {
+	lines := make([][]Cell, rows)
+	for r := range lines {
+		lines[r] = cells[r*cols : (r+1)*cols]
+	}
+	return lines
+}
+
+func (s *Screen) row(r int) []Cell { return s.lines[r] }

@@ -116,6 +116,11 @@ func (win *window) openAgentPane(tab tabs.TabID, k subagents.Key) {
 
 // dropGoneAgents closes live panes whose subagent the tracker forgot.
 func (win *window) dropGoneAgents() {
+	for key := range win.fl.agentIDs {
+		if win.subs.Get(key) == nil {
+			delete(win.fl.agentIDs, key)
+		}
+	}
 	for _, s := range win.fl.sets {
 		for _, p := range append([]*pane(nil), s.panes...) {
 			if p.kind == paneAgent && win.subs.Get(p.agent) == nil {

@@ -117,17 +117,23 @@ type placed struct {
 
 // cutLeft keeps the end of s within w px, with a leading ellipsis.
 func cutLeft(s string, w int, measure func(string, bool) int) string {
+	if measure(s, true) <= w {
+		return s
+	}
 	r := []rune(s)
-	for i := 0; i < len(r); i++ {
-		t := "…" + string(r[i:])
-		if i == 0 {
-			t = s
-		}
-		if measure(t, true) <= w {
-			return t
+	lo, hi := 1, len(r)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if measure("…"+string(r[mid:]), true) <= w {
+			hi = mid
+		} else {
+			lo = mid + 1
 		}
 	}
-	return ""
+	if lo >= len(r) {
+		return ""
+	}
+	return "…" + string(r[lo:])
 }
 
 // cutRight keeps the start of s within w px, with a trailing ellipsis.
@@ -136,12 +142,19 @@ func cutRight(s string, w int, measure func(string, bool) int) string {
 		return s
 	}
 	r := []rune(s)
-	for n := len(r) - 1; n > 0; n-- {
-		if t := string(r[:n]) + "…"; measure(t, true) <= w {
-			return t
+	lo, hi := 0, len(r)-1
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if measure(string(r[:mid])+"…", true) <= w {
+			lo = mid
+		} else {
+			hi = mid - 1
 		}
 	}
-	return ""
+	if lo == 0 {
+		return ""
+	}
+	return string(r[:lo]) + "…"
 }
 
 // statusPlace lays out one compaction state and reports whether it fits.

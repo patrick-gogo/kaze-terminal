@@ -137,10 +137,15 @@ func (t *Tracker) Apply(e Event) bool {
 			return false
 		}
 		a := t.get(e)
-		a.Steps = append(a.Steps, Step{At: e.At, Tool: e.Tool, Summary: e.Summary})
-		if n := len(a.Steps); n > maxSteps {
-			a.Dropped += n - maxSteps
-			a.Steps = slices.Clone(a.Steps[n-maxSteps:])
+		step := Step{At: e.At, Tool: e.Tool, Summary: e.Summary}
+		if len(a.Steps) == maxSteps {
+			// Keep the public chronological slice without allocating a new
+			// 200-step history for every tool event after it fills.
+			copy(a.Steps, a.Steps[1:])
+			a.Steps[maxSteps-1] = step
+			a.Dropped++
+		} else {
+			a.Steps = append(a.Steps, step)
 		}
 		if a.State == Waiting {
 			a.State = Running

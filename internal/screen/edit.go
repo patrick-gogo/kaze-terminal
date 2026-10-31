@@ -1,5 +1,7 @@
 package screen
 
+import "slices"
+
 // savedCursor is what DECSC stores: position and pen.
 type savedCursor struct {
 	col, row int
@@ -41,14 +43,20 @@ func (s *Screen) scrollDownIn(top, bottom, n int) {
 
 // shiftRows moves rows top..bottom by delta (positive = down), blanks the vacated rows and dirties only that range.
 func (s *Screen) shiftRows(top, bottom, delta int) {
+	region := s.lines[top : bottom+1]
+	n := -delta
+	if delta > 0 {
+		n = len(region) - delta
+	}
+	// Rotate the row references left by n. Only the vacated rows' cells
+	// are touched; partial scroll regions use the same bounded rotation.
+	slices.Reverse(region[:n])
+	slices.Reverse(region[n:])
+	slices.Reverse(region)
 	if delta < 0 {
-		n := -delta
-		copy(s.cells[top*s.cols:(bottom+1-n)*s.cols], s.cells[(top+n)*s.cols:(bottom+1)*s.cols])
-		s.blankRows(bottom+1-n, bottom)
+		s.blankRows(bottom+1+delta, bottom)
 	} else {
-		n := delta
-		copy(s.cells[(top+n)*s.cols:(bottom+1)*s.cols], s.cells[top*s.cols:(bottom+1-n)*s.cols])
-		s.blankRows(top, top+n-1)
+		s.blankRows(top, top+delta-1)
 	}
 	for r := top; r <= bottom; r++ {
 		s.dirty[r] = true
@@ -57,8 +65,11 @@ func (s *Screen) shiftRows(top, bottom, delta int) {
 
 func (s *Screen) blankRows(from, to int) {
 	b := s.blank()
-	for i := from * s.cols; i < (to+1)*s.cols; i++ {
-		s.cells[i] = b
+	for r := from; r <= to; r++ {
+		line := s.row(r)
+		for c := range line {
+			line[c] = b
+		}
 	}
 }
 
@@ -115,13 +126,13 @@ func (s *Screen) DeleteLines(n int) {
 // fixWide blanks any half of a wide char left without its partner after an edit.
 func (s *Screen) fixWide(row int) {
 	b := s.blank()
-	base := row * s.cols
+	line := s.row(row)
 	for c := 0; c < s.cols; c++ {
-		cell := s.cells[base+c]
+		cell := line[c]
 		switch {
-		case cell.Width == 0 && (c == 0 || s.cells[base+c-1].Width != 2):
+		case cell.Width == 0 && (c == 0 || line[c-1].Width != 2):
 			s.SetCell(c, row, b)
-		case cell.Width == 2 && (c == s.cols-1 || s.cells[base+c+1].Width != 0):
+		case cell.Width == 2 && (c == s.cols-1 || line[c+1].Width != 0):
 			s.SetCell(c, row, b)
 		}
 	}
@@ -181,7 +192,7 @@ func (s *Screen) InsertChars(n int) {
 	if n < 1 {
 		return
 	}
-	row := s.cells[s.curRow*s.cols : (s.curRow+1)*s.cols]
+	row := s.row(s.curRow)
 	copy(row[s.curCol+n:], row[s.curCol:s.cols-n])
 	b := s.blank()
 	for c := s.curCol; c < s.curCol+n; c++ {
@@ -198,7 +209,7 @@ func (s *Screen) DeleteChars(n int) {
 	if n < 1 {
 		return
 	}
-	row := s.cells[s.curRow*s.cols : (s.curRow+1)*s.cols]
+	row := s.row(s.curRow)
 	copy(row[s.curCol:], row[s.curCol+n:])
 	b := s.blank()
 	for c := s.cols - n; c < s.cols; c++ {

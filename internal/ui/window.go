@@ -128,13 +128,14 @@ type window struct {
 	bf    benchFrame
 
 	// Title bar: kaze draws its own caption buttons where custom is set (Windows).
-	custom    bool        // Kaze draws the window buttons (Windows); false: the native traffic lights (macOS)
-	lights    *macBridge  // the native traffic lights on a frameless Mac window; nil elsewhere
-	bar       titleLayout // where the last frame put the title bar's parts
-	caption   captionState
-	capTag    *int
-	maximized bool                // from the last ConfigEvent, so the button shows the real state
-	performFn func(system.Action) // replaces win.w.Perform in tests
+	custom     bool        // Kaze draws the window buttons (Windows); false: the native traffic lights (macOS)
+	lights     *macBridge  // the native traffic lights on a frameless Mac window; nil elsewhere
+	bar        titleLayout // where the last frame put the title bar's parts
+	titleCache titleLayoutCache
+	caption    captionState
+	capTag     *int
+	maximized  bool                // from the last ConfigEvent, so the button shows the real state
+	performFn  func(system.Action) // replaces win.w.Perform in tests
 
 	// Alerts from Claude Code hooks (kaze notify).
 	srv         *notify.Server  // nil when the listener could not start
