@@ -4,6 +4,10 @@ Date: 2026-10-31. Owner: Patrick. Mockup: `docs/design/agents-combined-mockup.ht
 
 Builds on the [agent sidebar design](2026-10-30-kaze-agent-sidebar-design.md) (sidebar rows, states, floating panes, the notify channel) and the [settings redesign](../plans/2026-10-31-kaze-settings-redesign.md). Everything there stands unless this document changes it.
 
+**Replaces** the main design's section 6.3 (subagent child tabs next to the lead, with a live transcript split). The tree, live pane and board cover the same goal ("subagents visible and readable live, attached to the lead that spawned them") without extra tabs.
+
+**Includes issue #23, Part 1** (pass the Claude session identity through `kaze notify`) as its foundation, and does **issue #23, Part 3** (match subagents to their lead) through it. Parts 2, 4, 5 and 6 of #23 stay separate.
+
 ## 1. Intent and why
 
 Claude Code often hands work to subagents (Explore, Plan, general-purpose, the owner's own agents). Today kaze sees one row saying "running" and nothing about what is going on underneath. The owner wants to **see what each subagent is working on**, without opening transcripts and without more tabs.
@@ -40,6 +44,17 @@ Three views, one feature:
 - Writing Claude Code's settings without the settings page's show, confirm and back-up steps.
 
 ## 5. Where the data comes from
+
+### 5.0 Session identity (issue #23, Part 1)
+
+Every Claude Code hook receives `session_id`, `transcript_path` and `cwd` on stdin. `kaze notify` forwards them on every message (the existing ones and the new ones below), each length-capped like `Reason`, so the body stays under the 4 KB cap.
+
+- kaze keeps the latest three per tab in one small struct, overwritten on each message.
+- A subagent is keyed by **session and `agent_id`**, so two conversations in one row (a session and its scratch shell, both running Claude) never mix.
+- **A new `session_id` in a tab** (`/clear`, or a fresh `claude`) is a new conversation: that tab's subagents, pending Agent calls and waiting marks are cleared from the tree and the board's Running and Waiting columns. Finished ones stay in Done.
+- Messages without a `session_id` (older hook commands, Codex) still work as today; they just don't feed subagents.
+- `transcript_path` is stored but **not read** by this feature (3). It is there for #23's later parts.
+
 
 ### 5.1 Hooks
 
@@ -155,7 +170,7 @@ Not yet confirmed on a real session. **The first plan task checks it** by captur
 
 ## 10. Claude's calls (for the owner to check)
 
-1. Hooks only, no transcript reading (3, 5).
+1. Hooks only, no transcript reading (3, 5), even though #23 Part 1 hands kaze the transcript path. That also replaces the main design's 6.3 data source, which watched transcript files.
 2. The waiting fallback marks the session, not a guessed subagent (5.4).
 3. Finished subagents leave the tree at the next prompt but stay on the board (6.1, 6.3).
 4. Esc closes the board (unlike panes, where Esc goes to the program).
