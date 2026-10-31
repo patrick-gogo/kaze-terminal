@@ -217,3 +217,26 @@ func (win *window) floatMember(id tabs.TabID) {
 	}
 	win.focusPane(id)
 }
+
+// autoScrollSelection keeps the held selection's history moving in its own
+// visible view. dragPos is relative to that view's grid, not the main grid.
+func (win *window) autoScrollSelection(gtx layout.Context, active *tabs.Tab, cw, ch int) bool {
+	if win.set.shown || win.palette.open {
+		return false
+	}
+	if g := win.gestureTab; g != nil {
+		if g == active {
+			return win.autoScrollView(gtx, win.mainView(active), cw, ch)
+		}
+		for _, pv := range win.fl.views {
+			if pv.v.tab == g && !pv.p.hidden && win.fl.owner(pv.p.id) == win.paneOwner() {
+				return win.autoScrollView(gtx, pv.v, cw, ch)
+			}
+		}
+		return false // the gesture's view is no longer visible
+	}
+	if v, ok := win.keyView(); ok {
+		return win.autoScrollView(gtx, v, cw, ch)
+	}
+	return false
+}

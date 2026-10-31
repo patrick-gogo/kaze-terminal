@@ -582,7 +582,7 @@ func (win *window) frame(gtx layout.Context) error {
 	if v, ok := win.paneKeyView(); ok {
 		win.visit(v.tab) // the pane being typed into is seen too
 	}
-	win.autoScrollView(gtx, win.mainView(active), cw, ch)
+	win.autoScrollSelection(gtx, active, cw, ch)
 	if at, ok := win.wsTick(win.wsNow()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
 	}
@@ -947,6 +947,15 @@ func (win *window) keyView() (termView, bool) {
 	if v, ok := win.paneKeyView(); ok {
 		return v, true
 	}
+	// A scratch shortcut can start a pane before its first frame. Keyboard
+	// input following that shortcut already belongs to its terminal, even
+	// though its grid and renderer will be laid out later this frame.
+	if owner := win.fl.owner(win.fl.keys); owner != 0 && owner == win.paneOwner() {
+		p := win.fl.sets[owner].find(win.fl.keys)
+		if t := win.mgr.Lookup(p.id); t != nil && !p.hidden {
+			return termView{tab: t, tag: &p.body}, true
+		}
+	}
 	t := win.shownTab()
 	if t == nil {
 		return termView{}, false
@@ -1043,7 +1052,17 @@ func (win *window) routeView(gtx layout.Context, v termView, batch []event.Event
 				win.blinkFrom = time.Time{} // typing shows the cursor and restarts the blink
 			}
 			before := win.mgr.Active()
+			keysBefore := win.fl.keys
 			win.onKey(gtx, t, e, m)
+			if win.fl.keys != keysBefore {
+				// Scratch toggles move the keyboard without switching the main
+				// tab. Keep the rest of this batch with its new destination.
+				if next, ok := win.keyView(); ok {
+					win.endGesture()
+					v, t, m = next, next.tab, modes(next.tab.Session)
+					main = v.tag == win.termTag
+				}
+			}
 			if win.set.shown {
 				return // the key showed settings; the rest of the frame's input is not the terminal's
 			}

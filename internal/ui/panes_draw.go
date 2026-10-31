@@ -8,6 +8,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/io/event"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -229,6 +230,16 @@ func (win *window) drawPanes(gtx layout.Context, views []paneView) {
 	ops := gtx.Ops
 	for i, pv := range views {
 		p, v := pv.p, pv.v
+		if !slices.Contains(win.fl.shown, p.id) {
+			// Register a newly shown pane's keyboard filters before moving
+			// focus to it, so following input is not left at the old view
+			// while the pane waits for its first input frame.
+			for {
+				if _, ok := gtx.Event(key.FocusFilter{Target: v.tag}, key.Filter{Focus: v.tag, Optional: allMods}, key.Filter{Focus: v.tag, Name: key.NameTab, Optional: allMods}); !ok {
+					break
+				}
+			}
+		}
 		lk := win.paneLook(p, v.tab, i == len(views)-1)
 		p.hits = win.ui.layoutPane(gtx, p.hits.outer, lk)
 		rend := win.paneRend(p.id)
