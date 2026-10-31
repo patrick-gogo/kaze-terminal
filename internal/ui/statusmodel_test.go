@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
+	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
 
 func TestStatusModelCounts(t *testing.T) {
@@ -48,4 +50,14 @@ func TestStatusModelHidesUnknown(t *testing.T) {
 	if len(m.Usage) != 0 || m.Branch != "" || m.Add != 0 || m.Del != 0 || m.Update != "" || m.Agents != 0 {
 		t.Fatalf("model %+v", m)
 	}
+}
+
+// statusUsage is the status bar's usage as "5h 12%" segments, for the tests
+// written against the old one-line readout.
+func statusUsage(win *window) []usage.Segment {
+	var out []usage.Segment
+	for _, d := range win.statusModel(time.Now()).Usage {
+		out = append(out, usage.Segment{Text: d.Key + " " + strconv.Itoa(d.Pct) + "%", Level: d.Level})
+	}
+	return out
 }

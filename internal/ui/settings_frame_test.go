@@ -86,7 +86,7 @@ func TestSettingsPageSkipsTheRendererButResizesTabs(t *testing.T) {
 	after := st.ptys[0].lastSize()
 	cw, ch := win.rend.CellSize()
 	want := [2]int{}
-	want[0], want[1] = gridSize(984, 630, cw, ch) // the grid inside a 1000x700 window
+	want[0], want[1] = gridSize(984, 618, cw, ch) // the grid inside a 1000x700 window: 700 - 42 - 32 - 8
 	if after == before || after != want {
 		t.Fatalf("tab sized %v under settings after a resize from %v, want %v", after, before, want)
 	}

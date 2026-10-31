@@ -982,7 +982,7 @@ func TestServerDotsColors(t *testing.T) {
 	run.members[0].run.State = workspaces.Launched // Running
 	f.st.pty(1).Close()                            // shell exited: stopped
 	f.until("admin exited", func() bool { f.win.mgr.Tabs(); return f.win.mgr.Lookup(run.members[1].tab).Exited })
-	got := f.win.statusParts().Servers
+	got := f.win.statusModel(time.Now()).Servers
 	if len(got) != len(samuraiTabs) {
 		t.Fatalf("%d dots, want %d", len(got), len(samuraiTabs))
 	}
@@ -1009,11 +1009,11 @@ func TestServerDotsClickShowsTheDownMember(t *testing.T) {
 	win.mgr.SetActive(a.ID)
 	var r input.Router
 	sideFrame(t, win, &r)
-	if win.serverDots.Empty() {
+	if win.statusRect(grpServers).Empty() {
 		t.Fatal("no server dots rect")
 	}
 	click := func() {
-		at := f32.Pt(float32(centre(win.serverDots).X), float32(centre(win.serverDots).Y))
+		at := f32.Pt(float32(centre(win.statusRect(grpServers)).X), float32(centre(win.statusRect(grpServers)).Y))
 		r.Queue(
 			pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: at},
 			pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Position: at},
@@ -1038,7 +1038,7 @@ func TestNoServerDotsWithoutARun(t *testing.T) {
 	openIn(t, win, "")
 	var r input.Router
 	sideFrame(t, win, &r)
-	if got := win.statusParts().Servers; len(got) != 0 || !win.serverDots.Empty() {
-		t.Fatalf("dots %v rect %v without a run", got, win.serverDots)
+	if got := win.statusModel(time.Now()).Servers; len(got) != 0 || !win.statusRect(grpServers).Empty() {
+		t.Fatalf("dots %v rect %v without a run", got, win.statusRect(grpServers))
 	}
 }

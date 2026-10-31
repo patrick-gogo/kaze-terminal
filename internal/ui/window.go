@@ -82,8 +82,6 @@ type window struct {
 
 	upd       updater  // the update check and install; idle unless Run set its URL
 	updIn     updInbox // results from the updater's goroutines
-	updTag    *int     // the status bar's update notice
-	updAt     image.Rectangle
 	rendPx    float32
 	rendStale bool // a setting changed: rebuild before the next layout, never mid-frame
 	ui        *chrome
@@ -130,15 +128,13 @@ type window struct {
 	bf    benchFrame
 
 	// Title bar: kaze draws its own caption buttons where custom is set (Windows).
-	custom     bool        // Kaze draws the window buttons (Windows); false: the native traffic lights (macOS)
-	lights     *macBridge  // the native traffic lights on a frameless Mac window; nil elsewhere
-	bar        titleLayout // where the last frame put the title bar's parts
-	caption    captionState
-	capTag     *int
-	dotsTag    *int
-	serverDots image.Rectangle     // the status bar's dots in window pixels; empty when none
-	maximized  bool                // from the last ConfigEvent, so the button shows the real state
-	performFn  func(system.Action) // replaces win.w.Perform in tests
+	custom    bool        // Kaze draws the window buttons (Windows); false: the native traffic lights (macOS)
+	lights    *macBridge  // the native traffic lights on a frameless Mac window; nil elsewhere
+	bar       titleLayout // where the last frame put the title bar's parts
+	caption   captionState
+	capTag    *int
+	maximized bool                // from the last ConfigEvent, so the button shows the real state
+	performFn func(system.Action) // replaces win.w.Perform in tests
 
 	// Alerts from Claude Code hooks (kaze notify).
 	srv         *notify.Server  // nil when the listener could not start
@@ -154,18 +150,17 @@ type window struct {
 	hwnd        atomic.Uintptr // native window handle, 0 until known
 
 	// Claude usage from `kaze statusline`.
-	usageIn   usageBox                  // notify goroutines -> UI goroutine
-	acct      notify.Usage              // plan limits (no Ctx); UI goroutine only
-	ctx       map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
-	agents    map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
-	subs      subagents.Tracker         // every subagent the hooks reported; UI goroutine only
-	subIn     subInbox                  // subagent events on their way to subs
-	subTabs   map[int]bool              // tabs subs has seen, so closing one forgets its subagents
-	board     boardState                // the agents board; UI goroutine only
-	agentsTag *int                      // the status bar's "N agents running"
-	agentsAt  image.Rectangle
-	names     map[tabs.TabID]string // row names the owner gave; UI goroutine only
-	lc        lineCounter           // git lines added and removed per tab; UI goroutine only
+	usageIn usageBox                  // notify goroutines -> UI goroutine
+	acct    notify.Usage              // plan limits (no Ctx); UI goroutine only
+	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
+	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
+	subs    subagents.Tracker         // every subagent the hooks reported; UI goroutine only
+	subIn   subInbox                  // subagent events on their way to subs
+	subTabs map[int]bool              // tabs subs has seen, so closing one forgets its subagents
+	board   boardState                // the agents board; UI goroutine only
+	stat    statusState               // the status bar as last drawn
+	names   map[tabs.TabID]string     // row names the owner gave; UI goroutine only
+	lc      lineCounter               // git lines added and removed per tab; UI goroutine only
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
@@ -516,7 +511,7 @@ func (win *window) setCursorHidden(h bool) {
 const echoWait = 3 * time.Millisecond
 
 func (win *window) frame(gtx layout.Context) error {
-	barH, statusH, pad := gtx.Dp(42), gtx.Dp(24), gtx.Dp(8)
+	barH, statusH, pad := gtx.Dp(42), gtx.Dp(32), gtx.Dp(8)
 	px := gtx.Metric.PxPerSp * win.opt.Config.FontSize
 	if win.rend == nil || win.rendStale || px != win.rendPx {
 		// A DPI change (another monitor) needs glyphs at the new size.
@@ -564,9 +559,7 @@ func (win *window) frame(gtx layout.Context) error {
 
 	win.paletteEvents(gtx) // first: while open it takes every click
 	win.barEvents(gtx)
-	win.dotsEvents(gtx)
-	win.updEvents(gtx)
-	win.agentsEvents(gtx)
+	win.statusEvents(gtx)
 	win.sideEvents(gtx)
 	win.filterEvents(gtx)
 	win.renameEvents(gtx)
@@ -675,38 +668,15 @@ func (win *window) frame(gtx layout.Context) error {
 	win.syncVisible(panes)
 
 	// Status bar.
-	st := op.Offset(image.Pt(0, size.Y-statusH)).Push(ops)
 	sg := gtx
 	sg.Constraints = layout.Exact(image.Pt(size.X, statusH))
-	dots, upd, agentsAt := win.ui.layoutStatus(sg, win.statusParts(), statusH)
-	win.agentsAt = agentsAt.Add(image.Pt(0, size.Y-statusH))
+	win.drawStatus(sg, size.Y-statusH, time.Now())
 	win.frameRuns = nil
-	win.serverDots = dots.Add(image.Pt(0, size.Y-statusH))
-	win.updAt = upd.Add(image.Pt(0, size.Y-statusH))
 	if at, ok := win.usageWake(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so a reset window leaves an idle bar
 	}
 	if at, ok := win.noticeWake(time.Now()); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // so the notice goes away on an idle window
-	}
-	st.Pop()
-
-	if !win.serverDots.Empty() {
-		area := clip.Rect(win.serverDots).Push(ops)
-		event.Op(ops, win.dotsTag)
-		area.Pop()
-	}
-	if !win.agentsAt.Empty() {
-		area := clip.Rect(win.agentsAt).Push(ops)
-		pointer.CursorPointer.Add(ops)
-		event.Op(ops, win.agentsTag)
-		area.Pop()
-	}
-	if !win.updAt.Empty() {
-		area := clip.Rect(win.updAt).Push(ops)
-		pointer.CursorPointer.Add(ops)
-		event.Op(ops, win.updTag)
-		area.Pop()
 	}
 
 	// Toasts float over the terminal, above the status bar; drawn last so they take clicks first.
@@ -723,6 +693,7 @@ func (win *window) frame(gtx layout.Context) error {
 		event.Op(ops, win.toastTag)
 		area.Pop()
 	}
+	win.drawUsageCard(gtx)         // over the terminal and toasts; takes no input
 	win.drawPalette(gtx, termRect) // last: it sits over everything, toasts included
 
 	if win.wantFocus {
@@ -914,54 +885,6 @@ func (win *window) focusTarget() event.Tag {
 		return v.tag
 	}
 	return win.termTag
-}
-
-// dotsEvents shows a run member when the status bar's server dots are clicked.
-func (win *window) dotsEvents(gtx layout.Context) {
-	if win.dotsTag == nil {
-		win.dotsTag = new(int) // before the first draw, so its filter is up when the first click comes
-	}
-	for {
-		ev, ok := gtx.Event(pointer.Filter{Target: win.dotsTag, Kinds: pointer.Press})
-		if !ok {
-			return
-		}
-		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
-			win.showServer()
-		}
-	}
-}
-
-// updEvents opens About when the status bar's update notice is clicked.
-// agentsEvents opens the board when the status bar's agents text is clicked.
-func (win *window) agentsEvents(gtx layout.Context) {
-	if win.agentsTag == nil {
-		win.agentsTag = new(int)
-	}
-	for {
-		ev, ok := gtx.Event(pointer.Filter{Target: win.agentsTag, Kinds: pointer.Press})
-		if !ok {
-			return
-		}
-		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
-			win.openBoard(0)
-		}
-	}
-}
-
-func (win *window) updEvents(gtx layout.Context) {
-	if win.updTag == nil {
-		win.updTag = new(int)
-	}
-	for {
-		ev, ok := gtx.Event(pointer.Filter{Target: win.updTag, Kinds: pointer.Press})
-		if !ok {
-			return
-		}
-		if e, ok := ev.(pointer.Event); ok && e.Buttons.Contain(pointer.ButtonPrimary) && !win.bench.IgnoreInput() {
-			win.updClick()
-		}
-	}
 }
 
 func (win *window) toastEvents(gtx layout.Context) {

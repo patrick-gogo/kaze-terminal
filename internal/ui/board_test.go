@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gioui.org/io/key"
 
@@ -184,8 +185,8 @@ func TestStatusAgentsText(t *testing.T) {
 		t.Fatal("status text")
 	}
 	win, _ := boardWindow(t)
-	if win.statusParts().Agents != 2 {
-		t.Fatalf("status count %d", win.statusParts().Agents)
+	if win.statusModel(time.Now()).Agents != 2 {
+		t.Fatalf("status count %d", win.statusModel(time.Now()).Agents)
 	}
 }
 

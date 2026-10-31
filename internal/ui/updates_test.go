@@ -125,7 +125,7 @@ func TestUpdateCheckRunsAfterStartThenDaily(t *testing.T) {
 	if !win.upd.newer || win.upd.rel.Version != "99.0" {
 		t.Fatalf("after the check: %+v", win.upd.view())
 	}
-	if got := win.statusParts().Update; got != "Update 99.0" {
+	if got := win.statusModel(time.Now()).Update; got != "99.0" {
 		t.Fatalf("status bar says %q", got)
 	}
 	win.updTick(t0.Add(updFirst + time.Hour))
@@ -172,7 +172,7 @@ func TestSameVersionIsUpToDate(t *testing.T) {
 	win, _, _, _, _ := updWindow(t, rel)
 	updatesAct(win, "upd_check", 0)
 	waitUpd(t, win, func() bool { return win.upd.checked })
-	if win.upd.newer || win.statusParts().Update != "" {
+	if win.upd.newer || win.statusModel(time.Now()).Update != "" {
 		t.Fatal("the same version counts as an update")
 	}
 	if !strings.Contains(updText(t, win), "Kaze is up to date") {

@@ -61,9 +61,9 @@ func TestUsageAccountFromAnyTabContextOnlyForActive(t *testing.T) {
 	win.onNotify(usageMsg(a, 10, 30))
 	win.onNotify(usageMsg(b, 12, 60)) // newer account numbers, other tab's context
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage, "5h 12%", "ctx 30%")
+	sameTexts(t, statusUsage(win), "5h 12%", "ctx 30%")
 	win.mgr.SetActive(win.mgr.Tabs()[1].ID)
-	sameTexts(t, win.statusParts().Usage, "5h 12%", "ctx 60%")
+	sameTexts(t, statusUsage(win), "5h 12%", "ctx 60%")
 }
 
 func TestUsageWithoutLimitsKeepsAccountNumbers(t *testing.T) {
@@ -75,7 +75,7 @@ func TestUsageWithoutLimitsKeepsAccountNumbers(t *testing.T) {
 	ctx := 25.0
 	win.onNotify(notify.Msg{Tab: a, Kind: notify.KindUsage, Usage: &notify.Usage{Ctx: &ctx}})
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage, "5h 40%", "ctx 25%")
+	sameTexts(t, statusUsage(win), "5h 40%", "ctx 25%")
 }
 
 func TestUsageWithoutContextClearsIt(t *testing.T) {
@@ -86,7 +86,7 @@ func TestUsageWithoutContextClearsIt(t *testing.T) {
 	win.drainUsage()
 	win.onNotify(usageMsg(a, 41, -1))
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage, "5h 41%")
+	sameTexts(t, statusUsage(win), "5h 41%")
 }
 
 func TestPromptAfterUsageHidesContext(t *testing.T) {
@@ -97,9 +97,9 @@ func TestPromptAfterUsageHidesContext(t *testing.T) {
 	report(t, tab, tmp(t)) // the shell prompt that started Claude
 	win.onNotify(usageMsg(int(tab.ID), 40, 20))
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage, "5h 40%", "ctx 20%")
+	sameTexts(t, statusUsage(win), "5h 40%", "ctx 20%")
 	report(t, tab, tmp(t)) // Claude exited: the prompt is back
-	sameTexts(t, win.statusParts().Usage, "5h 40%")
+	sameTexts(t, statusUsage(win), "5h 40%")
 }
 
 func TestExpiredAccountWindowHidden(t *testing.T) {
@@ -109,7 +109,7 @@ func TestExpiredAccountWindowHidden(t *testing.T) {
 	past := time.Now().Add(-time.Minute).Unix()
 	win.onNotify(notify.Msg{Tab: a, Kind: notify.KindUsage, Usage: &notify.Usage{FiveHour: &notify.Window{Pct: 50, Resets: past}}})
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage)
+	sameTexts(t, statusUsage(win))
 }
 
 func TestUsageForClosedTabIsDropped(t *testing.T) {
@@ -125,22 +125,6 @@ func TestUsageForClosedTabIsDropped(t *testing.T) {
 	}
 }
 
-func TestUsageLayoutFitsOrStepsAside(t *testing.T) {
-	c := newChrome()
-	segs := []usage.Segment{{Text: "5h 23%"}, {Text: "wk 41%", Level: usage.Warn}}
-	gtx := barContext(1000)
-	start := c.layoutUsage(gtx, segs, 900, 24)
-	if start <= 0 || start >= 900 {
-		t.Fatalf("start %d, want inside (0, 900)", start)
-	}
-	if got := c.layoutUsage(gtx, segs, 30, 24); got != -1 {
-		t.Fatalf("no room: got %d, want -1", got)
-	}
-	if got := c.layoutUsage(gtx, nil, 900, 24); got != -1 {
-		t.Fatalf("no segments: got %d, want -1", got)
-	}
-}
-
 func TestIdleTabCannotLowerPlanUsage(t *testing.T) {
 	win, _ := alertWindow(t, 2)
 	win.liveMgr.Store(win.mgr)
@@ -153,7 +137,7 @@ func TestIdleTabCannotLowerPlanUsage(t *testing.T) {
 	win.drainUsage()
 	win.onNotify(report(b, 48)) // b's last reply was long ago
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage, "5h 62%")
+	sameTexts(t, statusUsage(win), "5h 62%")
 }
 
 func TestLimitsSurviveAReportWithoutThemBeforeTheFrame(t *testing.T) {
@@ -164,7 +148,7 @@ func TestLimitsSurviveAReportWithoutThemBeforeTheFrame(t *testing.T) {
 	ctx := 21.0
 	win.onNotify(notify.Msg{Tab: a, Kind: notify.KindUsage, Usage: &notify.Usage{Ctx: &ctx}})
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage, "5h 40%", "ctx 21%")
+	sameTexts(t, statusUsage(win), "5h 40%", "ctx 21%")
 }
 
 func TestContextReportedBeforeThePromptStaysHidden(t *testing.T) {
@@ -177,5 +161,5 @@ func TestContextReportedBeforeThePromptStaysHidden(t *testing.T) {
 	win.onNotify(usageMsg(int(tab.ID), 40, 20))
 	report(t, tab, tmp(t)) // Claude exited before the next frame
 	win.drainUsage()
-	sameTexts(t, win.statusParts().Usage, "5h 40%")
+	sameTexts(t, statusUsage(win), "5h 40%")
 }

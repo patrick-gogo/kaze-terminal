@@ -118,10 +118,10 @@ func TestServerDotsFloatTheDownMember(t *testing.T) {
 	win, _, r, a, _, _, m2 := paneWindow(t)
 	win.runs[1].members[1].run.State = workspaces.Failed
 	sideFrame(t, win, r)
-	if win.serverDots.Empty() {
+	if win.statusRect(grpServers).Empty() {
 		t.Fatal("no server dots")
 	}
-	clickAt(t, win, r, centre(win.serverDots))
+	clickAt(t, win, r, centre(win.statusRect(grpServers)))
 	if win.fl.owner(m2.ID) != a.ID || win.mgr.Active().ID != a.ID {
 		t.Fatalf("owner %d active %d", win.fl.owner(m2.ID), win.mgr.Active().ID)
 	}

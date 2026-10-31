@@ -211,7 +211,7 @@ func TestFontChangeResizesAllTabs(t *testing.T) {
 	win.ui = newChrome()
 	win.focused = true
 	win.opt.Config = config.Default()
-	win.opt.Config.Sidebar, win.custom = false, true // the full-width grid under a 38dp bar the sizes below assume
+	win.opt.Config.Sidebar, win.custom = false, true // the full-width grid under the 42dp bar the sizes below assume
 	for range 2 {
 		if _, err := win.mgr.New(); err != nil {
 			t.Fatal(err)
@@ -222,7 +222,7 @@ func TestFontChangeResizesAllTabs(t *testing.T) {
 	frameWith(t, win, &r, at)
 	grid := func() [2]int {
 		cw, ch := win.rend.CellSize()
-		cols, rows := gridSize(784, 530, cw, ch) // the grid inside an 800x600 window
+		cols, rows := gridSize(784, 518, cw, ch) // the grid inside an 800x600 window: 600 - 42 bar - 32 status - 8 padding
 		return [2]int{cols, rows}
 	}
 	check := func(what string, before [2]int) [2]int {

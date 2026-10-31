@@ -14,16 +14,6 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
 
-// statusParts is what the status bar shows: the active tab's folder and branch
-// on the left, the memory/tab count (and any notice) on the right.
-type statusParts struct {
-	Folder, Branch, Right string
-	Usage                 []usage.Segment // Claude usage, drawn right-aligned before Right
-	Servers               []serverDot     // one per workspace run member, drawn before Usage
-	Update                string          // "Update 0.11" when a newer kaze is out, drawn before Servers
-	Agents                int             // running and waiting subagents; "N agents running" before Update
-}
-
 // serverDot is one run member's status dot: red when Down, green when Up, muted otherwise.
 type serverDot struct{ Down, Up bool }
 
@@ -34,29 +24,6 @@ type locEntry struct {
 	branch   string
 	repo     string // common git folder, "" outside a repo
 	repoName string
-}
-
-func (win *window) statusParts() statusParts {
-	p := statusParts{Right: win.statusText(len(win.mgr.Tabs())), Update: win.updLabel(), Agents: win.subs.Active(0)}
-	for _, r := range win.curRuns() {
-		for _, m := range r.Members {
-			p.Servers = append(p.Servers, serverDot{Down: m.Down, Up: !m.Down && m.Status == "Running"})
-		}
-	}
-	t := win.mgr.Active()
-	if win.opt.Config.ShowUsage {
-		p.Usage = win.usageSegments(t, time.Now())
-	}
-	if t == nil {
-		return p
-	}
-	e := win.locOf(t)
-	if e.cwd == "" {
-		return p
-	}
-	p.Folder = cleanText(tildeHome(e.cwd, win.home))
-	p.Branch = cleanText(e.branch)
-	return p
 }
 
 // locOf returns t's folder, branch and repo. A new report (even for the same

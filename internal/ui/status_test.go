@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/vt"
@@ -41,17 +42,17 @@ func TestStatusShowsHomeAsTilde(t *testing.T) {
 	home := tmp(t)
 	win.home = home
 	report(t, tab, home)
-	if got := win.statusParts().Folder; got != "~" {
+	if got := win.statusModel(time.Now()).Folder; got != "~" {
 		t.Fatalf("home: got %q", got)
 	}
 	report(t, tab, filepath.Join(home, "src", "kaze"))
 	want := "~" + string(filepath.Separator) + filepath.Join("src", "kaze")
-	if got := win.statusParts().Folder; got != want {
+	if got := win.statusModel(time.Now()).Folder; got != want {
 		t.Fatalf("under home: got %q, want %q", got, want)
 	}
 	other := tmp(t)
 	report(t, tab, other)
-	if got := win.statusParts().Folder; got != other {
+	if got := win.statusModel(time.Now()).Folder; got != other {
 		t.Fatalf("outside home: got %q, want %q", got, other)
 	}
 }
@@ -61,7 +62,7 @@ func TestHomePrefixNeedsASeparator(t *testing.T) {
 	home := tmp(t)
 	win.home = home
 	report(t, tab, home+"-other")
-	if got := win.statusParts().Folder; strings.HasPrefix(got, "~") {
+	if got := win.statusModel(time.Now()).Folder; strings.HasPrefix(got, "~") {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -69,7 +70,7 @@ func TestHomePrefixNeedsASeparator(t *testing.T) {
 func TestStatusShowsBranchWhenInRepo(t *testing.T) {
 	win, tab, _ := statusWindow(t)
 	report(t, tab, tmp(t))
-	if got := win.statusParts().Branch; got != "main" {
+	if got := win.statusModel(time.Now()).Branch; got != "main" {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -78,14 +79,14 @@ func TestStatusHidesBranchOutsideRepo(t *testing.T) {
 	win, tab, _ := statusWindow(t)
 	win.branchFn = func(string) string { return "" }
 	report(t, tab, tmp(t))
-	if got := win.statusParts().Branch; got != "" {
+	if got := win.statusModel(time.Now()).Branch; got != "" {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestStatusEmptyBeforeAnyReport(t *testing.T) {
 	win, _, calls := statusWindow(t)
-	p := win.statusParts()
+	p := win.statusModel(time.Now())
 	if p.Folder != "" || p.Branch != "" || len(*calls) != 0 {
 		t.Fatalf("parts %+v, lookups %v", p, *calls)
 	}
@@ -96,19 +97,19 @@ func TestBranchLookedUpOnlyOnCwdChange(t *testing.T) {
 	a, b := tmp(t), tmp(t)
 	report(t, tab, a)
 	for i := 0; i < 5; i++ {
-		win.statusParts()
+		win.statusModel(time.Now())
 	}
 	if len(*calls) != 1 {
 		t.Fatalf("5 frames, same folder: %d lookups", len(*calls))
 	}
 	report(t, tab, a) // the prompt re-reports after `git switch`
-	win.statusParts()
-	win.statusParts()
+	win.statusModel(time.Now())
+	win.statusModel(time.Now())
 	if len(*calls) != 2 {
 		t.Fatalf("same folder re-reported: %d lookups, want 2", len(*calls))
 	}
 	report(t, tab, b)
-	win.statusParts()
+	win.statusModel(time.Now())
 	if len(*calls) != 3 || (*calls)[2] != b {
 		t.Fatalf("new folder: lookups %v", *calls)
 	}
@@ -117,16 +118,16 @@ func TestBranchLookedUpOnlyOnCwdChange(t *testing.T) {
 func TestBranchCacheIsPerTab(t *testing.T) {
 	win, tab, calls := statusWindow(t)
 	report(t, tab, tmp(t))
-	win.statusParts()
+	win.statusModel(time.Now())
 	second, err := win.mgr.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 	report(t, second, tmp(t))
-	win.statusParts() // second is active
+	win.statusModel(time.Now()) // second is active
 	win.mgr.SetActive(tab.ID)
-	win.statusParts()
-	win.statusParts()
+	win.statusModel(time.Now())
+	win.statusModel(time.Now())
 	if len(*calls) != 2 {
 		t.Fatalf("frames without a switch re-read the branch: %v", *calls)
 	}
@@ -138,26 +139,26 @@ func TestBranchRereadOnTabSwitch(t *testing.T) {
 	win, tab, calls := statusWindow(t)
 	report(t, tab, tmp(t))
 	win.switchedTo(tab)
-	win.statusParts()
+	win.statusModel(time.Now())
 	second, err := win.mgr.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 	report(t, second, tmp(t))
 	win.switchedTo(second)
-	win.statusParts()
+	win.statusModel(time.Now())
 	n := len(*calls)
 	branch := "feature/x"
 	win.branchFn = func(dir string) string { *calls = append(*calls, dir); return branch }
 	win.mgr.SetActive(tab.ID)
 	win.switchedTo(tab)
 	for range 3 {
-		win.statusParts()
+		win.statusModel(time.Now())
 	}
 	if len(*calls) != n+1 {
 		t.Fatalf("switching back: %d lookups, want 1", len(*calls)-n)
 	}
-	if got := win.statusParts().Branch; got != branch {
+	if got := win.statusModel(time.Now()).Branch; got != branch {
 		t.Fatalf("branch %q, want %q", got, branch)
 	}
 }
@@ -166,15 +167,15 @@ func TestBranchRereadOnFocusGain(t *testing.T) {
 	win, tab, calls := statusWindow(t)
 	win.focused = true
 	report(t, tab, tmp(t))
-	win.statusParts()
+	win.statusModel(time.Now())
 	win.setFocused(false)
-	win.statusParts()
+	win.statusModel(time.Now())
 	if len(*calls) != 1 {
 		t.Fatalf("losing focus re-read the branch: %v", *calls)
 	}
 	win.setFocused(true)
 	for range 3 {
-		win.statusParts()
+		win.statusModel(time.Now())
 	}
 	if len(*calls) != 2 {
 		t.Fatalf("focus gain: %d lookups, want 2", len(*calls))
@@ -204,7 +205,7 @@ func TestStatusTextHasNoControlChars(t *testing.T) {
 	win, tab, _ := statusWindow(t)
 	win.branchFn = func(string) string { return "a\x1b[31mb\u009bc" }
 	report(t, tab, tmp(t))
-	p := win.statusParts()
+	p := win.statusModel(time.Now())
 	for _, s := range []string{p.Folder, p.Branch} {
 		for _, r := range s {
 			if r < 0x20 || (r >= 0x7f && r <= 0x9f) {

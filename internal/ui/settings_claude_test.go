@@ -167,11 +167,11 @@ func TestShowUsageOff(t *testing.T) {
 	win.liveMgr.Store(win.mgr)
 	win.onNotify(usageMsg(int(win.mgr.Tabs()[0].ID), 10, 30))
 	win.drainUsage()
-	if len(win.statusParts().Usage) == 0 {
+	if len(statusUsage(win)) == 0 {
 		t.Fatal("no usage with show_usage on")
 	}
 	pressAny(t, win, "show_usage", 0)
-	if u := win.statusParts().Usage; len(u) != 0 || !strings.Contains(readFile(t, f.cfg), "show_usage = false") {
+	if u := statusUsage(win); len(u) != 0 || !strings.Contains(readFile(t, f.cfg), "show_usage = false") {
 		t.Fatalf("usage %v with show_usage off", u)
 	}
 }

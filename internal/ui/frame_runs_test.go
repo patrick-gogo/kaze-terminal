@@ -1,6 +1,9 @@
 package ui
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // The sidebar and the status bar draw the same frame's runs, built once.
 func TestStatusBarUsesTheFramesRuns(t *testing.T) {
@@ -10,11 +13,11 @@ func TestStatusBarUsesTheFramesRuns(t *testing.T) {
 	}
 	runs := []sideRun{{Run: 1, Name: "api", Members: []sideMember{{Status: "Running"}, {Down: true}}}}
 	win.frameRuns = &runs
-	if n := len(win.statusParts().Servers); n != 2 {
+	if n := len(win.statusModel(time.Now()).Servers); n != 2 {
 		t.Fatalf("status bar shows %d server dots, want the frame's 2", n)
 	}
 	win.frameRuns = nil
-	if n := len(win.statusParts().Servers); n != 0 {
+	if n := len(win.statusModel(time.Now()).Servers); n != 0 {
 		t.Fatalf("outside a frame the status bar shows %d dots, want the live 0", n)
 	}
 }
