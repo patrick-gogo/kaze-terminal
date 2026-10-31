@@ -3,7 +3,6 @@ package ui
 import (
 	"image"
 	"image/color"
-	"math"
 	"os"
 	"strings"
 	"unicode"
@@ -213,15 +212,16 @@ func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState
 			paint.FillShape(ops, bg, clip.Rect(r).Op())
 			fg = c.th.ActiveFG
 		}
-		var glyph clip.Op
-		if btn == capToggle {
-			glyph = toggleGlyph(gtx, r)
-		} else {
-			glyph = captionGlyph(gtx, btn, r, maximized)
+		switch btn {
+		case capToggle:
+			c.toolIcon(gtx, "panel", r, fg)
+		case capGear:
+			c.toolIcon(gtx, "cog", r, fg)
+		default:
+			cl := clip.Rect(r).Push(ops)
+			paint.FillShape(ops, fg, captionGlyph(gtx, btn, r, maximized))
+			cl.Pop()
 		}
-		cl := clip.Rect(r).Push(ops)
-		paint.FillShape(ops, fg, glyph)
-		cl.Pop()
 	}
 }
 
@@ -277,17 +277,6 @@ func captionGlyph(gtx layout.Context, btn captionButton, r image.Rectangle, maxi
 		p.LineTo(f32.Pt(x0+s, y0+s))
 		p.MoveTo(f32.Pt(x0+s, y0))
 		p.LineTo(f32.Pt(x0, y0+s))
-	case btn == capGear:
-		// A ring with eight teeth.
-		cx, cy, ring := x0+s/2, y0+s/2, s*0.27
-		p.MoveTo(f32.Pt(cx+ring, cy))
-		p.Arc(f32.Pt(-ring, 0), f32.Pt(-ring, 0), 2*math.Pi)
-		for i := range 8 {
-			a := float64(i) * math.Pi / 4
-			dx, dy := float32(math.Cos(a)), float32(math.Sin(a))
-			p.MoveTo(f32.Pt(cx+dx*s*0.38, cy+dy*s*0.38))
-			p.LineTo(f32.Pt(cx+dx*(s/2), cy+dy*(s/2)))
-		}
 	}
 	return clip.Stroke{Path: p.End(), Width: sw}.Op()
 }

@@ -123,6 +123,16 @@ func (p *page) iconTile(name string) (op.CallOp, image.Point) {
 var iconNames = map[string]bool{
 	"appearance": true, "workspaces": true, "claude": true, "shortcuts": true, "updates": true,
 	"about": true, "check": true, "alert": true, "prompt": true, "chart": true, "download": true,
+	"panel": true, "search": true, "terminal": true, "cog": true,
+}
+
+// toolIcon draws one of the sidebar and title bar buttons' icons (panel,
+// search, terminal, cog) at one optical size, centered in r, so the row reads
+// as a set: same grid, same stroke.
+func (c *chrome) toolIcon(gtx layout.Context, name string, r image.Rectangle, col color.NRGBA) {
+	s := min(gtx.Dp(18), r.Dx(), r.Dy())
+	x, y := r.Min.X+(r.Dx()-s)/2, r.Min.Y+(r.Dy()-s)/2
+	c.icon(gtx, name, image.Rect(x, y, x+s, y+s), col)
 }
 
 // icon draws a 24-unit line icon scaled into r; an unknown name draws nothing.
@@ -143,6 +153,18 @@ func (c *chrome) icon(gtx layout.Context, name string, r image.Rectangle, col co
 		}
 	}
 	rect := func(x, y, w, h float32) { line(x, y, x+w, y, x+w, y+h, x, y+h, x, y) }
+	// rrect is a rectangle with rounded corners of radius rad.
+	rrect := func(x, y, w, h, rad float32) {
+		p.MoveTo(pt(x+rad, y))
+		p.LineTo(pt(x+w-rad, y))
+		p.QuadTo(pt(x+w, y), pt(x+w, y+rad))
+		p.LineTo(pt(x+w, y+h-rad))
+		p.QuadTo(pt(x+w, y+h), pt(x+w-rad, y+h))
+		p.LineTo(pt(x+rad, y+h))
+		p.QuadTo(pt(x, y+h), pt(x, y+h-rad))
+		p.LineTo(pt(x, y+rad))
+		p.QuadTo(pt(x, y), pt(x+rad, y))
+	}
 	circle := func(cx, cy, rad float32, sweep float64, from float64) {
 		ctr := pt(cx, cy)
 		p.MoveTo(f32.Pt(ctr.X+rad*k*float32(math.Cos(from)), ctr.Y+rad*k*float32(math.Sin(from))))
@@ -196,6 +218,38 @@ func (c *chrome) icon(gtx layout.Context, name string, r image.Rectangle, col co
 		line(12, 4, 12, 16)
 		line(6, 10, 12, 16, 18, 10)
 		line(5, 20, 19, 20)
+	case "panel":
+		rrect(3, 4, 18, 16, 3)
+		line(9.5, 4, 9.5, 20)
+	case "search":
+		circle(10.5, 10.5, 7.2, 2*math.Pi, 0)
+		line(15.6, 15.6, 20.6, 20.6)
+	case "terminal":
+		rrect(3, 4, 18, 16, 3)
+		line(7.5, 9, 10.5, 12, 7.5, 15)
+		line(12.5, 15, 16.5, 15)
+	case "cog":
+		// Eight teeth around a ring, and the hub.
+		const teeth = 8
+		ctr := pt(12, 12)
+		at := func(a, rad float64) f32.Point {
+			return f32.Pt(ctr.X+float32(rad*math.Cos(a))*k, ctr.Y+float32(rad*math.Sin(a))*k)
+		}
+		step := 2 * math.Pi / teeth
+		for i := 0; i < teeth; i++ {
+			a := float64(i)*step - math.Pi/2
+			pts := []f32.Point{at(a-step*0.30, 7.2), at(a-step*0.17, 9.6), at(a+step*0.17, 9.6), at(a+step*0.30, 7.2)}
+			if i == 0 {
+				p.MoveTo(pts[0])
+			} else {
+				p.LineTo(pts[0])
+			}
+			for _, q := range pts[1:] {
+				p.LineTo(q)
+			}
+		}
+		p.Close()
+		circle(12, 12, 3, 2*math.Pi, 0)
 	}
 	paint.FillShape(ops, col, clip.Stroke{Path: p.End(), Width: width}.Op())
 	if fill != nil {

@@ -840,7 +840,7 @@ func (win *window) drawBar(gtx layout.Context, barH int) {
 		if win.caption.hover == capScratch {
 			paint.FillShape(ops, th.CapHover, clip.Rect(r).Op())
 		}
-		fillGlyph(ops, col, r, scratchGlyph(gtx, r))
+		win.ui.toolIcon(gtx, "terminal", r, col)
 	}
 	if r := win.bar.Search; !r.Empty() {
 		key := formatShortcut(runtime.GOOS, win.binds["palette"])
