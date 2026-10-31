@@ -75,3 +75,15 @@ func TestKazeShortcutsReturnNil(t *testing.T) {
 		t.Fatal("plain Ctrl+C must reach the shell")
 	}
 }
+
+// A lone modifier press is not a character: Gio names Command "⌘", one rune,
+// and macOS can report it with no modifier bit set.
+func TestModifierKeysAloneSendNothing(t *testing.T) {
+	for _, n := range []key.Name{key.NameCommand, key.NameCtrl, key.NameShift, key.NameAlt, key.NameSuper} {
+		for _, mods := range []key.Modifiers{0, key.ModCommand, key.ModShift} {
+			if b := input.EncodeKey(n, mods, term.Modes{}); b != nil {
+				t.Errorf("%q with mods %v sent %q", n, mods, b)
+			}
+		}
+	}
+}
