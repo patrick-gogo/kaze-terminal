@@ -198,14 +198,6 @@ func TestMoreAgentsOpensFilteredBoard(t *testing.T) {
 	}
 }
 
-func TestSidebarAgentsButtonBadge(t *testing.T) {
-	m := sideModel{Loose: sideRows(1, 1, "s")}
-	h, _ := sideDraw(t, m, sideState{buttons: true, agentsBadge: 3}, 400)
-	if h.agentsBtn.Empty() {
-		t.Fatal("no Agents button")
-	}
-}
-
 func TestCloseTabKeyClosesTheBoardNotTheSession(t *testing.T) {
 	win, _ := boardWindow(t)
 	n := len(win.mgr.Tabs())

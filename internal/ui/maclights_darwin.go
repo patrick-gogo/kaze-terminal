@@ -139,7 +139,6 @@ static void kzReplace(CFTypeRef viewRef, uint64_t gen, double barH, double left)
 import "C"
 
 import (
-	"os"
 	"sync/atomic"
 
 	"gioui.org/app"
@@ -155,10 +154,6 @@ func macView(e event.Event) (view uintptr, ok bool) {
 	}
 	return v.View, true
 }
-
-// MacFrameless reports whether the window opens without the system title bar
-// so Kaze draws its own. Spike: only with KAZE_FRAMELESS=1 until Task 3.
-func MacFrameless() bool { return os.Getenv("KAZE_FRAMELESS") == "1" }
 
 // activeBridge is the bridge native callbacks report to; Kaze has one window.
 var activeBridge atomic.Pointer[macBridge]

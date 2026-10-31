@@ -51,7 +51,7 @@ func main() {
 	}
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("kaze"), app.Size(unit.Dp(1100), unit.Dp(720)), app.Decorated(!ui.CustomTitleBar && !ui.MacFrameless()))
+		w.Option(app.Title("kaze"), app.Size(unit.Dp(1100), unit.Dp(720)), app.Decorated(false))
 		if err := ui.Run(w, ui.Options{Config: cfg, Warnings: warns, Shell: shell, Dir: home, Bench: rec, Workspace: wsName}); err != nil {
 			reportFatal(err)
 			os.Exit(1)

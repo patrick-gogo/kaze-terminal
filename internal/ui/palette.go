@@ -244,28 +244,3 @@ func (c *chrome) palRow(gtx layout.Context, it palItem, r image.Rectangle, selec
 		place(ops, call, image.Pt(x+nsz.X, mid-csz.Y/2))
 	}
 }
-
-// layoutSearch draws the title bar's search box in the column r: a rounded
-// box h high with the magnifier, its placeholder and the palette's key.
-func (c *chrome) layoutSearch(gtx layout.Context, r image.Rectangle, h int, keyText string, hover bool) {
-	ops, th := gtx.Ops, c.th
-	box := image.Rect(r.Min.X, r.Min.Y+(r.Dy()-h)/2, r.Max.X, r.Min.Y+(r.Dy()-h)/2+h)
-	border := th.Border
-	if hover {
-		border = th.Muted
-	}
-	rr := clip.UniformRRect(box, gtx.Dp(6))
-	paint.FillShape(ops, border, clip.Stroke{Path: rr.Path(ops), Width: float32(max(gtx.Dp(1), 1))}.Op())
-	gap := gtx.Dp(8)
-	g := image.Rect(box.Min.X+gap/2, box.Min.Y, box.Min.X+gap/2+box.Dy(), box.Max.Y)
-	c.toolIcon(gtx, "search", g.Inset(gtx.Dp(5)), th.Muted)
-	right := box.Max.X - gap
-	if keyText != "" {
-		call, sz := c.fitSide(gtx, keyText, 11, box.Dx()/3, th.Muted)
-		right -= sz.X
-		place(ops, call, image.Pt(right, box.Min.Y+(box.Dy()-sz.Y)/2))
-		right -= gap
-	}
-	call, sz := c.fitSide(gtx, "Search sessions, skills…", 12, max(right-g.Max.X, 0), th.Muted)
-	place(ops, call, image.Pt(g.Max.X, box.Min.Y+(box.Dy()-sz.Y)/2))
-}

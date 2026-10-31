@@ -13,7 +13,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 	"gioui.org/widget"
 
 	kinput "github.com/patrick-gogo/kaze-terminal/internal/input"
@@ -23,8 +22,6 @@ import (
 const (
 	// minSideWindow is the narrowest window, in dp, that still shows the sidebar.
 	minSideWindow = 560
-	// railW is the macOS rail's width in dp: it keeps the toggle and gear while the sidebar is hidden.
-	railW = 36
 	// doubleClick is the longest gap between two presses on a row's title that renames it.
 	doubleClick = 500 * time.Millisecond
 )
@@ -144,7 +141,7 @@ func (win *window) toggleSidebar() {
 	win.saveSetting("sidebar", on)
 }
 
-// sideWidth is how wide the sidebar (or the macOS rail) is in a window this wide,
+// sideWidth is how wide the sidebar is in a window this wide (0 while hidden),
 // and sets hidden. A narrow window hides it without touching the setting.
 func (win *window) sideWidth(gtx layout.Context, width int) int {
 	win.side.narrow = width < gtx.Dp(minSideWindow)
@@ -153,17 +150,13 @@ func (win *window) sideWidth(gtx layout.Context, width int) int {
 	if !on {
 		win.dropSideEdit() // an invisible field must not keep the keyboard
 	}
-	w := 0
-	switch {
-	case on:
-		w = gtx.Dp(sidebarW)
-	case !win.custom:
-		w = gtx.Dp(railW)
+	if !on {
+		return 0 // its buttons live in the title bar
 	}
-	return min(w, width)
+	return min(gtx.Dp(sidebarW), width)
 }
 
-// drawSide draws the sidebar, or the macOS rail while it is hidden, into r and
+// drawSide draws the sidebar into r and
 // takes its pointer input there.
 func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 	s := &win.side
@@ -179,7 +172,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 	sg.Constraints = layout.Exact(r.Size())
 	if s.hidden {
 		s.st.hover, s.reveal = 0, false
-		s.hits = win.ui.layoutRail(sg, r.Size())
+		s.hits = sideHits{}
 	} else {
 		if s.renaming != 0 && win.mgr.Lookup(s.renaming) == nil {
 			win.endRename(false) // its tab closed
@@ -201,10 +194,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 				s.st.floating = f.id
 			}
 		}
-		s.st.buttons = !win.custom
 		s.st.nextKey = win.nextWaitingKey()
-		_, waiting, _ := win.subs.Board()
-		s.st.agentsBadge, s.st.agentsWaiting = win.subs.Active(0), len(waiting) > 0 || len(win.subs.SessionWaits()) > 0
 		rec := op.Record(ops)
 		h := win.ui.layoutSidebar(sg, m, s.st, r.Size())
 		call := rec.Stop()
@@ -256,26 +246,6 @@ func revealScroll(gtx layout.Context, m sideModel, st sideState, h sideHits) (in
 	sc := min(max(st.scroll, 0), h.scrollMax)
 	sc = max(min(sc, top), top+rH-h.list.Dy())
 	return min(max(sc, 0), h.scrollMax), true
-}
-
-// layoutRail draws the macOS rail: the sidebar toggle, the palette button, the
-// scratch shell button and the gear, top to bottom.
-func (c *chrome) layoutRail(gtx layout.Context, size image.Point) sideHits {
-	ops, th := gtx.Ops, c.th
-	paint.FillShape(ops, th.Chrome, clip.Rect{Max: size}.Op())
-	paint.FillShape(ops, th.Border, clip.Rect(image.Rect(size.X-1, 0, size.X, size.Y)).Op())
-	bar, btn := gtx.Dp(36), gtx.Dp(28)
-	x, y := (size.X-btn)/2, (bar-btn)/2
-	var h sideHits
-	h.toggle = image.Rect(x, y, x+btn, y+btn)
-	h.palette = image.Rect(x, bar+y, x+btn, bar+y+btn)
-	h.scratch = image.Rect(x, 2*bar+y, x+btn, 2*bar+y+btn)
-	h.gear = image.Rect(x, 3*bar+y, x+btn, 3*bar+y+btn)
-	c.toolIcon(gtx, "terminal", h.scratch, th.CapGlyph)
-	c.toolIcon(gtx, "panel", h.toggle, th.CapGlyph)
-	c.toolIcon(gtx, "search", h.palette, th.CapGlyph)
-	c.toolIcon(gtx, "cog", h.gear, th.CapGlyph)
-	return h
 }
 
 func (win *window) sideEvents(gtx layout.Context) {
@@ -523,42 +493,12 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 	win.side.filtering = primary && p.In(h.filter) // any other click leaves the field
 	defer win.sideRedraw()
 	switch {
-	case p.In(h.toggle):
-		if primary {
-			win.toggleSidebar()
-		}
-		return
-	case p.In(h.gear):
-		if primary {
-			win.openSettings()
-		}
-		return
-	case p.In(h.palette):
-		if primary {
-			win.openPalette()
-		}
-		return
-	case p.In(h.scratch):
-		if primary {
-			win.toggleScratch()
-		}
-		return
-	case p.In(h.agentsBtn):
-		if primary {
-			win.toggleBoard()
-		}
-		return
 	case p.In(h.settings):
 		switch {
 		case middle, primary && p.In(h.settingsClose):
 			win.closeSettings()
 		case primary:
 			win.openSettings()
-		}
-		return
-	case p.In(h.plus):
-		if primary {
-			win.newTab()
 		}
 		return
 	case p.In(h.next):

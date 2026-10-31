@@ -197,34 +197,6 @@ func place(ops *op.Ops, call op.CallOp, at image.Point) {
 	t.Pop()
 }
 
-// layoutCaptions draws the sidebar toggle, the settings gear and the minimize,
-// maximize/restore and close buttons.
-func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState, maximized bool) {
-	ops := gtx.Ops
-	rects := [5]image.Rectangle{b.Buttons[0], b.Buttons[1], b.Buttons[2], b.Gear, b.Toggle}
-	for i, r := range rects {
-		if r.Empty() {
-			continue
-		}
-		btn := captionButton(i + 1)
-		fg := c.th.CapGlyph
-		if bg, ok := c.captionBG(btn, st); ok {
-			paint.FillShape(ops, bg, clip.Rect(r).Op())
-			fg = c.th.ActiveFG
-		}
-		switch btn {
-		case capToggle:
-			c.toolIcon(gtx, "panel", r, fg)
-		case capGear:
-			c.toolIcon(gtx, "cog", r, fg)
-		default:
-			cl := clip.Rect(r).Push(ops)
-			paint.FillShape(ops, fg, captionGlyph(gtx, btn, r, maximized))
-			cl.Pop()
-		}
-	}
-}
-
 // captionBG is a button's background: pressed while held over it, hover when only hovered.
 func (c *chrome) captionBG(btn captionButton, st captionState) (color.NRGBA, bool) {
 	hover, press := c.th.CapHover, c.th.CapPress
