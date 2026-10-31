@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
+	"github.com/patrick-gogo/kaze-terminal/internal/subagents"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 )
 
@@ -29,6 +30,7 @@ type paneKind int
 const (
 	paneMember paneKind = iota
 	paneScratch
+	paneAgent // a subagent's live pane: drawn by kaze, no terminal, never the keyboard
 )
 
 // pane is one floating terminal over a session. r is kept in dp relative to
@@ -45,12 +47,19 @@ type pane struct {
 	frame  int             // event tag: header and edges
 	hits   paneHits
 	grab   paneGrab
+
+	// Live panes only.
+	agent   subagents.Key
+	scroll  int  // px the body is scrolled down
+	follow  bool // keep the newest step in view
+	wrapKey [4]int
+	wrapped []agentLine
 }
 
 // paneHits is where the last frame drew a pane, in window px.
 type paneHits struct {
 	outer, header, body image.Rectangle
-	expand, close       image.Rectangle // empty when the pane has no such button
+	expand, close, copy image.Rectangle // empty when the pane has no such button
 }
 
 // paneGrab is a header drag or an edge resize in progress.
@@ -74,6 +83,9 @@ type floats struct {
 	views   []paneView   // drawn last frame, front last; input uses them
 	redraws int          // frames pane gestures asked for; tests count them
 	refocus bool         // the pane with the keyboard was just drawn: focus it once its filters are up
+
+	agentIDs  map[subagents.Key]tabs.TabID // live panes' ids, negative
+	lastAgent tabs.TabID
 }
 
 func (f *floats) set(session tabs.TabID) *paneSet {
@@ -109,9 +121,13 @@ func (f *floats) open(session, id tabs.TabID, kind paneKind) (p *pane, dropped t
 	if kind == paneScratch {
 		p.r = scratchRectDp
 	} else {
+		size := memberSizeDp
+		if kind == paneAgent {
+			size = agentSizeDp
+		}
 		n := len(s.visible())
 		at := image.Pt(80+30*n, 40+30*n)
-		p.r = image.Rectangle{Min: at, Max: at.Add(memberSizeDp)}
+		p.r = image.Rectangle{Min: at, Max: at.Add(size)}
 	}
 	p.opened = f.stamp()
 	p.z = f.stamp()
@@ -119,7 +135,7 @@ func (f *floats) open(session, id tabs.TabID, kind paneKind) (p *pane, dropped t
 	if len(s.panes) > maxPanes {
 		var old *pane
 		for _, q := range s.panes {
-			if q.kind == paneMember && (old == nil || q.opened < old.opened) {
+			if q.kind != paneScratch && q != p && (old == nil || q.opened < old.opened) {
 				old = q
 			}
 		}
@@ -177,6 +193,10 @@ func (f *floats) prune(exists func(tabs.TabID) bool) (orphans, released []tabs.T
 		kept := s.panes[:0]
 		for _, p := range s.panes {
 			switch {
+			case p.kind == paneAgent && !gone:
+				kept = append(kept, p)
+				continue
+			case p.kind == paneAgent: // its session closed
 			case !exists(p.id):
 			case gone && p.kind == paneScratch:
 				orphans = append(orphans, p.id)

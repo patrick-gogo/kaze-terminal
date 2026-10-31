@@ -112,8 +112,8 @@ func (win *window) pruneSubs(list []*tabs.Tab) {
 	}
 }
 
-// openAgentPane shows a subagent's live pane in its session (Task 8).
-func (win *window) openAgentPane(tab tabs.TabID, k subagents.Key) {}
-
 // openBoard shows the agents board, filtered to tab unless it is 0 (Task 9).
 func (win *window) openBoard(tab tabs.TabID) {}
+
+// closeBoard hides the agents board (Task 9).
+func (win *window) closeBoard() {}
