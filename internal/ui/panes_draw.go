@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"slices"
 
-	"gioui.org/f32"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -328,19 +327,4 @@ func (win *window) syncVisible(views []paneView) {
 			}
 		}
 	}
-}
-
-// scratchGlyph is a small terminal prompt centred in r: a chevron and an underscore.
-func scratchGlyph(gtx layout.Context, r image.Rectangle) clip.Op {
-	s := float32(min(r.Dx(), r.Dy(), gtx.Dp(28)))
-	cx, cy := float32(r.Min.X)+float32(r.Dx())/2, float32(r.Min.Y)+float32(r.Dy())/2
-	u, w := s*0.085, max(float32(gtx.Dp(1))*1.4, 1)
-	var p clip.Path
-	p.Begin(gtx.Ops)
-	p.MoveTo(f32.Pt(cx-3*u, cy-2*u))
-	p.LineTo(f32.Pt(cx-u, cy))
-	p.LineTo(f32.Pt(cx-3*u, cy+2*u))
-	p.MoveTo(f32.Pt(cx, cy+2.2*u))
-	p.LineTo(f32.Pt(cx+3*u, cy+2.2*u))
-	return clip.Stroke{Path: p.End(), Width: w}.Op()
 }

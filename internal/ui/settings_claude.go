@@ -35,78 +35,101 @@ type claudeDialog struct {
 
 func claudeSection() settingsSection {
 	return settingsSection{
-		title: "Claude", hint: "Alerts come from Claude Code hooks; usage comes from its status line.",
+		title: "Claude", hint: "How kaze hears from Claude Code, and how it tells you.",
 		rows: claudeRows, act: claudeAct, show: (*window).loadClaude, dialog: claudeDialogBox,
 	}
 }
 
 func claudeRows(win *window) []settingRow {
 	c := win.opt.Config
-	rows := []settingRow{
-		{label: "Chime when Claude needs you", ctrls: []ctrl{
-			{kind: ctlButton, id: "chime_test", text: "Test"},
+	rows := append([]settingRow{{heading: "Claude Code setup"}}, win.setupRows()...)
+	return append(rows,
+		settingRow{heading: "Alerts"},
+		settingRow{label: "Chime when Claude needs you", hint: "Not when you're already looking at that session.", ctrls: []ctrl{
+			{kind: ctlButton, id: "chime_test", text: "Test", ghost: true},
 			{kind: ctlToggle, id: "chime_needs", on: c.ChimeNeeds},
 		}},
-		{label: "Chime when Claude is done", ctrls: []ctrl{{kind: ctlToggle, id: "chime_done", on: c.ChimeDone}}},
-		{label: "Flash the taskbar", hint: "When kaze is in the background", ctrls: []ctrl{{kind: ctlToggle, id: "taskbar_flash", on: c.TaskbarFlash}}},
-		{label: `"Done" toast stays for`, ctrls: []ctrl{{
+		settingRow{label: "Chime when Claude is done", ctrls: []ctrl{{kind: ctlToggle, id: "chime_done", on: c.ChimeDone}}},
+		settingRow{label: "Flash the taskbar", hint: "When kaze is in the background", ctrls: []ctrl{{kind: ctlToggle, id: "taskbar_flash", on: c.TaskbarFlash}}},
+		settingRow{label: `"Done" toast stays for`, ctrls: []ctrl{{
 			kind: ctlSegmented, id: "done_toast", options: []string{"3s", "6s", "10s", "Until seen"},
 			selected: choiceIndex(doneToasts, c.DoneToast, 1),
 		}}},
-		{label: "Show usage in the status bar", ctrls: []ctrl{{kind: ctlToggle, id: "show_usage", on: c.ShowUsage}}},
-	}
-	return append(rows, win.setupRow())
+		settingRow{heading: "Status bar"},
+		settingRow{label: "Show usage", hint: "Claude's 5-hour and weekly limits, and this session's context.",
+			ctrls: []ctrl{{kind: ctlToggle, id: "show_usage", on: c.ShowUsage}}},
+	)
 }
 
-// setupRow is the Claude Code setup check: one line per kaze entry, this kaze's
-// path, and Fix / Replace when they have something to do.
-func (win *window) setupRow() settingRow {
-	row := settingRow{label: "Claude Code setup"}
-	if win.exePath != "" {
-		row.hint = "This kaze: " + truncateLeft(win.exePath, 80)
-	}
+// setupRows is the Claude Code setup check: one row per kaze entry with its
+// state as a pill, Fix on the first entry it would fix and Replace on a taken
+// status line, then this kaze's path.
+func (win *window) setupRows() []settingRow {
 	cs := &win.claude
-	r := cs.report
 	switch {
 	case win.claudePath == "":
-		row.lines = []string{"Claude Code settings not found"}
-		return row
+		return []settingRow{{icon: "alert", label: "Claude Code settings not found", hint: "Install Claude Code, then open this page again."}}
 	case cs.readErr != "":
-		row.lines = []string{"Can't read " + tildeHome(win.claudePath, win.home) + " (" + truncateRight(cleanText(cs.readErr), 60) + ")"}
-		return row
+		return []settingRow{{icon: "alert", label: "Can't read " + tildeHome(win.claudePath, win.home) + " (" + truncateRight(cleanText(cs.readErr), 60) + ")"}}
 	}
-	row.lines = []string{
-		"Alerts when Claude needs you: " + entryText(r.Needs),
-		"Alerts when Claude is done: " + entryText(r.Stop),
-		"Command each session runs: " + entryText(r.Prompt),
-		"Usage in the status bar: " + entryText(r.StatusLine),
-	}
-	if win.exePath == "" {
-		return row
+	r := cs.report
+	entries := []struct {
+		icon, label, hook string
+		e                 claudesetup.Entry
+	}{
+		{"alert", "Alerts when Claude needs you", "Notification hook", r.Needs},
+		{"check", "Alerts when Claude is done", "Stop hook", r.Stop},
+		{"prompt", "Command each session runs", "Prompt hook", r.Prompt},
+		{"chart", "Usage in the status bar", "Status line", r.StatusLine},
 	}
 	fixable := func(e claudesetup.Entry) bool {
 		return e.State == claudesetup.Missing || e.State == claudesetup.Broken
 	}
-	if fixable(r.Stop) || fixable(r.Needs) || fixable(r.Prompt) || fixable(r.StatusLine) {
-		row.ctrls = append(row.ctrls, ctrl{kind: ctlButton, id: "claude_fix", text: "Fix", strong: true})
+	var rows []settingRow
+	fixed := false
+	for _, en := range entries {
+		row := settingRow{icon: en.icon, label: en.label, hint: en.hook + " · " + entryText(en.e), monoHint: true}
+		row.pill, row.tone = entryPill(en.e)
+		if win.exePath != "" {
+			if fixable(en.e) && !fixed {
+				row.ctrls, fixed = append(row.ctrls, ctrl{kind: ctlButton, id: "claude_fix", text: "Fix", strong: true}), true
+			}
+			if en.e.State == claudesetup.Taken && en.hook == "Status line" {
+				row.ctrls = append(row.ctrls, ctrl{kind: ctlButton, id: "claude_replace", text: "Replace"})
+			}
+		}
+		rows = append(rows, row)
 	}
-	if r.StatusLine.State == claudesetup.Taken {
-		row.ctrls = append(row.ctrls, ctrl{kind: ctlButton, id: "claude_replace", text: "Replace"})
+	if win.exePath != "" {
+		rows = append(rows, settingRow{label: "This kaze", hint: truncateLeft(win.exePath, 80), monoHint: true})
 	}
-	return row
+	return rows
+}
+
+// entryPill is an entry's state as a pill and its kind.
+func entryPill(e claudesetup.Entry) (string, string) {
+	switch e.State {
+	case claudesetup.OK:
+		return "Connected", "ok"
+	case claudesetup.Broken:
+		return "Broken", "err"
+	case claudesetup.Taken:
+		return "Taken", "warn"
+	}
+	return "Missing", "warn"
 }
 
 // entryText is an entry's state in plain words, with the end of its exe path.
 func entryText(e claudesetup.Entry) string {
 	switch e.State {
 	case claudesetup.OK:
-		return "OK · " + shortExe(e.Exe)
+		return shortExe(e.Exe)
 	case claudesetup.Broken:
-		return "broken, file gone · " + shortExe(e.Exe)
+		return "file gone: " + shortExe(e.Exe)
 	case claudesetup.Taken:
 		return "taken by " + truncateRight(cleanText(e.Command), 40)
 	}
-	return "missing"
+	return "not set up"
 }
 
 // shortExe is the exe's folder and name, enough to tell builds apart.

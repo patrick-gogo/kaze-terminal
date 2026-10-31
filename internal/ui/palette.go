@@ -3,7 +3,6 @@ package ui
 import (
 	"image"
 
-	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -246,25 +245,6 @@ func (c *chrome) palRow(gtx layout.Context, it palItem, r image.Rectangle, selec
 	}
 }
 
-// searchGlyph is a magnifier centred in r: a ring and a handle to its lower right.
-func searchGlyph(gtx layout.Context, r image.Rectangle) clip.Op {
-	s := float32(min(r.Dx(), r.Dy()))
-	cx, cy := float32(r.Min.X)+float32(r.Dx())/2-s*0.06, float32(r.Min.Y)+float32(r.Dy())/2-s*0.06
-	rad, w := s*0.2, max(float32(gtx.Dp(1))*1.4, 1)
-	var p clip.Path
-	p.Begin(gtx.Ops)
-	const k = 0.5523 // cubic Bezier circle constant
-	p.MoveTo(f32.Pt(cx+rad, cy))
-	p.CubeTo(f32.Pt(cx+rad, cy+rad*k), f32.Pt(cx+rad*k, cy+rad), f32.Pt(cx, cy+rad))
-	p.CubeTo(f32.Pt(cx-rad*k, cy+rad), f32.Pt(cx-rad, cy+rad*k), f32.Pt(cx-rad, cy))
-	p.CubeTo(f32.Pt(cx-rad, cy-rad*k), f32.Pt(cx-rad*k, cy-rad), f32.Pt(cx, cy-rad))
-	p.CubeTo(f32.Pt(cx+rad*k, cy-rad), f32.Pt(cx+rad, cy-rad*k), f32.Pt(cx+rad, cy))
-	d := rad * 0.7071
-	p.MoveTo(f32.Pt(cx+d, cy+d))
-	p.LineTo(f32.Pt(cx+d+s*0.17, cy+d+s*0.17))
-	return clip.Stroke{Path: p.End(), Width: w}.Op()
-}
-
 // layoutSearch draws the title bar's search box in the column r: a rounded
 // box h high with the magnifier, its placeholder and the palette's key.
 func (c *chrome) layoutSearch(gtx layout.Context, r image.Rectangle, h int, keyText string, hover bool) {
@@ -278,7 +258,7 @@ func (c *chrome) layoutSearch(gtx layout.Context, r image.Rectangle, h int, keyT
 	paint.FillShape(ops, border, clip.Stroke{Path: rr.Path(ops), Width: float32(max(gtx.Dp(1), 1))}.Op())
 	gap := gtx.Dp(8)
 	g := image.Rect(box.Min.X+gap/2, box.Min.Y, box.Min.X+gap/2+box.Dy(), box.Max.Y)
-	fillGlyph(ops, th.Muted, g, searchGlyph(gtx, g))
+	c.toolIcon(gtx, "search", g.Inset(gtx.Dp(5)), th.Muted)
 	right := box.Max.X - gap
 	if keyText != "" {
 		call, sz := c.fitSide(gtx, keyText, 11, box.Dx()/3, th.Muted)

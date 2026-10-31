@@ -12,9 +12,9 @@ import (
 func commandsPage(t *testing.T, win *window) string {
 	t.Helper()
 	win.openSettings()
-	i := slices.IndexFunc(win.sections(), func(s settingsSection) bool { return s.title == "Commands" })
+	i := slices.IndexFunc(win.sections(), func(s settingsSection) bool { return s.title == "Shortcuts" })
 	if i < 0 {
-		t.Fatal("missing Commands section")
+		t.Fatal("missing Shortcuts section")
 	}
 	win.selectSection(i)
 	win.drawSettings(pageContext(1000, 900), image.Rect(0, 38, 1000, 876))
@@ -26,7 +26,7 @@ func TestCommandsAfterClaude(t *testing.T) {
 	for _, s := range defaultSections() {
 		got = append(got, s.title)
 	}
-	if strings.Join(got, " ") != "Appearance Workspaces Claude Commands About" {
+	if strings.Join(got, " ") != "Appearance Workspaces Claude Shortcuts Updates About" {
 		t.Fatalf("sections %v", got)
 	}
 }
@@ -39,10 +39,13 @@ func TestCommandsListsEveryShortcut(t *testing.T) {
 			t.Errorf("missing %s / %s", c.Label, c.Config)
 		}
 	}
-	for _, want := range []string{"SHORTCUTS", "COMMAND LINE", "Ctrl+Shift+K", "Shift + drag", "kaze --version", "kaze statusline"} {
+	for _, want := range []string{"SESSIONS", "KAZE", "EDITING AND MOUSE", "COMMAND LINE", "Shift + drag", "kaze --version", "kaze statusline"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("missing %q", want)
 		}
+	}
+	if !hasKeys(win, "Ctrl", "Shift", "K") {
+		t.Errorf("no Ctrl Shift K key caps in %q", win.set.texts)
 	}
 }
 
@@ -50,7 +53,7 @@ func TestCommandsShowsOverrides(t *testing.T) {
 	win, _ := alertWindow(t, 1)
 	win.binds, _ = resolveBindings("windows", map[string]string{"palette": "ctrl+shift+p"})
 	text := commandsPage(t, win)
-	if !strings.Contains(text, "Ctrl+Shift+P") || strings.Contains(text, "Ctrl+Shift+K") {
+	if !hasKeys(win, "Ctrl", "Shift", "P") || hasKeys(win, "Ctrl", "Shift", "K") {
 		t.Fatalf("override not shown:\n%s", text)
 	}
 }
@@ -89,18 +92,38 @@ func TestHookCommandsHaveNoCopy(t *testing.T) {
 	}
 }
 
-func TestLaterLineDropsShortcuts(t *testing.T) {
-	win, _ := alertWindow(t, 1)
-	text := strings.Join(strings.Fields(commandsPage(t, win)), " ") // the line may wrap
-	if !strings.Contains(text, "Later: Terminal, Shell setup") || strings.Contains(text, "Shortcuts") {
-		t.Fatalf("later line:\n%s", text)
-	}
-}
-
 func TestCommandsDrawsInEveryTheme(t *testing.T) {
 	win, _ := alertWindow(t, 1)
 	for _, th := range theme.All() {
 		win.applyTheme(th)
 		commandsPage(t, win)
+	}
+}
+
+// hasKeys reports whether the page drew the key caps keys one after another.
+func hasKeys(win *window, keys ...string) bool {
+	t := win.set.texts
+	for i := 0; i+len(keys) <= len(t); i++ {
+		if slices.Equal(t[i:i+len(keys)], keys) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestShortcutSearchNarrowsTheList(t *testing.T) {
+	win, _ := alertWindow(t, 1)
+	commandsPage(t, win)
+	if len(controlsOf(win, "cmd_filter")) != 1 {
+		t.Fatal("no search field")
+	}
+	win.set.cmdFilter = "scratch"
+	text := commandsPage(t, win)
+	if !strings.Contains(text, "Scratch shell") || strings.Contains(text, "New session") || strings.Contains(text, "SESSIONS") {
+		t.Fatalf("search for scratch shows:\n%s", text)
+	}
+	win.set.cmdFilter = "zzz"
+	if text := commandsPage(t, win); !strings.Contains(text, "No shortcut matches") {
+		t.Fatalf("no empty message:\n%s", text)
 	}
 }

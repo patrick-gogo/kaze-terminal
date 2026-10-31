@@ -86,8 +86,22 @@ func claudeIndex(t *testing.T) int {
 }
 
 // pressAny clicks the first control with id, then lays out the page again.
+// pressAny clicks control id with arg, scrolling it into view first as a person would.
 func pressAny(t *testing.T, win *window, id string, arg int) {
 	t.Helper()
+	for i := 0; i < 20; i++ {
+		c := controlsOf(win, id)
+		k := slices.IndexFunc(c, func(c control) bool { return c.arg == arg })
+		if k < 0 || c[k].rect.In(win.set.pane) {
+			break
+		}
+		if c[k].rect.Max.Y > win.set.pane.Max.Y {
+			win.set.scroll += c[k].rect.Max.Y - win.set.pane.Max.Y + 8
+		} else {
+			win.set.scroll -= win.set.pane.Min.Y - c[k].rect.Min.Y + 8
+		}
+		win.drawSettings(pageContext(800, 600), pageRect)
+	}
 	for _, c := range controlsOf(win, id) {
 		if c.arg == arg {
 			win.settingsPointer(pressAt(center(c.rect)))
@@ -204,10 +218,10 @@ func TestSetupLinesShowState(t *testing.T) {
 	win := claudeWindow(t, f, 800, 600)
 	short := filepath.Join("kaze-app", "kaze.exe")
 	for _, want := range []string{
-		"Alerts when Claude needs you: OK · " + short,
-		"Alerts when Claude is done: missing",
-		"Usage in the status bar: taken by bash x.sh",
-		"This kaze: ",
+		"Alerts when Claude needs you", "Notification hook · " + short, "Connected",
+		"Alerts when Claude is done", "Stop hook · not set up", "Missing",
+		"Status line · taken by bash x.sh", "Taken",
+		"This kaze",
 	} {
 		if !pageHas(win, want) {
 			t.Errorf("no %q in %q", want, win.set.texts)
@@ -337,13 +351,14 @@ func TestClaudeSectionFitsDefaultWindow(t *testing.T) {
 	const w, h = 1100, 720
 	win := claudeWindow(t, f, w, h)
 	bottom := h - 24
-	for _, c := range win.set.controls {
-		if c.rect.Max.Y > bottom || c.rect.Max.X > w {
-			t.Fatalf("control %s at %v is off the page", c.id, c.rect)
-		}
-	}
 	if len(controlsOf(win, "claude_fix")) != 1 {
 		t.Fatal("no Fix button")
+	}
+	// The setup check comes first, so Fix shows without scrolling.
+	for _, c := range controlsOf(win, "claude_fix") {
+		if c.rect.Max.Y > bottom || c.rect.Max.X > w {
+			t.Fatalf("Fix at %v is off the page", c.rect)
+		}
 	}
 	for _, c := range controlsOf(win, "claude_fix") {
 		win.settingsPointer(pressAt(center(c.rect)))
@@ -431,7 +446,7 @@ func TestFixDialogQuietForClaudeLayout(t *testing.T) {
 func TestClaudeSectionShowsThePromptHook(t *testing.T) {
 	f := newClaudeFixture(t, "", false)
 	win := claudeWindow(t, f, 800, 600)
-	if !pageHas(win, "Command each session runs: OK · "+filepath.Join("kaze-app", "kaze.exe")) {
+	if !pageHas(win, "Prompt hook · "+filepath.Join("kaze-app", "kaze.exe")) {
 		t.Fatalf("no prompt line in %q", win.set.texts)
 	}
 	if len(controlsOf(win, "claude_fix")) != 0 {
@@ -448,7 +463,7 @@ func TestClaudeSectionShowsThePromptHook(t *testing.T) {
 		t.Fatal(err)
 	}
 	win = claudeWindow(t, f, 800, 600)
-	if !pageHas(win, "Command each session runs: missing") {
+	if !pageHas(win, "Prompt hook · not set up") {
 		t.Fatalf("no missing prompt line in %q", win.set.texts)
 	}
 	if len(controlsOf(win, "claude_fix")) != 1 {

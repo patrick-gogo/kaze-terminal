@@ -51,6 +51,9 @@ type updater struct {
 	err      string // the last check's or install's failure
 	confirm  bool   // the About page is asking before it restarts
 	busy     string // "Downloading 40%" while an install runs
+	pct      int    // the download's progress, 0..100
+
+	checkedAt time.Time // when the last check finished
 }
 
 // updInbox carries the work goroutines' results to the UI goroutine.
@@ -142,7 +145,7 @@ func (win *window) checkUpdates() {
 		rel, err := update.Latest(ctx, client, url)
 		win.post(func(win *window) {
 			u := &win.upd
-			u.checking, u.checked = false, true
+			u.checking, u.checked, u.checkedAt = false, true, time.Now()
 			if err != nil {
 				u.err = "Couldn't check for updates: " + err.Error()
 				return
@@ -164,10 +167,24 @@ func (win *window) updLabel() string {
 	return ""
 }
 
-// updClick shows the About page, where the update is.
+// updFoot is the update state under the version in the settings menu.
+func (win *window) updFoot() string {
+	u := &win.upd
+	switch {
+	case !win.opt.Config.CheckUpdates || u.url == "" && !u.checked:
+		return ""
+	case u.newer:
+		return u.rel.Version + " available"
+	case u.checked && u.err == "":
+		return "Up to date"
+	}
+	return ""
+}
+
+// updClick shows the Updates page.
 func (win *window) updClick() {
 	win.openSettings()
-	if i := slices.IndexFunc(win.sections(), func(s settingsSection) bool { return s.title == "About" }); i >= 0 {
+	if i := slices.IndexFunc(win.sections(), func(s settingsSection) bool { return s.title == "Updates" }); i >= 0 {
 		win.selectSection(i)
 	}
 }
@@ -192,7 +209,7 @@ func (win *window) installUpdate() {
 	if ok, _ := win.updInstallable(); !ok || u.busy != "" {
 		return
 	}
-	u.confirm, u.err, u.busy = false, "", "Downloading…"
+	u.confirm, u.err, u.busy, u.pct = false, "", "Downloading…", 0
 	asset := update.AssetName(u.goos, u.goarch)
 	zipURL, sumsURL := u.rel.Assets[asset], u.rel.Assets[update.SumsName]
 	client, target, relaunch := u.client, u.target, u.relaunch
@@ -217,7 +234,7 @@ func (win *window) installUpdate() {
 				}
 				last = time.Now()
 				pct := int(done * 100 / total)
-				win.post(func(win *window) { win.upd.busy = fmt.Sprintf("Downloading %d%%", pct) })
+				win.post(func(win *window) { win.upd.busy, win.upd.pct = fmt.Sprintf("Downloading %d%%", pct), pct })
 			}
 			if err := update.Download(ctx, client, zipURL, zipFile, updMaxZip, progress); err != nil {
 				return err

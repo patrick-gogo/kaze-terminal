@@ -3,7 +3,6 @@ package ui
 import (
 	"image"
 	"image/color"
-	"math"
 	"os"
 	"strings"
 	"unicode"
@@ -32,6 +31,9 @@ func rgb(v uint32) color.NRGBA {
 
 const chromeFace = "JetBrains Mono"
 
+// sansFace is the settings page's UI font.
+const sansFace = "Manrope"
+
 // chrome draws the title bar, sidebar and status bar with Gio's shaper over the bundled fonts.
 type chrome struct {
 	shaper    *text.Shaper
@@ -47,14 +49,19 @@ type chrome struct {
 func newChrome() *chrome {
 	var faces []font.FontFace
 	for _, src := range []struct {
-		data []byte
-		name string
-	}{{fonts.MonoRegular, chromeFace}, {fonts.CJK, "Noto Sans JP"}} {
+		data   []byte
+		name   string
+		weight font.Weight
+	}{
+		{fonts.MonoRegular, chromeFace, font.Normal}, {fonts.CJK, "Noto Sans JP", font.Normal},
+		{fonts.SansRegular, sansFace, font.Normal}, {fonts.SansMedium, sansFace, font.Medium},
+		{fonts.SansSemiBold, sansFace, font.SemiBold},
+	} {
 		f, err := opentype.Parse(src.data)
 		if err != nil {
 			panic("ui: bundled font does not parse: " + err.Error()) // embedded at build time
 		}
-		faces = append(faces, font.FontFace{Font: font.Font{Typeface: font.Typeface(src.name)}, Face: f})
+		faces = append(faces, font.FontFace{Font: font.Font{Typeface: font.Typeface(src.name), Weight: src.weight}, Face: f})
 	}
 	return &chrome{
 		shaper:  text.NewShaper(text.NoSystemFonts(), text.WithCollection(faces)),
@@ -171,6 +178,19 @@ func (c *chrome) label(gtx layout.Context, s string, size unit.Sp, col color.NRG
 	return m.Stop(), d.Size
 }
 
+// sans is label in the settings page's UI font at weight.
+func (c *chrome) sans(gtx layout.Context, s string, size unit.Sp, col color.NRGBA, weight font.Weight) (op.CallOp, image.Point) {
+	s = c.fit(s)
+	m := op.Record(gtx.Ops)
+	mat := op.Record(gtx.Ops)
+	paint.ColorOp{Color: col}.Add(gtx.Ops)
+	matc := mat.Stop()
+	lg := gtx
+	lg.Constraints = layout.Constraints{Max: image.Pt(1<<16, 1<<16)}
+	d := widget.Label{MaxLines: 1}.Layout(lg, c.shaper, font.Font{Typeface: sansFace, Weight: weight}, size, s, matc)
+	return m.Stop(), d.Size
+}
+
 func place(ops *op.Ops, call op.CallOp, at image.Point) {
 	t := op.Offset(at).Push(ops)
 	call.Add(ops)
@@ -192,15 +212,16 @@ func (c *chrome) layoutCaptions(gtx layout.Context, b barLayout, st captionState
 			paint.FillShape(ops, bg, clip.Rect(r).Op())
 			fg = c.th.ActiveFG
 		}
-		var glyph clip.Op
-		if btn == capToggle {
-			glyph = toggleGlyph(gtx, r)
-		} else {
-			glyph = captionGlyph(gtx, btn, r, maximized)
+		switch btn {
+		case capToggle:
+			c.toolIcon(gtx, "panel", r, fg)
+		case capGear:
+			c.toolIcon(gtx, "cog", r, fg)
+		default:
+			cl := clip.Rect(r).Push(ops)
+			paint.FillShape(ops, fg, captionGlyph(gtx, btn, r, maximized))
+			cl.Pop()
 		}
-		cl := clip.Rect(r).Push(ops)
-		paint.FillShape(ops, fg, glyph)
-		cl.Pop()
 	}
 }
 
@@ -256,17 +277,6 @@ func captionGlyph(gtx layout.Context, btn captionButton, r image.Rectangle, maxi
 		p.LineTo(f32.Pt(x0+s, y0+s))
 		p.MoveTo(f32.Pt(x0+s, y0))
 		p.LineTo(f32.Pt(x0, y0+s))
-	case btn == capGear:
-		// A ring with eight teeth.
-		cx, cy, ring := x0+s/2, y0+s/2, s*0.27
-		p.MoveTo(f32.Pt(cx+ring, cy))
-		p.Arc(f32.Pt(-ring, 0), f32.Pt(-ring, 0), 2*math.Pi)
-		for i := range 8 {
-			a := float64(i) * math.Pi / 4
-			dx, dy := float32(math.Cos(a)), float32(math.Sin(a))
-			p.MoveTo(f32.Pt(cx+dx*s*0.38, cy+dy*s*0.38))
-			p.LineTo(f32.Pt(cx+dx*(s/2), cy+dy*(s/2)))
-		}
 	}
 	return clip.Stroke{Path: p.End(), Width: sw}.Op()
 }

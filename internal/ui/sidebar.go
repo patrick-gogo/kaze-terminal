@@ -143,25 +143,6 @@ func runningRing(gtx layout.Context, d image.Rectangle) clip.Op {
 	return clip.Stroke{Path: p.End(), Width: sw}.Op()
 }
 
-// toggleGlyph is the sidebar icon: a window outline with a divider.
-func toggleGlyph(gtx layout.Context, r image.Rectangle) clip.Op {
-	sw := float32(max(gtx.Dp(1), 1))
-	n := gtx.Dp(14)
-	x0 := float32(r.Min.X + (r.Dx()-n)/2)
-	y0 := float32(r.Min.Y + (r.Dy()-n)/2)
-	s, h := float32(n), sw/2
-	var p clip.Path
-	p.Begin(gtx.Ops)
-	p.MoveTo(f32.Pt(x0+h, y0+h))
-	p.LineTo(f32.Pt(x0+s-h, y0+h))
-	p.LineTo(f32.Pt(x0+s-h, y0+s-h))
-	p.LineTo(f32.Pt(x0+h, y0+s-h))
-	p.Close()
-	p.MoveTo(f32.Pt(x0+s*0.38, y0+h))
-	p.LineTo(f32.Pt(x0+s*0.38, y0+s-h))
-	return clip.Stroke{Path: p.End(), Width: sw}.Op()
-}
-
 // layoutSidebar paints the sidebar into size and returns where its parts are. The
 // session list scrolls inside hits.list; the workspaces section is pinned to the bottom.
 func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, size image.Point) sideHits {
@@ -183,10 +164,10 @@ func (c *chrome) layoutSidebar(gtx layout.Context, m sideModel, st sideState, si
 		h.gear = image.Rect(size.X-pad-btn, (bar-btn)/2, size.X-pad, (bar-btn)/2+btn)
 		h.palette = h.toggle.Add(image.Pt(btn+gtx.Dp(4), 0))
 		h.scratch = h.palette.Add(image.Pt(btn+gtx.Dp(4), 0))
-		fillGlyph(ops, th.CapGlyph, h.scratch, scratchGlyph(gtx, h.scratch))
-		fillGlyph(ops, th.CapGlyph, h.toggle, toggleGlyph(gtx, h.toggle))
-		fillGlyph(ops, th.CapGlyph, h.palette, searchGlyph(gtx, h.palette))
-		fillGlyph(ops, th.CapGlyph, h.gear, captionGlyph(gtx, capGear, h.gear, false))
+		c.toolIcon(gtx, "terminal", h.scratch, th.CapGlyph)
+		c.toolIcon(gtx, "panel", h.toggle, th.CapGlyph)
+		c.toolIcon(gtx, "search", h.palette, th.CapGlyph)
+		c.toolIcon(gtx, "cog", h.gear, th.CapGlyph)
 		y = bar
 	}
 

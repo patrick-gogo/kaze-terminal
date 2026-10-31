@@ -268,10 +268,10 @@ func (c *chrome) layoutRail(gtx layout.Context, size image.Point) sideHits {
 	h.palette = image.Rect(x, bar+y, x+btn, bar+y+btn)
 	h.scratch = image.Rect(x, 2*bar+y, x+btn, 2*bar+y+btn)
 	h.gear = image.Rect(x, 3*bar+y, x+btn, 3*bar+y+btn)
-	fillGlyph(ops, th.CapGlyph, h.scratch, scratchGlyph(gtx, h.scratch))
-	fillGlyph(ops, th.CapGlyph, h.toggle, toggleGlyph(gtx, h.toggle))
-	fillGlyph(ops, th.CapGlyph, h.palette, searchGlyph(gtx, h.palette))
-	fillGlyph(ops, th.CapGlyph, h.gear, captionGlyph(gtx, capGear, h.gear, false))
+	c.toolIcon(gtx, "terminal", h.scratch, th.CapGlyph)
+	c.toolIcon(gtx, "panel", h.toggle, th.CapGlyph)
+	c.toolIcon(gtx, "search", h.palette, th.CapGlyph)
+	c.toolIcon(gtx, "cog", h.gear, th.CapGlyph)
 	return h
 }
 
