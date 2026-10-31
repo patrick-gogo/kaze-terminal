@@ -32,6 +32,9 @@ func rgb(v uint32) color.NRGBA {
 
 const chromeFace = "JetBrains Mono"
 
+// sansFace is the settings page's UI font.
+const sansFace = "Manrope"
+
 // chrome draws the title bar, sidebar and status bar with Gio's shaper over the bundled fonts.
 type chrome struct {
 	shaper    *text.Shaper
@@ -47,14 +50,19 @@ type chrome struct {
 func newChrome() *chrome {
 	var faces []font.FontFace
 	for _, src := range []struct {
-		data []byte
-		name string
-	}{{fonts.MonoRegular, chromeFace}, {fonts.CJK, "Noto Sans JP"}} {
+		data   []byte
+		name   string
+		weight font.Weight
+	}{
+		{fonts.MonoRegular, chromeFace, font.Normal}, {fonts.CJK, "Noto Sans JP", font.Normal},
+		{fonts.SansRegular, sansFace, font.Normal}, {fonts.SansMedium, sansFace, font.Medium},
+		{fonts.SansSemiBold, sansFace, font.SemiBold},
+	} {
 		f, err := opentype.Parse(src.data)
 		if err != nil {
 			panic("ui: bundled font does not parse: " + err.Error()) // embedded at build time
 		}
-		faces = append(faces, font.FontFace{Font: font.Font{Typeface: font.Typeface(src.name)}, Face: f})
+		faces = append(faces, font.FontFace{Font: font.Font{Typeface: font.Typeface(src.name), Weight: src.weight}, Face: f})
 	}
 	return &chrome{
 		shaper:  text.NewShaper(text.NoSystemFonts(), text.WithCollection(faces)),
@@ -168,6 +176,19 @@ func (c *chrome) label(gtx layout.Context, s string, size unit.Sp, col color.NRG
 	lg := gtx
 	lg.Constraints = layout.Constraints{Max: image.Pt(1<<16, 1<<16)}
 	d := widget.Label{MaxLines: 1}.Layout(lg, c.shaper, font.Font{Typeface: chromeFace}, size, s, matc)
+	return m.Stop(), d.Size
+}
+
+// sans is label in the settings page's UI font at weight.
+func (c *chrome) sans(gtx layout.Context, s string, size unit.Sp, col color.NRGBA, weight font.Weight) (op.CallOp, image.Point) {
+	s = c.fit(s)
+	m := op.Record(gtx.Ops)
+	mat := op.Record(gtx.Ops)
+	paint.ColorOp{Color: col}.Add(gtx.Ops)
+	matc := mat.Stop()
+	lg := gtx
+	lg.Constraints = layout.Constraints{Max: image.Pt(1<<16, 1<<16)}
+	d := widget.Label{MaxLines: 1}.Layout(lg, c.shaper, font.Font{Typeface: sansFace, Weight: weight}, size, s, matc)
 	return m.Stop(), d.Size
 }
 

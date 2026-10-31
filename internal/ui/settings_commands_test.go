@@ -26,7 +26,7 @@ func TestCommandsAfterClaude(t *testing.T) {
 	for _, s := range defaultSections() {
 		got = append(got, s.title)
 	}
-	if strings.Join(got, " ") != "Appearance Workspaces Claude Commands About" {
+	if strings.Join(got, " ") != "Appearance Workspaces Claude Commands Updates About" {
 		t.Fatalf("sections %v", got)
 	}
 }
@@ -86,14 +86,6 @@ func TestHookCommandsHaveNoCopy(t *testing.T) {
 		if ex := commandLines[c.arg].Example; strings.Contains(ex, "notify") || strings.Contains(ex, "statusline") {
 			t.Errorf("%q has a Copy button", ex)
 		}
-	}
-}
-
-func TestLaterLineDropsShortcuts(t *testing.T) {
-	win, _ := alertWindow(t, 1)
-	text := strings.Join(strings.Fields(commandsPage(t, win)), " ") // the line may wrap
-	if !strings.Contains(text, "Later: Terminal, Shell setup") || strings.Contains(text, "Shortcuts") {
-		t.Fatalf("later line:\n%s", text)
 	}
 }
 

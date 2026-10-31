@@ -1,17 +1,16 @@
 package ui
 
 import (
-	"fmt"
 	"image"
-	"image/color"
 	"io"
 	"os/exec"
 	"runtime"
 	"strings"
-	"time"
 
+	"gioui.org/font"
 	"gioui.org/io/clipboard"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 
@@ -30,7 +29,7 @@ func aboutSection() settingsSection {
 	return settingsSection{title: "About", draw: drawAbout, act: aboutAct}
 }
 
-func aboutAct(win *window, id string, arg int) {
+func aboutAct(win *window, id string, _ int) {
 	switch id {
 	case "about_copy":
 		win.set.aboutCopy = "kaze " + version.Number + "\n" + win.set.build + "\n" + runtime.GOOS + "/" + runtime.GOARCH
@@ -38,56 +37,11 @@ func aboutAct(win *window, id string, arg int) {
 		if err := openURL(aboutRepository); err != nil {
 			win.note("Could not open GitHub: " + err.Error())
 		}
-	case "check_updates":
-		win.opt.Config.CheckUpdates = arg == 1
-		win.upd.next = time.Time{} // turning it back on checks soon, not a day later
-		win.saveSetting("check_updates", arg == 1)
-	case "upd_check":
-		win.checkUpdates()
-	case "upd_install":
-		win.upd.confirm = true
-	case "upd_cancel":
-		win.upd.confirm = false
-	case "upd_confirm":
-		win.installUpdate()
-	case "upd_page":
-		if err := win.upd.open(win.upd.rel.Page); err != nil {
-			win.note("Could not open the release page: " + err.Error())
+	case "about_issue":
+		if err := openURL(aboutRepository + "/issues/new"); err != nil {
+			win.note("Could not open GitHub: " + err.Error())
 		}
 	}
-}
-
-// aboutUpdate is the About page's update block: a status line, its buttons
-// and any reason the update can't install in place.
-func (win *window) aboutUpdate() (status string, accent bool, buttons []ctrl, reason string) {
-	u := &win.upd
-	switch {
-	case !win.opt.Config.CheckUpdates:
-		return "Update checks are off", false, nil, ""
-	case u.busy != "":
-		return u.busy, false, nil, ""
-	case u.confirm:
-		sessions := fmt.Sprintf("your %d sessions", len(win.mgr.Tabs()))
-		if len(win.mgr.Tabs()) == 1 {
-			sessions = "your session"
-		}
-		return "Kaze will close " + sessions + " and restart in " + u.rel.Version + ".", false,
-			[]ctrl{{kind: ctlButton, id: "upd_confirm", text: "Update now", strong: true}, {kind: ctlButton, id: "upd_cancel", text: "Cancel"}}, ""
-	case u.newer:
-		status = "Kaze " + u.rel.Version + " is available"
-		if ok, why := win.updInstallable(); !ok {
-			return status, true, []ctrl{{kind: ctlButton, id: "upd_page", text: "Download"}}, "Can't update in place: " + why
-		}
-		buttons = []ctrl{{kind: ctlButton, id: "upd_install", text: "Update and restart", strong: true}, {kind: ctlButton, id: "upd_page", text: "What's new"}}
-		return status, true, buttons, u.err
-	case u.err != "":
-		status = u.err
-	case u.checking:
-		status = "Checking for updates…"
-	case u.checked:
-		status = "Up to date"
-	}
-	return status, false, []ctrl{{kind: ctlButton, id: "upd_check", text: "Check now"}}, ""
 }
 
 // openURL starts the platform URL handler without blocking the UI while the browser runs.
@@ -108,8 +62,21 @@ func openURL(url string) error {
 	return nil
 }
 
+// platformName is the OS as people say it.
+func platformName(goos string) string {
+	switch goos {
+	case "darwin":
+		return "macOS"
+	case "windows":
+		return "Windows"
+	}
+	return goos
+}
+
+// drawAbout is one roomy card: the logo with its byline, the name and tagline,
+// a version pill, a row of facts and the page's buttons.
 func drawAbout(p *page, r image.Rectangle, win *window) int {
-	gtx, ops := p.gtx, p.gtx.Ops
+	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
 	if text := win.set.aboutCopy; text != "" {
 		win.set.aboutCopy = ""
 		if win.toClipboard != nil {
@@ -119,95 +86,127 @@ func drawAbout(p *page, r image.Rectangle, win *window) int {
 		}
 		win.note("Build details copied")
 	}
-	y := r.Min.Y + max(gtx.Dp(24), (r.Dy()-gtx.Dp(300))/2)
-	logoPx, wordSize := gtx.Dp(94), unit.Sp(52)
-	if r.Dx() < gtx.Dp(300) {
-		logoPx, wordSize = gtx.Dp(52), 30
+	rec := op.Record(ops)
+	top := r.Min.Y
+	y := top + gtx.Dp(40)
+
+	// The lockup: the mark, "kaze" and "by Patrick" under its right edge.
+	logoPx, wordSize := gtx.Dp(86), unit.Sp(64)
+	if r.Dx() < gtx.Dp(420) {
+		logoPx, wordSize = gtx.Dp(52), 38
 	}
-	word, sz := p.text("kaze", wordSize, p.col.title)
-	gap := gtx.Dp(8)
-	x := r.Min.X + (r.Dx()-logoPx-gap-sz.X)/2
+	word, ws := p.mono("kaze", wordSize, col.title)
+	by, bs := p.mono("by Patrick", 13, col.muted)
+	gap := gtx.Dp(18)
+	w := logoPx + gap + max(ws.X, bs.X)
+	x := r.Min.X + (r.Dx()-w)/2
 	if mark, img := markImage(logoPx); img != nil {
 		off := op.Offset(image.Pt(x, y)).Push(ops)
 		mark.Add(ops)
 		paint.PaintOp{}.Add(ops)
 		off.Pop()
 	}
-	place(ops, word, image.Pt(x+logoPx+gap, y+(logoPx-sz.Y)/2))
-	y += logoPx + gtx.Dp(12)
-	textIn := func(s string, size unit.Sp, col color.NRGBA) {
-		for _, line := range p.wrap(s, size, max(r.Dx(), 1)) {
-			call, sz := p.text(line, size, col)
-			place(ops, call, image.Pt(r.Min.X+(r.Dx()-sz.X)/2, y))
-			y += sz.Y
+	textY := y + (logoPx-ws.Y-bs.Y)/2
+	place(ops, word, image.Pt(x+logoPx+gap, textY))
+	place(ops, by, image.Pt(x+logoPx+gap+ws.X-bs.X, textY+ws.Y))
+	y += logoPx + gtx.Dp(20)
+
+	center := func(call op.CallOp, size image.Point) {
+		place(ops, call, image.Pt(r.Min.X+(r.Dx()-size.X)/2, y))
+		y += size.Y
+	}
+	// The name in the bundled CJK font's reach, then the tagline.
+	nc, ns := p.text(aboutName, 14, col.muted)
+	dc, ds := p.text("  ·  ", 14, col.dim)
+	tc, ts := p.text(aboutTagline, 14, col.muted)
+	lineW := ns.X + ds.X + ts.X
+	lx := r.Min.X + (r.Dx()-lineW)/2
+	place(ops, nc, image.Pt(lx, y))
+	place(ops, dc, image.Pt(lx+ns.X, y))
+	place(ops, tc, image.Pt(lx+ns.X+ds.X, y))
+	y += max(ns.Y, ts.Y) + gtx.Dp(16)
+
+	// The version pill, green when up to date and accent when a newer one is out.
+	state, dot := "", col.done
+	switch {
+	case win.upd.newer:
+		state, dot = " · "+win.upd.rel.Version+" available", col.accent
+	case win.upd.checked && win.upd.err == "":
+		state = " · up to date"
+	}
+	pc, ps := p.mono("Version "+version.Number+state, 12, col.title)
+	d, padX := gtx.Dp(7), gtx.Dp(12)
+	ph := ps.Y + gtx.Dp(10)
+	pw := padX + d + gtx.Dp(8) + ps.X + padX
+	px := r.Min.X + (r.Dx()-pw)/2
+	box := image.Rect(px, y, px+pw, y+ph)
+	paint.FillShape(ops, col.raised, clip.UniformRRect(box, ph/2).Op(ops))
+	stroke(ops, box, ph/2, col.line2)
+	paint.FillShape(ops, dot, clip.Ellipse(image.Rect(px+padX, y+(ph-d)/2, px+padX+d, y+(ph-d)/2+d)).Op(ops))
+	place(ops, pc, image.Pt(px+padX+d+gtx.Dp(8), y+(ph-ps.Y)/2))
+	y += ph + gtx.Dp(30)
+
+	// The facts row: four cells split by hairlines.
+	paint.FillShape(ops, col.line, clip.Rect(image.Rect(r.Min.X, y, r.Max.X, y+1)).Op())
+	facts := [][2]string{
+		{"VERSION", version.Number},
+		{"PLATFORM", platformName(runtime.GOOS)},
+		{"CHIP", runtime.GOARCH},
+		{"LICENSE", "MIT License"},
+	}
+	cellW := r.Dx() / len(facts)
+	cellH := 0
+	for i, f := range facts {
+		cx := r.Min.X + i*cellW
+		if i > 0 {
+			paint.FillShape(ops, col.line, clip.Rect(image.Rect(cx, y, cx+1, y+gtx.Dp(62))).Op())
 		}
+		lc, ls := p.textW(f[0], 10, col.dim, font.SemiBold)
+		vc, vs := p.mono(f[1], 12.5, col.title)
+		place(ops, lc, image.Pt(cx+gtx.Dp(18), y+gtx.Dp(14)))
+		place(ops, vc, image.Pt(cx+gtx.Dp(18), y+gtx.Dp(14)+ls.Y+gtx.Dp(3)))
+		cellH = max(cellH, gtx.Dp(14)+ls.Y+gtx.Dp(3)+vs.Y+gtx.Dp(14))
 	}
-	text := func(s string, size unit.Sp) { textIn(s, size, p.col.fg) }
-	textIn(aboutName, 14, p.col.muted)
-	y += gtx.Dp(2)
-	textIn(aboutTagline, 11, p.col.muted)
-	y += gtx.Dp(22)
-	text("Version "+version.Number, 14)
-	y += gtx.Dp(6)
-	text(runtime.GOOS+" / "+runtime.GOARCH+" · Go + Gio", 11)
-	y += gtx.Dp(12)
-	text("MIT License", 11)
-	y += gtx.Dp(20)
-	status, accent, upButtons, reason := win.aboutUpdate()
-	if status != "" {
-		col := p.col.muted
-		if accent {
-			col = p.col.accent
-		}
-		textIn(status, 12, col)
-		y += gtx.Dp(8)
+	y += cellH
+	paint.FillShape(ops, col.line, clip.Rect(image.Rect(r.Min.X, y, r.Max.X, y+1)).Op())
+	y += gtx.Dp(18)
+
+	// The buttons, centered.
+	type laid struct {
+		call     op.CallOp
+		size     image.Point
+		from, to int
 	}
-	if len(upButtons) > 0 {
-		type laid struct {
-			call     op.CallOp
-			size     image.Point
-			from, to int
-		}
-		var row []laid
-		w, gap := 0, gtx.Dp(8)
-		for _, b := range upButtons {
-			call, sz, from := p.ctrl(b, 0)
-			row = append(row, laid{call, sz, from, len(p.st.controls)})
-			w += sz.X + gap
-		}
-		x := r.Min.X + (r.Dx()-(w-gap))/2
-		h := 0
-		for _, l := range row {
-			at := image.Pt(x, y)
-			p.st.shift(l.from, l.to, at)
-			place(ops, l.call, at)
-			x += l.size.X + gap
-			h = max(h, l.size.Y)
-		}
-		y += h + gtx.Dp(8)
+	var row []laid
+	bw, bgap := 0, gtx.Dp(10)
+	for _, b := range []ctrl{
+		{kind: ctlButton, id: "about_copy", text: "Copy build info"},
+		{kind: ctlButton, id: "about_github", text: "View on GitHub"},
+		{kind: ctlButton, id: "about_issue", text: "Report an issue", ghost: true},
+	} {
+		call, sz, from := p.ctrl(b, 0)
+		row = append(row, laid{call, sz, from, len(p.st.controls)})
+		bw += sz.X + bgap
 	}
-	if reason != "" {
-		textIn(reason, 11, p.col.muted)
-		y += gtx.Dp(8)
+	bx := r.Min.X + (r.Dx()-(bw-bgap))/2
+	bh := 0
+	for _, l := range row {
+		at := image.Pt(bx, y)
+		p.st.shift(l.from, l.to, at)
+		place(ops, l.call, at)
+		bx += l.size.X + bgap
+		bh = max(bh, l.size.Y)
 	}
-	{
-		lc, ls := p.text("Check for updates", 12, p.col.fg)
-		call, sz, from := p.ctrl(ctrl{kind: ctlToggle, id: "check_updates", on: win.opt.Config.CheckUpdates}, 0)
-		gap := gtx.Dp(10)
-		x := r.Min.X + (r.Dx()-(ls.X+gap+sz.X))/2
-		h := max(ls.Y, sz.Y)
-		place(ops, lc, image.Pt(x, y+(h-ls.Y)/2))
-		at := image.Pt(x+ls.X+gap, y+(h-sz.Y)/2)
-		p.st.shift(from, len(p.st.controls), at)
-		place(ops, call, at)
-		y += h + gtx.Dp(20)
-	}
-	for _, button := range []ctrl{{kind: ctlButton, id: "about_copy", text: "Copy build info"}, {kind: ctlButton, id: "about_github", text: "View on GitHub"}} {
-		call, sz, from := p.ctrl(button, 0)
-		at := image.Pt(r.Min.X+(r.Dx()-sz.X)/2, y)
-		p.st.shift(from, len(p.st.controls), at)
-		place(ops, call, at)
-		y += sz.Y + gtx.Dp(8)
-	}
+	y += bh + gtx.Dp(18)
+	call := rec.Stop()
+
+	card := image.Rect(r.Min.X, top, r.Max.X, y)
+	paint.FillShape(ops, col.card, clip.UniformRRect(card, gtx.Dp(12)).Op(ops))
+	call.Add(ops)
+	stroke(ops, card, gtx.Dp(12), col.line)
+	p.st.cards = append(p.st.cards, card)
+	y += gtx.Dp(18)
+	cc, cs := p.text("Made with Go and Gio, for the long session.", 12, col.dim)
+	center(cc, cs)
 	return y + gtx.Dp(16)
 }

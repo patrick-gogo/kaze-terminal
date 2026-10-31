@@ -86,10 +86,11 @@ func waitUpd(t *testing.T, win *window, done func() bool) {
 	t.Fatalf("updater state never settled: %+v", win.upd.view())
 }
 
-func aboutText(t *testing.T, win *window) string {
+// updText draws the Updates page and returns its text.
+func updText(t *testing.T, win *window) string {
 	t.Helper()
-	win.set.texts = nil
-	drawAbout(&page{gtx: pageContext(800, 700), c: win.ui, st: &win.set, col: win.ui.pageColors()}, image.Rect(218, 60, 772, 676), win)
+	win.set.texts, win.set.controls = nil, nil
+	drawUpdates(&page{gtx: pageContext(1100, 900), c: win.ui, win: win, st: &win.set, col: win.ui.pageColors()}, image.Rect(260, 60, 1000, 900), win)
 	return strings.Join(win.set.texts, "\n")
 }
 
@@ -145,12 +146,12 @@ func TestTurningChecksOffMakesNoRequest(t *testing.T) {
 			t.Fatal("a wake was scheduled with checks off")
 		}
 	}
-	aboutAct(win, "upd_check", 0)
+	updatesAct(win, "upd_check", 0)
 	time.Sleep(50 * time.Millisecond)
 	if n := rel.lookups.Load(); n != 0 {
 		t.Fatalf("%d lookups with checks off", n)
 	}
-	if !strings.Contains(aboutText(t, win), "Update checks are off") {
+	if !strings.Contains(updText(t, win), "Update checks are off") {
 		t.Fatal("About does not say checks are off")
 	}
 }
@@ -159,7 +160,7 @@ func TestTheSwitchSavesCheckUpdates(t *testing.T) {
 	rel := newFakeReleases(t, "v99.0", "new", "")
 	win, _, _, _, _ := updWindow(t, rel)
 	win.cfgPath = filepath.Join(t.TempDir(), "config.toml")
-	aboutAct(win, "check_updates", 0)
+	updatesAct(win, "check_updates", 0)
 	data, _ := os.ReadFile(win.cfgPath)
 	if win.opt.Config.CheckUpdates || !strings.Contains(string(data), "check_updates = false") {
 		t.Fatalf("config %q, live %v", data, win.opt.Config.CheckUpdates)
@@ -169,21 +170,21 @@ func TestTheSwitchSavesCheckUpdates(t *testing.T) {
 func TestSameVersionIsUpToDate(t *testing.T) {
 	rel := newFakeReleases(t, "v"+version.Number, "same", "")
 	win, _, _, _, _ := updWindow(t, rel)
-	aboutAct(win, "upd_check", 0)
+	updatesAct(win, "upd_check", 0)
 	waitUpd(t, win, func() bool { return win.upd.checked })
 	if win.upd.newer || win.statusParts().Update != "" {
 		t.Fatal("the same version counts as an update")
 	}
-	if !strings.Contains(aboutText(t, win), "Up to date") {
-		t.Fatal("About does not say up to date")
+	if !strings.Contains(updText(t, win), "Kaze is up to date") {
+		t.Fatal("Updates does not say up to date")
 	}
 }
 
-func TestStatusBarUpdateOpensAbout(t *testing.T) {
+func TestStatusBarUpdateOpensUpdates(t *testing.T) {
 	rel := newFakeReleases(t, "v99.0", "new", "")
 	win, _, _, _, _ := updWindow(t, rel)
 	win.updClick()
-	if !win.set.shown || win.sections()[win.set.section].title != "About" {
+	if !win.set.shown || win.sections()[win.set.section].title != "Updates" {
 		t.Fatalf("settings shown %v at section %d", win.set.shown, win.set.section)
 	}
 }
@@ -191,17 +192,17 @@ func TestStatusBarUpdateOpensAbout(t *testing.T) {
 func TestUpdateAsksFirstThenInstallsAndRestarts(t *testing.T) {
 	rel := newFakeReleases(t, "v99.0", "new", "")
 	win, exe, relaunched, quit, _ := updWindow(t, rel)
-	aboutAct(win, "upd_check", 0)
+	updatesAct(win, "upd_check", 0)
 	waitUpd(t, win, func() bool { return win.upd.checked })
-	text := aboutText(t, win)
+	text := updText(t, win)
 	if !strings.Contains(text, "Kaze 99.0 is available") || !slices.Contains(aboutButtons(win), "upd_install") {
 		t.Fatalf("About: %q buttons %v", text, aboutButtons(win))
 	}
-	aboutAct(win, "upd_install", 0)
-	if !strings.Contains(aboutText(t, win), "close your 2 sessions") || win.upd.busy != "" {
+	updatesAct(win, "upd_install", 0)
+	if !strings.Contains(updText(t, win), "close your 2 sessions") || win.upd.busy != "" {
 		t.Fatal("Update did not ask first")
 	}
-	aboutAct(win, "upd_confirm", 0)
+	updatesAct(win, "upd_confirm", 0)
 	waitUpd(t, win, func() bool { return *quit == 1 })
 	if b, _ := os.ReadFile(exe); string(b) != "new" || *relaunched != 1 {
 		t.Fatalf("exe %q, relaunched %d", b, *relaunched)
@@ -214,15 +215,15 @@ func TestUpdateAsksFirstThenInstallsAndRestarts(t *testing.T) {
 func TestUpdateRefusesABadChecksum(t *testing.T) {
 	rel := newFakeReleases(t, "v99.0", "evil", strings.Repeat("0", 64))
 	win, exe, relaunched, quit, _ := updWindow(t, rel)
-	aboutAct(win, "upd_check", 0)
+	updatesAct(win, "upd_check", 0)
 	waitUpd(t, win, func() bool { return win.upd.checked })
-	aboutAct(win, "upd_install", 0)
-	aboutAct(win, "upd_confirm", 0)
+	updatesAct(win, "upd_install", 0)
+	updatesAct(win, "upd_confirm", 0)
 	waitUpd(t, win, func() bool { return win.upd.busy == "" && win.upd.err != "" })
 	if b, _ := os.ReadFile(exe); string(b) != "old" || *relaunched != 0 || *quit != 0 {
 		t.Fatalf("exe %q relaunched %d quit %d", b, *relaunched, *quit)
 	}
-	if !strings.Contains(aboutText(t, win), "checksum") {
+	if !strings.Contains(updText(t, win), "checksum") {
 		t.Fatalf("the error is not shown: %q", win.upd.err)
 	}
 }
@@ -230,10 +231,10 @@ func TestUpdateRefusesABadChecksum(t *testing.T) {
 func TestCancelLeavesKazeAlone(t *testing.T) {
 	rel := newFakeReleases(t, "v99.0", "new", "")
 	win, exe, _, quit, _ := updWindow(t, rel)
-	aboutAct(win, "upd_check", 0)
+	updatesAct(win, "upd_check", 0)
 	waitUpd(t, win, func() bool { return win.upd.checked })
-	aboutAct(win, "upd_install", 0)
-	aboutAct(win, "upd_cancel", 0)
+	updatesAct(win, "upd_install", 0)
+	updatesAct(win, "upd_cancel", 0)
 	time.Sleep(50 * time.Millisecond)
 	win.drainUpdates()
 	if b, _ := os.ReadFile(exe); string(b) != "old" || *quit != 0 || win.upd.confirm {
@@ -246,15 +247,41 @@ func TestASourceBuildGetsADownloadButton(t *testing.T) {
 	win, exe, _, _, opened := updWindow(t, rel)
 	os.Mkdir(filepath.Join(filepath.Dir(exe), ".git"), 0o755)
 	win.upd.findTarget()
-	aboutAct(win, "upd_check", 0)
+	updatesAct(win, "upd_check", 0)
 	waitUpd(t, win, func() bool { return win.upd.checked })
-	aboutText(t, win)
+	updText(t, win)
 	ids := aboutButtons(win)
 	if slices.Contains(ids, "upd_install") || !slices.Contains(ids, "upd_page") {
 		t.Fatalf("buttons %v", ids)
 	}
-	aboutAct(win, "upd_page", 0)
+	updatesAct(win, "upd_page", 0)
 	if len(*opened) != 1 || !strings.HasSuffix((*opened)[0], "/page") {
 		t.Fatalf("opened %v", *opened)
+	}
+}
+
+func TestAboutNoLongerHoldsTheUpdater(t *testing.T) {
+	rel := newFakeReleases(t, "v99.0", "new", "")
+	win, _, _, _, _ := updWindow(t, rel)
+	updatesAct(win, "upd_check", 0)
+	waitUpd(t, win, func() bool { return win.upd.checked })
+	win.set.texts, win.set.controls = nil, nil
+	drawAbout(&page{gtx: pageContext(1100, 900), c: win.ui, win: win, st: &win.set, col: win.ui.pageColors()}, image.Rect(260, 60, 1000, 900), win)
+	if ids := aboutButtons(win); slices.Contains(ids, "upd_install") || slices.Contains(ids, "check_updates") {
+		t.Fatalf("About still has update controls: %v", ids)
+	}
+}
+
+func TestUpdatesHasAMenuBadgeWhenOneIsOut(t *testing.T) {
+	rel := newFakeReleases(t, "v99.0", "new", "")
+	win, _, _, _, _ := updWindow(t, rel)
+	sec := updatesSection()
+	if sec.badge(win) != "" {
+		t.Fatal("a badge before any check")
+	}
+	updatesAct(win, "upd_check", 0)
+	waitUpd(t, win, func() bool { return win.upd.checked })
+	if sec.badge(win) != "1" || sec.group != "Kaze" {
+		t.Fatalf("badge %q group %q", sec.badge(win), sec.group)
 	}
 }

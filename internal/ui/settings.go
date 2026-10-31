@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"gioui.org/font"
 	"image"
 	"image/color"
 	"runtime/debug"
@@ -40,7 +41,8 @@ type settingsState struct {
 	// Laid out each frame.
 	controls []control
 	nav      []navHit
-	texts    []string // every string drawn, so tests can read the page
+	texts    []string          // every string drawn, so tests can read the page
+	cards    []image.Rectangle // every card drawn this frame, for tests
 	// memberFolderX is where each list member's folder starts, so tests can check the columns.
 	memberFolderX []int
 
@@ -57,8 +59,14 @@ type navHit struct {
 }
 
 // settingRow is one line of a section: label and dim hint on the left, controls on the right.
+// A row with heading set is a small section label instead: the rows after it, up to the
+// next heading, sit together in one card.
 type settingRow struct {
+	heading     string
 	label, hint string
+	monoHint    bool     // the hint is a path or command, drawn in the terminal font
+	icon        string   // a line icon in a tile left of the label (see chrome.icon)
+	pill, tone  string   // a status pill left of the controls, and its kind (ok, warn, off, run, err)
 	lines       []string // extra lines between the label and the hint (the setup check)
 	ctrls       []ctrl
 	block       bool        // the controls sit under the label across the pane (theme swatches)
@@ -80,7 +88,11 @@ type rowMember struct {
 // leaves the section: false keeps it (the section asks first, then runs then).
 type settingsSection struct {
 	title, hint string
-	later       bool // greyed with "coming next" and not selectable
+	icon        string                   // the menu's line icon (see chrome.icon)
+	group       string                   // a menu group heading above it; "" for the first group
+	badge       func(win *window) string // a count or word in a pill beside it in the menu, "" for none
+	actions     func(win *window) []ctrl // buttons on the right of the section's heading
+	later       bool                     // greyed with "coming next" and not selectable
 	draw        func(*page, image.Rectangle, *window) int
 	rows        func(win *window) []settingRow
 	act         func(win *window, id string, arg int)
@@ -98,13 +110,20 @@ type dialogBox struct {
 
 // defaultSections are the page's menu; each section fills in its own rows and act.
 func defaultSections() []settingsSection {
-	return []settingsSection{
+	secs := []settingsSection{
 		appearanceSection(),
 		workspacesSection(),
 		claudeSection(),
 		commandsSection(),
+		updatesSection(),
 		aboutSection(),
 	}
+	icons := []string{"appearance", "workspaces", "claude", "shortcuts", "updates", "about"}
+	for i := range secs {
+		secs[i].icon = icons[i]
+	}
+	secs[4].group, secs[5].group = "Kaze", "Kaze"
+	return secs
 }
 
 // readBuild is debug.ReadBuildInfo unless a test replaces it.
@@ -409,13 +428,16 @@ func (win *window) moveFocus(d int) {
 // pageColors are the theme tokens the page draws with.
 type pageColors struct {
 	bg, nav, fg, title, dim, muted, line, accent, err color.NRGBA
+	card, raised, line2, needs, done                  color.NRGBA
 }
 
 func (c *chrome) pageColors() pageColors {
 	th := c.th
+	card := mix(th.Active, th.ToastBG, 0.45)
 	return pageColors{
 		bg: th.Active, nav: th.Chrome, fg: th.ToastFG, title: th.ActiveFG,
 		dim: th.StatusFG, muted: th.Muted, line: th.Border, accent: th.Accent, err: th.UsageHigh,
+		card: card, raised: mix(card, th.ActiveFG, 0.07), line2: th.ToastLine, needs: th.Needs, done: th.Done,
 	}
 }
 
@@ -428,7 +450,7 @@ func tint(col color.NRGBA, a uint8) color.NRGBA {
 // drawSettings lays out the page in r: the section menu on the left, the shown section on the right.
 func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	s := &win.set
-	s.controls, s.nav, s.texts = s.controls[:0], s.nav[:0], s.texts[:0]
+	s.controls, s.nav, s.texts, s.cards = s.controls[:0], s.nav[:0], s.texts[:0], s.cards[:0]
 	s.memberFolderX = s.memberFolderX[:0]
 	p := &page{gtx: gtx, c: win.ui, win: win, st: s, col: win.ui.pageColors()}
 	ops := gtx.Ops
@@ -440,10 +462,14 @@ func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 	area.Pop()
 
 	secs := win.sections()
-	navW := min(gtx.Dp(190), r.Dx())
+	navW := min(gtx.Dp(220), r.Dx())
 	p.nav(image.Rect(r.Min.X, r.Min.Y, r.Min.X+navW, r.Max.Y), secs)
-	pane := image.Rect(r.Min.X+navW+gtx.Dp(28), r.Min.Y+gtx.Dp(22), r.Max.X-gtx.Dp(28), r.Max.Y)
-	s.pane = pane
+	// The content is a column up to 760 dp wide, centered in what the menu leaves.
+	content := image.Rect(r.Min.X+navW, r.Min.Y, r.Max.X, r.Max.Y)
+	colW := max(min(content.Dx()-2*gtx.Dp(36), gtx.Dp(760)), 0)
+	x := content.Min.X + (content.Dx()-colW)/2
+	pane := image.Rect(x, r.Min.Y+gtx.Dp(30), x+colW, r.Max.Y)
+	s.pane = image.Rect(content.Min.X, pane.Min.Y, content.Max.X, content.Max.Y)
 	if pane.Dx() > 0 && s.section < len(secs) {
 		from := len(s.controls)
 		rec := op.Record(ops)
@@ -463,7 +489,7 @@ func (win *window) drawSettings(gtx layout.Context, r image.Rectangle) {
 		s.scrollFocus = s.focus
 		s.shift(from, len(s.controls), image.Pt(0, -s.scroll))
 		win.pruneFields()
-		paneClip := clip.Rect(pane).Push(ops)
+		paneClip := clip.Rect(s.pane).Push(ops)
 		off := op.Offset(image.Pt(0, -s.scroll)).Push(ops)
 		call.Add(ops)
 		off.Pop()
@@ -604,7 +630,7 @@ type page struct {
 
 func (p *page) text(s string, size unit.Sp, col color.NRGBA) (op.CallOp, image.Point) {
 	p.st.texts = append(p.st.texts, s)
-	return p.c.label(p.gtx, s, size, col)
+	return p.c.sans(p.gtx, s, size, col, font.Normal)
 }
 
 // wrap breaks s into lines no wider than w, at spaces; a word wider than w gets its own line.
@@ -616,7 +642,7 @@ func (p *page) wrap(s string, size unit.Sp, w int) []string {
 		if cur != "" {
 			try = cur + " " + word
 		}
-		if _, sz := p.c.label(p.gtx, try, size, p.col.dim); sz.X > w && cur != "" {
+		if _, sz := p.c.sans(p.gtx, try, size, p.col.dim, font.Normal); sz.X > w && cur != "" {
 			lines = append(lines, cur)
 			try = word
 		}
@@ -628,63 +654,86 @@ func (p *page) wrap(s string, size unit.Sp, w int) []string {
 	return lines
 }
 
-// nav draws the section menu, the "Later" line and the version block at the bottom.
+// nav draws the menu: the page's title, the sections with their icons under
+// their group headings, and the version and update state at the bottom.
 func (p *page) nav(r image.Rectangle, secs []settingsSection) {
 	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
 	paint.FillShape(ops, col.nav, clip.Rect(r).Op())
 	paint.FillShape(ops, col.line, clip.Rect(image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y)).Op())
-	pad, inner := gtx.Dp(10), gtx.Dp(12)
+	pad, inner := gtx.Dp(12), gtx.Dp(10)
 	x0, x1 := r.Min.X+pad, r.Max.X-pad
-	textW := x1 - x0 - 2*inner
-	y := r.Min.Y + gtx.Dp(16)
+	y := r.Min.Y + gtx.Dp(20)
+	call, size := p.textW("Settings", 18, col.title, font.SemiBold)
+	place(ops, call, image.Pt(x0+inner, y))
+	y += size.Y + gtx.Dp(2)
+	call, size = p.text("Saved to config.toml as you go", 11, col.dim)
+	place(ops, call, image.Pt(x0+inner, y))
+	y += size.Y + gtx.Dp(14)
+	group := ""
 	for i, sec := range secs {
-		item := image.Rect(x0, y, x1, y+gtx.Dp(30))
-		fg := col.muted
-		switch {
-		case sec.later:
-			fg = col.dim
-		case i == p.st.section:
-			paint.FillShape(ops, tint(col.accent, 0x26), clip.UniformRRect(item, gtx.Dp(7)).Op(ops))
-			fg = col.title
-		}
-		call, size := p.text(sec.title, 13, fg)
-		mid := item.Min.Y + item.Dy()/2
-		place(ops, call, image.Pt(x0+inner, mid-size.Y/2))
 		if sec.later {
-			nc, ns := p.text("coming next", 10, col.dim)
-			if x0+inner+size.X+gtx.Dp(8)+ns.X <= x1-inner {
-				place(ops, nc, image.Pt(x1-inner-ns.X, mid-ns.Y/2))
-			}
-		} else {
-			if p.st.navFocus && p.st.navIndex == len(p.st.nav) {
-				stroke(ops, item, gtx.Dp(7), col.accent)
-			}
-			p.st.nav = append(p.st.nav, navHit{rect: item, section: i})
+			continue
 		}
+		if sec.group != group {
+			group = sec.group
+			y += gtx.Dp(12)
+			call, size := p.textW(strings.ToUpper(group), 10, col.dim, font.SemiBold)
+			place(ops, call, image.Pt(x0+inner, y))
+			y += size.Y + gtx.Dp(6)
+		}
+		item := image.Rect(x0, y, x1, y+gtx.Dp(34))
+		fg, ic := col.muted, col.muted
+		if i == p.st.section {
+			paint.FillShape(ops, tint(col.accent, 0x2e), clip.UniformRRect(item, gtx.Dp(8)).Op(ops))
+			stroke(ops, item, gtx.Dp(8), tint(col.accent, 0x55))
+			fg, ic = col.title, col.accent
+		}
+		mid := item.Min.Y + item.Dy()/2
+		is := gtx.Dp(16)
+		p.c.icon(gtx, sec.icon, image.Rect(x0+inner, mid-is/2, x0+inner+is, mid-is/2+is), ic)
+		call, size := p.textW(sec.title, 13, fg, font.Medium)
+		place(ops, call, image.Pt(x0+inner+is+gtx.Dp(11), mid-size.Y/2))
+		if sec.badge != nil {
+			if b := sec.badge(p.win); b != "" {
+				bc, bs := p.textW(b, 10, col.bg, font.SemiBold)
+				h := bs.Y + gtx.Dp(2)
+				box := image.Rect(x1-inner-bs.X-gtx.Dp(12), mid-h/2, x1-inner, mid-h/2+h)
+				paint.FillShape(ops, col.accent, clip.UniformRRect(box, h/2).Op(ops))
+				place(ops, bc, image.Pt(box.Min.X+gtx.Dp(6), mid-bs.Y/2))
+			}
+		}
+		if p.st.navFocus && p.st.navIndex == len(p.st.nav) {
+			stroke(ops, item.Inset(-gtx.Dp(2)), gtx.Dp(9), col.accent)
+		}
+		p.st.nav = append(p.st.nav, navHit{rect: item, section: i})
 		y = item.Max.Y + gtx.Dp(2)
-	}
-	y += gtx.Dp(14)
-	for _, line := range p.wrap("Later: Terminal, Shell setup", 11, textW) {
-		call, size := p.text(line, 11, col.dim)
-		place(ops, call, image.Pt(x0+inner, y))
-		y += size.Y
 	}
 
 	// Version block, kept at the bottom unless the menu needs the room.
-	vc, vs := p.text("kaze "+version.Number, 12, col.fg)
-	blockH := gtx.Dp(12) + vs.Y
-	top := max(r.Max.Y-gtx.Dp(16)-blockH, y+gtx.Dp(14))
+	vc, vs := p.textW("kaze "+version.Number, 12.5, col.title, font.SemiBold)
+	state := p.win.updFoot()
+	var sc op.CallOp
+	var ss image.Point
+	if state != "" {
+		sc, ss = p.text(state, 11, col.dim)
+	}
+	blockH := gtx.Dp(12) + max(gtx.Dp(22), vs.Y+ss.Y)
+	top := max(r.Max.Y-gtx.Dp(14)-blockH, y+gtx.Dp(14))
 	paint.FillShape(ops, col.line, clip.Rect(image.Rect(x0, top, x1, top+1)).Op())
 	y = top + gtx.Dp(12)
 	tx := x0 + inner
-	if mop, img := markImage(vs.Y); img != nil {
-		t := op.Offset(image.Pt(tx, y)).Push(ops)
+	mark := gtx.Dp(22)
+	if mop, img := markImage(mark); img != nil {
+		t := op.Offset(image.Pt(tx, y+(vs.Y+ss.Y-mark)/2)).Push(ops)
 		mop.Add(ops)
 		paint.PaintOp{}.Add(ops)
 		t.Pop()
-		tx += vs.Y + gtx.Dp(6)
+		tx += mark + gtx.Dp(10)
 	}
 	place(ops, vc, image.Pt(tx, y))
+	if state != "" {
+		place(ops, sc, image.Pt(tx, y+vs.Y))
+	}
 }
 
 // pane draws the shown section: title, hint and its rows.
@@ -693,6 +742,9 @@ func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) int {
 		return sec.draw(p, r, win)
 	}
 	y := p.heading(r, sec.title, sec.hint)
+	if sec.actions != nil {
+		p.headerActions(r, sec.actions(win))
+	}
 	if sec.rows == nil {
 		return y
 	}
@@ -703,25 +755,54 @@ func (p *page) pane(r image.Rectangle, sec settingsSection, win *window) int {
 func (p *page) heading(r image.Rectangle, title, hint string) int {
 	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
 	y := r.Min.Y
-	call, size := p.text(title, 16, col.title)
+	call, size := p.textW(title, 24, col.title, font.SemiBold)
 	place(ops, call, image.Pt(r.Min.X, y))
-	y += size.Y + gtx.Dp(4)
+	y += size.Y + gtx.Dp(2)
 	if hint != "" {
-		call, size = p.text(hint, 12, col.dim)
+		call, size = p.text(hint, 13, col.muted)
 		place(ops, call, image.Pt(r.Min.X, y))
 		y += size.Y
 	}
-	return y + gtx.Dp(16)
+	return y + gtx.Dp(22)
 }
 
-// rows draws rows from y in r and returns where the next would start.
+// headerActions draws buttons at the right of a section's heading.
+func (p *page) headerActions(r image.Rectangle, cs []ctrl) {
+	gtx, ops := p.gtx, p.gtx.Ops
+	x := r.Max.X
+	for i := len(cs) - 1; i >= 0; i-- {
+		call, size, from := p.ctrl(cs[i], 0)
+		x -= size.X
+		at := image.Pt(x, r.Min.Y+gtx.Dp(8))
+		p.st.shift(from, len(p.st.controls), at)
+		place(ops, call, at)
+		x -= gtx.Dp(8)
+	}
+}
+
+// rows draws rows from y in r and returns where the next would start: each
+// heading as a small label, and the rows between headings together in a card.
 func (p *page) rows(r image.Rectangle, y int, rows []settingRow) int {
-	for _, row := range rows {
-		if row.block {
-			y = p.blockRow(r, y, row)
-		} else {
-			y = p.row(r, y, row)
+	drawn := false
+	for i := 0; i < len(rows); {
+		if rows[i].heading != "" {
+			if drawn {
+				y += p.gtx.Dp(26)
+			}
+			y = p.sectionLabel(r, y, rows[i].heading)
+			i++
+			continue
 		}
+		j := i
+		for j < len(rows) && rows[j].heading == "" {
+			j++
+		}
+		if drawn && (i == 0 || rows[i-1].heading == "") {
+			y += p.gtx.Dp(12)
+		}
+		y = p.card(r, y, rows[i:j])
+		drawn = true
+		i = j
 	}
 	return y
 }
@@ -732,12 +813,21 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 		return p.memberRow(r, y, row)
 	}
 	gtx, ops, col := p.gtx, p.gtx.Ops, p.col
-	paint.FillShape(ops, col.line, clip.Rect(image.Rect(r.Min.X, y, r.Max.X, y+1)).Op())
-	lc, ls := p.text(row.label, 13, col.fg)
+	lx := r.Min.X
+	var tc op.CallOp
+	var tsz image.Point
+	if row.icon != "" {
+		tc, tsz = p.iconTile(row.icon)
+		lx += tsz.X + gtx.Dp(14)
+	}
+	lc, ls := p.textW(row.label, 13.5, col.title, font.SemiBold)
 	var hc op.CallOp
 	var hs image.Point
-	if row.hint != "" {
-		hc, hs = p.text(row.hint, 11, col.dim)
+	switch {
+	case row.hint != "" && row.monoHint:
+		hc, hs = p.mono(row.hint, 11, col.muted)
+	case row.hint != "":
+		hc, hs = p.text(row.hint, 12, col.muted)
 	}
 	type text struct {
 		call op.CallOp
@@ -746,7 +836,7 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	var extra []text
 	extraH := 0
 	for _, l := range row.lines {
-		call, size := p.text(l, 12, col.fg)
+		call, size := p.text(l, 12, col.muted)
 		extra = append(extra, text{call, size})
 		extraH += size.Y
 	}
@@ -758,28 +848,37 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	}
 	var cs []laid
 	w, h := 0, 0
-	for i, k := range row.ctrls {
+	if row.pill != "" {
+		call, size := p.pill(row.pill, row.tone)
+		cs = append(cs, laid{call, size, len(p.st.controls), len(p.st.controls)})
+		w, h = size.X, size.Y
+	}
+	for _, k := range row.ctrls {
 		call, size, from := p.ctrl(k, 0)
 		cs = append(cs, laid{call, size, from, len(p.st.controls)})
-		if i > 0 {
+		if w > 0 {
 			w += gap
 		}
 		w += size.X
 		h = max(h, size.Y)
 	}
+	r.Min.X = lx
 	labelH := ls.Y + extraH + hs.Y
 	labelW := max(ls.X, hs.X)
 	for _, e := range extra {
 		labelW = max(labelW, e.size.X)
 	}
 	stacked := labelW+gap+w > r.Dx()
-	rowH := max(labelH, h) + gtx.Dp(22)
+	rowH := max(max(labelH, h, tsz.Y)+gtx.Dp(28), gtx.Dp(58))
 	if stacked {
-		rowH = labelH + gap + h + gtx.Dp(22)
+		rowH = labelH + gap + h + gtx.Dp(28)
 	}
 	ty := y + (rowH-labelH)/2
 	if stacked {
-		ty = y + gtx.Dp(11)
+		ty = y + gtx.Dp(14)
+	}
+	if row.icon != "" {
+		place(ops, tc, image.Pt(r.Min.X-tsz.X-gtx.Dp(14), y+(rowH-tsz.Y)/2))
 	}
 	place(ops, lc, image.Pt(r.Min.X, ty))
 	ty += ls.Y
@@ -793,7 +892,7 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	x := r.Max.X - w
 	cy := y + (rowH-h)/2
 	if stacked {
-		x, cy = r.Min.X, y+gtx.Dp(11)+labelH+gap
+		x, cy = r.Min.X, y+gtx.Dp(14)+labelH+gap
 	}
 	for _, c := range cs {
 		at := image.Pt(x, cy+(h-c.size.Y)/2)
@@ -807,9 +906,15 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 // blockRow draws a small heading and its controls side by side across the pane.
 func (p *page) blockRow(r image.Rectangle, y int, row settingRow) int {
 	gtx, ops := p.gtx, p.gtx.Ops
-	call, size := p.text(row.label, 12, p.col.dim)
+	call, size := p.textW(row.label, 13.5, p.col.title, font.SemiBold)
 	place(ops, call, image.Pt(r.Min.X, y))
-	y += size.Y + gtx.Dp(6)
+	y += size.Y + gtx.Dp(2)
+	if row.hint != "" {
+		hc, hs := p.text(row.hint, 12, p.col.muted)
+		place(ops, hc, image.Pt(r.Min.X, y))
+		y += hs.Y
+	}
+	y += gtx.Dp(12)
 	n := len(row.ctrls)
 	if n == 0 {
 		return y

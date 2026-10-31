@@ -13,3 +13,13 @@ NotoSansJP-Regular-subset.ttf
       --output-file=NotoSansJP-Regular-subset.ttf
   unicodes.txt = every code point U+0080..U+FFFF that Python's cp932 codec can encode,
   plus U+3000..U+30FF, U+31F0..U+31FF and U+FF00..U+FFEF (9428 code points).
+
+Manrope-Regular.ttf, Manrope-Medium.ttf, Manrope-SemiBold.ttf
+  Modified from Manrope[wght].ttf in https://github.com/google/fonts (ofl/manrope), the same
+  variable font as docs/site-assets/Manrope.ttf.
+  License: SIL Open Font License 1.1 (OFL-Manrope.txt)
+  Made with fontTools (2026-10-31), one static instance per weight, because Gio draws a
+  variable font at its default instance only (ExtraLight for Manrope):
+    fonttools varLib.instancer Manrope.ttf wght=400 --update-name-table -o Manrope-Regular.ttf
+    fonttools varLib.instancer Manrope.ttf wght=500 --update-name-table -o Manrope-Medium.ttf
+    fonttools varLib.instancer Manrope.ttf wght=600 --update-name-table -o Manrope-SemiBold.ttf

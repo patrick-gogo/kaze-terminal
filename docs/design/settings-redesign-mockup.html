@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings Redesign Mockup</title>
+<style>
+@font-face{font-family:Manrope;src:url(../site-assets/Manrope.ttf) format('truetype');font-weight:200 800}
+@font-face{font-family:JetBrains;src:url(../site-assets/JetBrainsMono-Regular.ttf) format('truetype')}
+:root{
+  /* Midnight, from internal/theme */
+  --chrome:#0b0d12; --page:#0f1117; --card:#13161e; --card-2:#171b25; --hover:#1a1f2b;
+  --line:#1d2230; --line-2:#262c3b; --fg:#e8eaf1; --fg-2:#c9cdd8; --muted:#8a90a2; --dim:#5d6476;
+  --accent:#8b7bff; --accent-2:#b9a6ff; --accent-soft:rgba(139,123,255,.14); --accent-line:rgba(139,123,255,.38);
+  --needs:#f2b84b; --done:#62d39a; --red:#ff6b6b;
+  --sans:Manrope,ui-sans-serif,system-ui,sans-serif; --mono:JetBrains,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05060a;color:var(--fg);font:13px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+.stage{min-height:100%;display:flex;flex-direction:column;align-items:center;gap:16px;padding:28px 20px 40px}
+.notes{width:min(1320px,100%);color:#9097a8;font-size:12.5px;line-height:1.7;display:flex;gap:18px;flex-wrap:wrap;justify-content:space-between}
+.notes b{color:#d9dcea;font-weight:600}
+.notes .chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;color:#aeb4c4;font-size:11.5px}
+.chip.on{border-color:var(--accent-line);color:var(--accent-2);background:var(--accent-soft)}
+
+/* the kaze window */
+.win{width:min(1320px,100%);height:820px;border-radius:12px;overflow:hidden;border:1px solid #232838;box-shadow:0 30px 90px rgba(0,0,0,.55);display:grid;grid-template-rows:30px 1fr 26px;background:var(--chrome)}
+.titlebar{display:flex;align-items:center;justify-content:center;position:relative;background:#2a2c33;color:#c7c9d1;font-size:12.5px;font-weight:600;border-bottom:1px solid #000}
+.lights{position:absolute;left:12px;display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;display:block}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.body{display:grid;grid-template-columns:236px 228px 1fr;min-height:0}
+.status{display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-top:1px solid var(--line);font:11px var(--mono);color:#7d8394}
+.status .upd{color:var(--accent-2);cursor:pointer;margin-right:18px}
+
+/* session sidebar (unchanged, for context) */
+.sessions{border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;gap:8px;font-family:var(--mono)}
+.sessions .tools{display:flex;gap:14px;align-items:center;padding:2px 6px;color:#aab0c0}
+.sessions .tools span:last-child{margin-left:auto}
+.filter{display:flex;gap:6px}.filter div{flex:1;border:1px solid var(--line-2);border-radius:7px;padding:6px 9px;color:#646b7d;font-size:11.5px}.filter b{border:1px solid var(--line-2);border-radius:7px;width:30px;display:grid;place-items:center;color:#aab0c0;font-weight:400}
+.pinned{background:#121620;border-radius:7px;padding:7px 9px;display:flex;justify-content:space-between;font-size:12px}
+.srow{padding:4px 8px;font-size:12px;color:#cfd3de}.srow small{display:block;color:#636a7c;font-size:11px;padding-left:14px}
+.srow:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#6c7385;margin-right:8px;vertical-align:2px}
+.sessions .next{margin-top:auto;border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;font-size:12px;display:flex;justify-content:space-between}.sessions .next span{color:#646b7d;font-size:10.5px}
+
+/* settings navigation */
+.nav{background:#0d1016;border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px 12px;min-height:0}
+.nav h1{font:600 18px var(--sans);letter-spacing:-.3px;margin:2px 10px 4px}
+.nav .sub{font-size:11.5px;color:var(--dim);margin:0 10px 16px}
+.nav .group{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#596073;margin:14px 10px 6px;font-weight:600}
+.nav button{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border-radius:8px;color:#b8bdca;font-size:13px;font-weight:500;text-align:left;position:relative}
+.nav button svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+.nav button:hover{background:#141824;color:#e3e6ee}
+.nav button.on{background:linear-gradient(180deg,rgba(139,123,255,.20),rgba(139,123,255,.12));color:#fff;box-shadow:inset 0 0 0 1px rgba(139,123,255,.30)}
+.nav button.on svg{color:var(--accent-2);opacity:1}
+.nav .badge{margin-left:auto;font:600 10px var(--sans);color:#16121f;background:var(--accent-2);border-radius:999px;padding:1px 7px}
+.nav .foot{margin-top:auto;border-top:1px solid var(--line);padding:12px 10px 2px;display:flex;align-items:center;gap:10px}
+.nav .foot img{width:22px;height:22px}
+.nav .foot b{font:600 12.5px var(--sans);display:block}.nav .foot span{font-size:11px;color:var(--dim)}
+
+/* page */
+.page{overflow:auto;background:var(--page);min-height:0}
+.inner{max-width:760px;margin:0 auto;padding:34px 40px 60px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:22px}
+.head h2{font:650 24px var(--sans);letter-spacing:-.6px;margin:0}
+.head p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.section-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#69718a;font-weight:650;margin:26px 2px 10px}
+.card{background:linear-gradient(180deg,var(--card-2),var(--card));border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 10px 30px rgba(0,0,0,.18)}
+.card + .card{margin-top:12px}
+.row{display:flex;align-items:center;gap:18px;padding:14px 18px;min-height:58px}
+.row + .row{border-top:1px solid var(--line)}
+.row .txt{flex:1;min-width:0}.row .txt b{display:block;font-weight:600;font-size:13.5px;color:var(--fg)}.row .txt span{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+.mono{font-family:var(--mono)}
+
+/* controls */
+.toggle{width:38px;height:22px;border-radius:999px;background:#2a2f3d;position:relative;transition:background .15s;flex:none}
+.toggle:after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#e9ebf2;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.toggle.on{background:var(--accent)}.toggle.on:after{left:19px}
+.seg{display:inline-flex;background:#0d1016;border:1px solid var(--line-2);border-radius:9px;padding:3px;gap:2px;flex:none}
+.seg button{padding:5px 12px;border-radius:6px;color:#aab0c0;font-size:12px;font-weight:500}
+.seg button.on{background:#262b3a;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line-2);border-radius:9px;background:#0d1016;flex:none}
+.stepper button{width:30px;height:30px;color:#c4c9d6;font-size:15px}.stepper span{min-width:44px;text-align:center;font:12.5px var(--mono)}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;border:1px solid var(--line-2);background:#151925;color:#e3e6ee;font-weight:600;font-size:12.5px;white-space:nowrap}
+.btn:hover{background:#1b2030;border-color:#333a4d}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 6px 18px rgba(139,123,255,.25)}
+.btn.primary:hover{background:#9a8cff}
+.btn.ghost{background:transparent}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--done);background:rgba(98,211,154,.10)}.pill.warn{color:var(--needs);background:rgba(242,184,75,.10)}.pill.off{color:#8a90a2;background:#1a1e29}.pill.run{color:var(--accent-2);background:var(--accent-soft)}
+kbd{font:11.5px var(--mono);color:#e3e6ee;background:#1a1e29;border:1px solid #2c3243;border-bottom-width:2px;border-radius:6px;padding:2px 7px;min-width:24px;display:inline-block;text-align:center}
+
+/* appearance */
+.themes{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:16px 18px 18px}
+.theme{border-radius:10px;border:1px solid var(--line-2);padding:8px;text-align:left;background:#0d1016;transition:border-color .15s,transform .15s}
+.theme:hover{transform:translateY(-1px);border-color:#394057}
+.theme.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.theme .shot{height:64px;border-radius:6px;padding:7px 8px;font:8.5px/1.55 var(--mono);overflow:hidden}
+.theme .name{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-weight:600;font-size:12.5px;padding:0 2px}
+.theme .name i{width:14px;height:14px;border-radius:50%;border:1.5px solid #3a4054;display:grid;place-items:center}
+.theme.on .name i{border-color:var(--accent);background:var(--accent)}
+.theme.on .name i:after{content:"";width:5px;height:5px;border-radius:50%;background:#fff}
+.preview{margin:0 18px 18px;border-radius:10px;border:1px solid var(--line-2);overflow:hidden}
+.preview .bar{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line-2)}.preview .bar i{width:8px;height:8px;border-radius:50%;background:#3a4054}
+.preview pre{margin:0;padding:12px 14px;font:12.5px/1.6 var(--mono);min-height:110px}
+.cursorchips{display:flex;gap:8px;flex:none}
+.cchip{width:46px;height:34px;border-radius:8px;border:1px solid var(--line-2);background:#0d1016;display:grid;place-items:center;font:12px var(--mono);color:#cfd3de;position:relative}
+.cchip.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.cchip .c{display:inline-block;background:var(--accent);margin-left:1px;vertical-align:middle}
+.cchip[data-c=block] .c{width:7px;height:14px}.cchip[data-c=bar] .c{width:2px;height:14px}.cchip[data-c=underline] .c{width:8px;height:2px;margin-top:12px}
+
+/* workspaces */
+.ws{overflow:hidden}
+.ws-top{display:flex;align-items:center;gap:14px;padding:16px 18px}
+.ws-ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(139,123,255,.35),rgba(139,123,255,.10));border:1px solid var(--accent-line);font:700 15px var(--sans);color:#fff;flex:none}
+.ws-top .txt{flex:1}.ws-top .txt b{font-size:15px;font-weight:650;letter-spacing:-.2px}.ws-top .txt span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.ws-actions{display:flex;gap:8px;align-items:center}
+.members{border-top:1px solid var(--line);background:rgba(0,0,0,.12)}
+.member{display:grid;grid-template-columns:4px 110px 1fr 120px 130px;align-items:center;gap:14px;padding:11px 18px}
+.member + .member{border-top:1px solid rgba(29,34,48,.7)}
+.member .bar{width:4px;height:26px;border-radius:2px}
+.member b{font-weight:600;font-size:13px}.member .path{font:11.5px var(--mono);color:#7f8699;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.member code{font:11.5px var(--mono);color:#c9bfff;background:#151927;border:1px solid #232a3b;border-radius:6px;padding:3px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.member .wait{font-size:11.5px;color:var(--muted);text-align:right}
+.ws-new{border:1.5px dashed #2b3142;border-radius:12px;padding:20px;display:flex;align-items:center;justify-content:center;gap:10px;color:#9aa1b3;font-weight:600;margin-top:12px;width:100%}
+.ws-new:hover{border-color:var(--accent-line);color:var(--accent-2);background:rgba(139,123,255,.04)}
+.editor{border-top:1px solid var(--line);padding:16px 18px;display:none;background:#10131b}
+.ws.editing .editor{display:block}.ws.editing .members{display:none}
+.field-grid{display:grid;grid-template-columns:110px 1fr 1.2fr 120px 28px;gap:8px;align-items:center}
+.field-grid .h{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#5f677a;font-weight:650}
+.input{background:#0b0d13;border:1px solid var(--line-2);border-radius:7px;padding:6px 9px;font:12px var(--mono);color:#dfe2ea;width:100%}
+.input.sans{font-family:var(--sans);font-weight:600}
+.swatch{width:18px;height:18px;border-radius:5px;display:inline-block;vertical-align:middle}
+.editor .foot{display:flex;justify-content:space-between;margin-top:14px}
+
+/* claude */
+.check-icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;background:#181c27;border:1px solid var(--line-2)}
+.check-icon svg{width:16px;height:16px;stroke:#b9bfcc;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.statusdemo{margin:0 18px 16px;border:1px solid var(--line-2);border-radius:8px;padding:7px 12px;font:11px var(--mono);color:#7d8394;display:flex;justify-content:space-between;background:#0b0d12}
+.statusdemo b{color:var(--done);font-weight:400}
+
+/* shortcuts */
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:9px;background:#0d1016;padding:7px 11px;width:240px;color:#69718a}
+.search input{background:none;border:0;outline:0;color:var(--fg);font:12.5px var(--sans);width:100%}
+.krow{display:grid;grid-template-columns:1fr auto 130px;align-items:center;gap:16px;padding:11px 18px}
+.krow + .krow{border-top:1px solid var(--line)}
+.krow .keys{display:flex;gap:4px;justify-content:flex-end}
+.krow .id{font:11px var(--mono);color:#5f677a;text-align:right}
+.cli{display:flex;align-items:center;gap:14px;padding:13px 18px}
+.cli + .cli{border-top:1px solid var(--line)}
+.cli .txt b{font:12.5px var(--mono);color:#e6e2ff}
+
+/* updates */
+.upd-hero{display:flex;gap:20px;align-items:center;padding:24px}
+.ring{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;flex:none;background:var(--accent-soft);border:1px solid var(--accent-line)}
+.ring svg{width:26px;height:26px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.upd-hero .txt{flex:1}.upd-hero h3{margin:0;font:650 18px var(--sans);letter-spacing:-.3px}.upd-hero p{margin:3px 0 0;color:var(--muted)}
+.progress{height:6px;border-radius:999px;background:#1d2230;overflow:hidden;margin-top:12px}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:999px;transition:width .3s}
+.notes-list{padding:4px 24px 20px;color:#c3c8d4;font-size:12.5px}
+.notes-list li{margin:6px 0}.notes-list ul{margin:0;padding-left:18px}
+.confirm{margin:0 24px 22px;padding:14px 16px;border-radius:10px;background:rgba(242,184,75,.07);border:1px solid rgba(242,184,75,.25);display:flex;gap:14px;align-items:center}
+.confirm span{flex:1;color:#ead9b3}
+.statepick{display:flex;gap:6px;flex-wrap:wrap}
+
+/* about */
+.about-hero{padding:38px 24px 30px;text-align:center}
+.lockup{display:inline-flex;align-items:center;gap:18px}.lockup img{width:86px;height:86px}.lockup b{display:block;font:500 64px/1 var(--mono);letter-spacing:-2px;color:#eceef4;text-align:left}.lockup span{display:block;font:13px var(--mono);color:#a3a9b8;letter-spacing:.12em;margin-top:6px;text-align:right}
+.about-hero .tag{margin-top:16px;color:#aeb4c3;font-size:14px}
+.about-hero .tag span{color:#7d8496;margin:0 8px}
+.vpill{display:inline-flex;gap:8px;align-items:center;margin-top:16px;border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;font:12px var(--mono);color:#d9dcea;background:#121520}
+.vpill i{width:7px;height:7px;border-radius:50%;background:var(--done)}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line)}
+.facts div{padding:14px 18px}.facts div + div{border-left:1px solid var(--line)}
+.facts span{display:block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#5f677a;font-weight:650}
+.facts b{display:block;margin-top:3px;font:12.5px var(--mono);color:#e3e6ee;font-weight:400}
+.about-actions{display:flex;gap:10px;justify-content:center;padding:18px;border-top:1px solid var(--line)}
+.credits{text-align:center;color:#69718a;font-size:12px;margin-top:18px}
+
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="notes">
+    <div><b>Settings redesign mockup</b> · Midnight · click around: every control works. Sans for UI text, mono only for keys, paths and commands.</div>
+    <div class="chips" id="pageChips"></div>
+  </div>
+
+  <div class="win">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div>kaze · Settings</div>
+    <div class="body">
+      <aside class="sessions">
+        <div class="tools"><span>▯</span><span>⌕</span><span>›_</span><span>⚙</span></div>
+        <div class="filter"><div>Filter sessions…</div><b>+</b></div>
+        <div class="pinned"><span>Settings</span><span style="color:#646b7d">×</span></div>
+        <div class="srow">todo-api<small>~/projects/todo-api</small></div>
+        <div class="srow">web-app<small>~/projects/web-app</small></div>
+        <div class="next">Next waiting <span>Cmd+J</span></div>
+      </aside>
+
+      <nav class="nav" id="nav">
+        <h1>Settings</h1>
+        <div class="sub">Saved to config.toml as you go</div>
+        <button data-page="appearance" class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none" opacity=".35"/></svg>Appearance</button>
+        <button data-page="workspaces"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>Workspaces</button>
+        <button data-page="claude"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z"/></svg>Claude</button>
+        <button data-page="shortcuts"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h1M10.5 10h1M14.5 10h1M7 14h10"/></svg>Shortcuts</button>
+        <div class="group">Kaze</div>
+        <button data-page="updates"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>Updates<span class="badge hide" id="navBadge">1</span></button>
+        <button data-page="about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>About</button>
+        <div class="foot"><img src="../site-assets/kaze-icon.svg" alt=""><div><b>kaze 0.11</b><span id="footState">Up to date</span></div></div>
+      </nav>
+
+      <main class="page" id="page">
+        <!-- APPEARANCE -->
+        <section class="inner" data-view="appearance">
+          <div class="head"><div><h2>Appearance</h2><p>Theme, type and cursor. Changes show live in every session.</p></div></div>
+          <div class="card">
+            <div class="row" style="padding-bottom:4px"><div class="txt"><b>Theme</b><span>Sets the terminal colors and kaze’s own chrome.</span></div></div>
+            <div class="themes" id="themes"></div>
+            <div class="preview" id="preview"><div class="bar"><i></i><i></i><i></i></div><pre id="previewText"></pre></div>
+          </div>
+          <div class="section-label">Text</div>
+          <div class="card">
+            <div class="row"><div class="txt"><b>Font size</b><span>JetBrains Mono, with Japanese and symbol fallback.</span></div><div class="stepper"><button data-step="-1">−</button><span id="fontSize">14 pt</span><button data-step="1">+</button></div></div>
+            <div class="row"><div class="txt"><b>Line spacing</b><span>Room between rows of text.</span></div><div class="seg"><button>Tight</button><button class="on">Normal</button><button>Roomy</button></div></div>
+          </div>
+          <div class="section-label">Cursor</div>
+          <div class="card">
+            <div class="row"><div class="txt"><b>Shape</b><span>How the cursor looks in the terminal.</span></div><div class="cursorchips"><button class="cchip on" data-c="block">a<span class="c"></span></button><button class="cchip" data-c="bar">a<span class="c"></span></button><button class="cchip" data-c="underline">a<span class="c"></span></button></div></div>
+            <div class="row"><div class="txt"><b>Blinking cursor</b><span>Off keeps idle CPU at zero.</span></div><button class="toggle"></button></div>
+          </div>
+        </section>
+
+        <!-- WORKSPACES -->
+        <section class="inner hide" data-view="workspaces">
+          <div class="head"><div><h2>Workspaces</h2><p>Open a project’s tabs, servers and logs in one click.</p></div><button class="btn primary"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New workspace</button></div>
+          <div class="card ws" id="ws1">
+            <div class="ws-top">
+              <div class="ws-ico">T</div>
+              <div class="txt"><b>Todo API</b><span>3 tabs · runs at startup</span></div>
+              <span class="pill run" id="wsState">Running · all up</span>
+              <div class="ws-actions">
+                <button class="btn" id="wsRun"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>Go to tabs</button>
+                <button class="btn ghost" data-edit="ws1">Edit</button>
+              </div>
+            </div>
+            <div class="members">
+              <div class="member"><i class="bar" style="background:#b39bff"></i><b>API</b><code>python3 -m http.server 8080</code><span class="path">~/srv/api</span><span class="wait">Running</span></div>
+              <div class="member"><i class="bar" style="background:#6fd3e8"></i><b>Web</b><code>npm run dev</code><span class="path">~/srv/web</span><span class="wait">Wait for port 8080</span></div>
+              <div class="member"><i class="bar" style="background:#62d39a"></i><b>Health</b><code>while sleep 1; do curl …; done</code><span class="path">~</span><span class="wait">Running</span></div>
+            </div>
+            <div class="editor">
+              <div class="field-grid">
+                <span class="h">Tab</span><span class="h">Folder</span><span class="h">Command</span><span class="h">Start after</span><span></span>
+                <input class="input sans" value="API"><input class="input" value="~/srv/api"><input class="input" value="python3 -m http.server 8080"><select class="input"><option>Right away</option><option>Docker</option><option>Port 8080</option></select><span class="swatch" style="background:#b39bff"></span>
+                <input class="input sans" value="Web"><input class="input" value="~/srv/web"><input class="input" value="npm run dev"><select class="input"><option>Port 8080</option><option>Right away</option></select><span class="swatch" style="background:#6fd3e8"></span>
+                <input class="input sans" value="Health"><input class="input" value="~"><input class="input" value="while sleep 1; do curl …; done"><select class="input"><option>Right away</option></select><span class="swatch" style="background:#62d39a"></span>
+              </div>
+              <div class="foot"><button class="btn ghost"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add tab</button><div style="display:flex;gap:8px"><button class="btn ghost" data-edit="ws1">Cancel</button><button class="btn primary" data-edit="ws1">Save</button></div></div>
+            </div>
+          </div>
+          <div class="card ws" id="ws2">
+            <div class="ws-top">
+              <div class="ws-ico" style="background:linear-gradient(135deg,rgba(98,211,154,.32),rgba(98,211,154,.08));border-color:rgba(98,211,154,.35)">N</div>
+              <div class="txt"><b>Notes</b><span>2 tabs</span></div>
+              <span class="pill off" id="ws2State">Not running</span>
+              <div class="ws-actions"><button class="btn primary" id="ws2Run"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>Run</button><button class="btn ghost">Edit</button></div>
+            </div>
+            <div class="members">
+              <div class="member"><i class="bar" style="background:#f2b84b"></i><b>Writer</b><code>claude</code><span class="path">~/notes</span><span class="wait">Right away</span></div>
+              <div class="member"><i class="bar" style="background:#ff8fa3"></i><b>Sync</b><code>git pull --rebase</code><span class="path">~/notes</span><span class="wait">Right away</span></div>
+            </div>
+          </div>
+          <button class="ws-new"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New workspace</button>
+          <div class="section-label">Startup</div>
+          <div class="card"><div class="row"><div class="txt"><b>Run a workspace when kaze starts</b><span>Instead of the usual first tab.</span></div><div class="seg"><button>None</button><button class="on">Todo API</button><button>Notes</button></div></div></div>
+        </section>
+
+        <!-- CLAUDE -->
+        <section class="inner hide" data-view="claude">
+          <div class="head"><div><h2>Claude</h2><p>How kaze hears from Claude Code, and how it tells you.</p></div></div>
+          <div class="section-label" style="margin-top:0">Claude Code setup</div>
+          <div class="card">
+            <div class="row"><div class="check-icon"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div class="txt"><b>Done alerts</b><span class="mono" style="font-size:11.5px">Stop hook → kaze notify done</span></div><span class="pill ok">Connected</span></div>
+            <div class="row"><div class="check-icon"><svg viewBox="0 0 24 24"><path d="M12 8v4M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg></div><div class="txt"><b>Needs-you alerts</b><span class="mono" style="font-size:11.5px">Notification hook → kaze notify needs</span></div><span class="pill ok">Connected</span></div>
+            <div class="row"><div class="check-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg></div><div class="txt"><b>Prompt tracking</b><span>Shows the slash command and running state in the sidebar.</span></div><span class="pill warn" id="hookPill">Missing</span><button class="btn primary" id="fixBtn">Fix</button></div>
+            <div class="row"><div class="check-icon"><svg viewBox="0 0 24 24"><path d="M3 17h18M6 13l3-3 3 3 5-6"/></svg></div><div class="txt"><b>Usage in the status bar</b><span class="mono" style="font-size:11.5px">statusLine → kaze statusline</span></div><span class="pill ok">Connected</span></div>
+          </div>
+          <div class="section-label">Alerts</div>
+          <div class="card">
+            <div class="row"><div class="txt"><b>Chime when Claude needs you</b><span>Not when you’re already looking at that session.</span></div><button class="btn ghost">Test</button><button class="toggle on"></button></div>
+            <div class="row"><div class="txt"><b>Chime when Claude is done</b></div><button class="toggle"></button></div>
+            <div class="row"><div class="txt"><b>Done toast stays for</b></div><div class="seg"><button>3s</button><button class="on">6s</button><button>10s</button><button>Until seen</button></div></div>
+          </div>
+          <div class="section-label">Status bar</div>
+          <div class="card">
+            <div class="row"><div class="txt"><b>Show usage</b><span>Claude’s 5-hour and weekly limits, and this session’s context.</span></div><button class="toggle on" id="usageToggle"></button></div>
+            <div class="statusdemo" id="usageDemo"><span>~/projects/todo-api ⌥ main</span><span><b>5h 23%</b> · wk 41% · ctx 34%   kaze 62MB · 3 tabs</span></div>
+          </div>
+        </section>
+
+        <!-- SHORTCUTS -->
+        <section class="inner hide" data-view="shortcuts">
+          <div class="head"><div><h2>Shortcuts</h2><p>Change any of them under <span class="mono">[keys]</span> in config.toml.</p></div><label class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="kfilter" placeholder="Search shortcuts"></label></div>
+          <div class="section-label" style="margin-top:0">Sessions</div>
+          <div class="card kcard">
+            <div class="krow"><span>New session</span><span class="keys"><kbd>⌘</kbd><kbd>T</kbd></span><span class="id">new_tab</span></div>
+            <div class="krow"><span>Close session</span><span class="keys"><kbd>⌘</kbd><kbd>W</kbd></span><span class="id">close_tab</span></div>
+            <div class="krow"><span>Next session</span><span class="keys"><kbd>⌃</kbd><kbd>Tab</kbd></span><span class="id">next_tab</span></div>
+            <div class="krow"><span>Previous session</span><span class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>Tab</kbd></span><span class="id">prev_tab</span></div>
+            <div class="krow"><span>Go to the next session that needs you</span><span class="keys"><kbd>⌘</kbd><kbd>J</kbd></span><span class="id">next_waiting</span></div>
+          </div>
+          <div class="section-label">Kaze</div>
+          <div class="card kcard">
+            <div class="krow"><span>Open the palette</span><span class="keys"><kbd>⌘</kbd><kbd>K</kbd></span><span class="id">palette</span></div>
+            <div class="krow"><span>Scratch shell</span><span class="keys"><kbd>⌃</kbd><kbd>`</kbd></span><span class="id">scratch_shell</span></div>
+            <div class="krow"><span>Toggle sidebar</span><span class="keys"><kbd>⌘</kbd><kbd>B</kbd></span><span class="id">toggle_sidebar</span></div>
+            <div class="krow"><span>Open settings</span><span class="keys"><kbd>⌘</kbd><kbd>,</kbd></span><span class="id">open_settings</span></div>
+          </div>
+          <div class="section-label">Editing and mouse</div>
+          <div class="card kcard">
+            <div class="krow"><span>Copy</span><span class="keys"><kbd>⌘</kbd><kbd>C</kbd></span><span class="id">copy</span></div>
+            <div class="krow"><span>Paste</span><span class="keys"><kbd>⌘</kbd><kbd>V</kbd></span><span class="id">paste</span></div>
+            <div class="krow"><span>Select a word / a line</span><span class="keys"><kbd>Double-click</kbd><kbd>Triple-click</kbd></span><span class="id"></span></div>
+            <div class="krow"><span>Select in mouse apps</span><span class="keys"><kbd>⇧</kbd><kbd>Drag</kbd></span><span class="id"></span></div>
+          </div>
+          <div class="section-label">Command line</div>
+          <div class="card">
+            <div class="cli"><div class="txt" style="flex:1"><b>kaze --workspace &lt;name&gt;</b><span style="display:block;color:var(--muted);font-size:12px">Start kaze with a workspace</span></div><button class="btn ghost">Copy</button></div>
+            <div class="cli"><div class="txt" style="flex:1"><b>kaze --version</b><span style="display:block;color:var(--muted);font-size:12px">Print the version and build</span></div><button class="btn ghost">Copy</button></div>
+            <div class="cli"><div class="txt" style="flex:1"><b>kaze notify · kaze statusline</b><span style="display:block;color:var(--muted);font-size:12px">Used by Claude Code’s hooks and status line; you don’t run these yourself</span></div></div>
+          </div>
+        </section>
+
+        <!-- UPDATES -->
+        <section class="inner hide" data-view="updates">
+          <div class="head"><div><h2>Updates</h2><p>New versions from GitHub, installed in place.</p></div>
+            <div class="statepick" id="statePick"><span class="chip" data-state="uptodate">Up to date</span><span class="chip" data-state="available">Available</span><span class="chip" data-state="confirm">Confirm</span><span class="chip" data-state="downloading">Downloading</span><span class="chip" data-state="error">Error</span></div></div>
+          <div class="card" id="updCard">
+            <div class="upd-hero">
+              <div class="ring" id="updIcon"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div>
+              <div class="txt"><h3 id="updTitle">Kaze is up to date</h3><p id="updSub">Version 0.11 · checked 4 minutes ago</p><div class="progress hide" id="updProgress"><i></i></div></div>
+              <div id="updButtons" style="display:flex;gap:8px"></div>
+            </div>
+            <div class="notes-list hide" id="updNotes"><div class="section-label" style="margin:0 0 4px">What’s new in 0.12</div><ul><li>Session restore after an update or restart</li><li>Signed and notarized Mac app: no more Privacy &amp; Security step</li><li>Faster palette search in big skill folders</li></ul></div>
+            <div class="confirm hide" id="updConfirm"><span>Kaze will close your 3 sessions and restart in 0.12.</span><button class="btn ghost" data-act="cancel">Cancel</button><button class="btn primary" data-act="install">Update now</button></div>
+          </div>
+          <div class="section-label">Settings</div>
+          <div class="card">
+            <div class="row"><div class="txt"><b>Check for updates automatically</b><span>Once a day. Off means kaze never contacts GitHub.</span></div><button class="toggle on" id="autoCheck"></button></div>
+            <div class="row"><div class="txt"><b>Show “Update” in the status bar</b><span>A quiet label when a new version is out.</span></div><button class="toggle on"></button></div>
+          </div>
+          <div class="section-label">Release</div>
+          <div class="card">
+            <div class="row"><div class="txt"><b>Installed from</b><span class="mono" style="font-size:11.5px">/Applications/Kaze.app · Apple Silicon and Intel</span></div><span class="pill ok">Can update in place</span></div>
+            <div class="row"><div class="txt"><b>Release notes and downloads</b><span>Every version on GitHub.</span></div><button class="btn ghost">Open releases</button></div>
+          </div>
+        </section>
+
+        <!-- ABOUT -->
+        <section class="inner hide" data-view="about">
+          <div class="card" style="overflow:hidden">
+            <div class="about-hero">
+              <div class="lockup"><img src="../site-assets/kaze-icon.svg" alt=""><div><b>kaze</b><span>by Patrick</span></div></div>
+              <div class="tag">風 “wind”<span>·</span>Light, fast, and out of the way.</div>
+              <div class="vpill" id="aboutPill"><i></i>Version 0.11 · up to date</div>
+            </div>
+            <div class="facts">
+              <div><span>Version</span><b>0.11</b></div>
+              <div><span>Build</span><b>9093743 · Oct 31</b></div>
+              <div><span>Platform</span><b>macOS · arm64</b></div>
+              <div><span>License</span><b>MIT</b></div>
+            </div>
+            <div class="about-actions"><button class="btn">Copy build info</button><button class="btn">View on GitHub</button><button class="btn ghost">Report an issue</button></div>
+          </div>
+          <div class="credits">Made with Go and Gio, for the long session.</div>
+        </section>
+      </main>
+    </div>
+    <div class="status"><span>~/projects/todo-api ⌥ main</span><span><span class="upd hide" id="statusUpd">Update 0.12</span>kaze 62MB · 3 tabs</span></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const pages = ['appearance','workspaces','claude','shortcuts','updates','about'];
+function show(p){
+  $$('#nav button[data-page]').forEach(b => b.classList.toggle('on', b.dataset.page === p));
+  $$('[data-view]').forEach(v => v.classList.toggle('hide', v.dataset.view !== p));
+  $$('#pageChips .chip').forEach(c => c.classList.toggle('on', c.dataset.p === p));
+  $('#page').scrollTop = 0;
+}
+$('#pageChips').innerHTML = pages.map(p => `<button class="chip" data-p="${p}">${p[0].toUpperCase()+p.slice(1)}</button>`).join('');
+$$('#pageChips .chip').forEach(c => c.onclick = () => show(c.dataset.p));
+$$('#nav button[data-page]').forEach(b => b.onclick = () => show(b.dataset.page));
+
+// generic controls
+document.addEventListener('click', e => {
+  const t = e.target.closest('.toggle'); if (t) t.classList.toggle('on');
+  const s = e.target.closest('.seg button'); if (s) { s.parentNode.querySelectorAll('button').forEach(b => b.classList.remove('on')); s.classList.add('on'); }
+  const c = e.target.closest('.cchip'); if (c) { $$('.cchip').forEach(x => x.classList.remove('on')); c.classList.add('on'); paintPreview(); }
+  const ed = e.target.closest('[data-edit]'); if (ed) $('#'+ed.dataset.edit).classList.toggle('editing');
+});
+let size = 14;
+$$('[data-step]').forEach(b => b.onclick = () => { size = Math.min(24, Math.max(9, size + +b.dataset.step)); $('#fontSize').textContent = size + ' pt'; paintPreview(); });
+
+// themes (terminal bg/fg/accent per internal/theme)
+const themes = [
+  {k:'Midnight', bg:'#0f1117', fg:'#d7dae3', a:'#8b7bff', g:'#62d39a', y:'#f2b84b'},
+  {k:'Sumi', bg:'#111111', fg:'#e4e1da', a:'#e2553d', g:'#9fbf8f', y:'#d9b56a'},
+  {k:'Tide', bg:'#0b1626', fg:'#cfe3ef', a:'#40e0d0', g:'#7fd1a8', y:'#e6c47a'},
+  {k:'Washi', bg:'#f4efe4', fg:'#2b2722', a:'#b4532a', g:'#5b8a4e', y:'#a77a1e'},
+  {k:'Sakura', bg:'#1a1216', fg:'#f1dfe6', a:'#ff8fb1', g:'#9bd3a8', y:'#f0c27a'},
+];
+let theme = 0;
+$('#themes').innerHTML = themes.map((t,i) => `<button class="theme${i===0?' on':''}" data-t="${i}"><div class="shot" style="background:${t.bg};color:${t.fg}"><span style="color:${t.a}">~/todo-api</span> <span style="color:${t.g}">main</span> ❯ make<br>ok  api   0.21s<br><span style="color:${t.y}">warn</span> 1 todo left</div><div class="name">${t.k}<i></i></div></button>`).join('');
+$$('.theme').forEach(b => b.onclick = () => { $$('.theme').forEach(x => x.classList.remove('on')); b.classList.add('on'); theme = +b.dataset.t; paintPreview(); });
+function paintPreview(){
+  const t = themes[theme], cur = $('.cchip.on').dataset.c;
+  const c = cur === 'block' ? `<span style="background:${t.a};color:${t.bg}">&nbsp;</span>` : cur === 'bar' ? `<span style="border-left:2px solid ${t.a}"></span>` : `<span style="border-bottom:2px solid ${t.a}">&nbsp;</span>`;
+  $('#preview').style.background = t.bg; $('#previewText').style.color = t.fg; $('#previewText').style.fontSize = size*0.9 + 'px';
+  $('#previewText').innerHTML = `<span style="color:${t.a}">todo-api</span> <span style="color:${t.g}">main</span> ❯ go test ./...\nok   example.com/todo-api/api    0.21s\nok   example.com/todo-api/store  0.08s\n<span style="color:${t.y}">!</span> 1 todo left in store.go\n<span style="color:${t.a}">todo-api</span> <span style="color:${t.g}">main</span> ❯ ${c}`;
+}
+paintPreview();
+
+// workspaces run state
+$('#ws2Run').onclick = () => { const on = $('#ws2Run').textContent.includes('Run'); $('#ws2State').className = 'pill ' + (on ? 'run' : 'off'); $('#ws2State').textContent = on ? 'Running · all up' : 'Not running'; $('#ws2Run').innerHTML = on ? '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Stop' : '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>Run'; $('#ws2Run').classList.toggle('primary', !on); };
+
+// claude fix
+$('#fixBtn').onclick = () => { $('#hookPill').className = 'pill ok'; $('#hookPill').textContent = 'Connected'; $('#fixBtn').remove(); };
+$('#usageToggle').addEventListener('click', () => setTimeout(() => $('#usageDemo').style.opacity = $('#usageToggle').classList.contains('on') ? 1 : .35));
+
+// shortcuts filter
+$('#kfilter').oninput = e => { const q = e.target.value.toLowerCase(); $$('.krow').forEach(r => r.classList.toggle('hide', !r.textContent.toLowerCase().includes(q))); };
+
+// updates states
+const check = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>', down = '<svg viewBox="0 0 24 24"><path d="M12 4v12M6 10l6 6 6-6M5 20h14"/></svg>', warn = '<svg viewBox="0 0 24 24"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>';
+let timer;
+function upd(state){
+  clearInterval(timer);
+  $$('#statePick .chip').forEach(c => c.classList.toggle('on', c.dataset.state === state));
+  const avail = state !== 'uptodate';
+  $('#navBadge').classList.toggle('hide', !avail || state === 'downloading');
+  $('#statusUpd').classList.toggle('hide', !avail);
+  $('#footState').textContent = avail ? '0.12 available' : 'Up to date';
+  $('#aboutPill').innerHTML = avail ? '<i style="background:var(--accent-2)"></i>Version 0.11 · 0.12 available' : '<i></i>Version 0.11 · up to date';
+  $('#updNotes').classList.toggle('hide', !(state === 'available' || state === 'confirm'));
+  $('#updConfirm').classList.toggle('hide', state !== 'confirm');
+  $('#updProgress').classList.toggle('hide', state !== 'downloading');
+  const b = $('#updButtons');
+  if (state === 'uptodate') { $('#updIcon').innerHTML = check; $('#updTitle').textContent = 'Kaze is up to date'; $('#updSub').textContent = 'Version 0.11 · checked 4 minutes ago'; b.innerHTML = '<button class="btn" data-act="check">Check now</button>'; }
+  if (state === 'available' || state === 'confirm') { $('#updIcon').innerHTML = down; $('#updTitle').textContent = 'Kaze 0.12 is available'; $('#updSub').textContent = 'You have 0.11 · released today · 14 MB'; b.innerHTML = state === 'confirm' ? '' : '<button class="btn ghost" data-act="notes">What’s new</button><button class="btn primary" data-act="confirm">Update and restart</button>'; }
+  if (state === 'downloading') { $('#updIcon').innerHTML = down; $('#updTitle').textContent = 'Downloading 0.12…'; b.innerHTML = '<button class="btn ghost" data-act="cancel">Cancel</button>'; let p = 0; $('#updProgress i').style.width = '0%';
+    timer = setInterval(() => { p = Math.min(100, p + 7); $('#updProgress i').style.width = p + '%'; $('#updSub').textContent = p < 100 ? `${Math.round(14*p/100)} of 14 MB · checking the checksum next` : 'Verified · restarting…'; if (p >= 100) clearInterval(timer); }, 260); }
+  if (state === 'error') { $('#updIcon').innerHTML = warn; $('#updTitle').textContent = 'Couldn’t check for updates'; $('#updSub').textContent = 'GitHub didn’t answer. Kaze will try again tomorrow.'; b.innerHTML = '<button class="btn" data-act="check">Try again</button>'; }
+}
+$$('#statePick .chip').forEach(c => c.onclick = () => upd(c.dataset.state));
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-act]'); if (!a) return;
+  ({check: () => upd('available'), confirm: () => upd('confirm'), cancel: () => upd('available'), install: () => upd('downloading'), notes: () => {}})[a.dataset.act]();
+});
+$('#statusUpd').onclick = () => show('updates');
+upd('available');
+const start = location.hash.slice(1);
+show(pages.includes(start) ? start : 'appearance');
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (pages.includes(h)) show(h); });
+</script>
+</body>
+</html>
