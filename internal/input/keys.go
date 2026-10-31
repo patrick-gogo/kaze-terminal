@@ -84,8 +84,14 @@ func EncodeKey(name key.Name, mods key.Modifiers, m term.Modes) []byte {
 	return encodeKey(runtime.GOOS, name, mods, m)
 }
 
+// modifierKeys are pressed on their own, never typed: Gio names Command "⌘",
+// one rune, which would otherwise pass as a character.
+var modifierKeys = map[key.Name]bool{
+	key.NameCommand: true, key.NameCtrl: true, key.NameShift: true, key.NameAlt: true, key.NameSuper: true,
+}
+
 func encodeKey(goos string, name key.Name, mods key.Modifiers, m term.Modes) []byte {
-	if IsReserved(name, mods, goos) {
+	if IsReserved(name, mods, goos) || modifierKeys[name] {
 		return nil
 	}
 	mod := xtermMod(mods)
