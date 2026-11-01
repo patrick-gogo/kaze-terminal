@@ -5,7 +5,6 @@ package subagents
 
 import (
 	"slices"
-	"strings"
 	"time"
 )
 
@@ -126,7 +125,7 @@ func (t *Tracker) Apply(e Event) bool {
 		t.pair(t.add(e), e)
 		return true
 	case EvTool:
-		if e.AgentID == "" {
+		if e.AgentID == "" || t.untracked(k, e) {
 			return false
 		}
 		a := t.get(e)
@@ -159,7 +158,7 @@ func (t *Tracker) Apply(e Event) bool {
 		a.State = Waiting
 		return true
 	case EvStop:
-		if e.AgentID == "" {
+		if e.AgentID == "" || t.untracked(k, e) {
 			return false
 		}
 		a := t.get(e)
@@ -173,11 +172,6 @@ func (t *Tracker) Apply(e Event) bool {
 		}
 		a.stopped = true
 		a.State, a.Ended, a.Report = Done, e.At, e.Report
-		if a.Type == "" && a.Task == unknownTask {
-			if line := firstLine(e.Report); line != "" {
-				a.Task = line // better than a bare "subagent" (#61)
-			}
-		}
 		t.done = append(t.done, a)
 		if len(t.done) > maxDone {
 			t.drop(func(x *Agent) bool { return x == t.done[0] })
@@ -255,17 +249,37 @@ func (t *Tracker) pair(a *Agent, e Event) {
 	}
 }
 
-// firstLine is the first non-blank line of s, trimmed and cut to 80 runes.
-func firstLine(s string) string {
-	for line := range strings.Lines(s) {
-		if line = strings.TrimSpace(line); line != "" {
-			if r := []rune(line); len(r) > 80 {
-				line = string(r[:80])
-			}
-			return line
+// untracked reports whether e is about an agent kaze never saw start and it
+// names no type. Real subagents always carry agent_type; Claude Code's own
+// background helpers (the next-prompt suggestion) fire a typeless
+// SubagentStop with no start, and are not subagents (#61).
+func (t *Tracker) untracked(k Key, e Event) bool {
+	return t.agents[k] == nil && e.AgentType == ""
+}
+
+// Dismiss removes a finished agent from the board and the tree. A running or
+// waiting one stays, and so does an agent kaze does not know.
+func (t *Tracker) Dismiss(k Key) bool {
+	a := t.agents[k]
+	if a == nil || a.State != Done {
+		return false
+	}
+	t.drop(func(x *Agent) bool { return x == a })
+	return true
+}
+
+// ClearDone removes every finished agent shown under tab, or all of them for
+// tab 0, and says how many went.
+func (t *Tracker) ClearDone(tab int) int {
+	gone := func(a *Agent) bool { return a.State == Done && (tab == 0 || a.Tab == tab) }
+	n := 0
+	for _, a := range t.order {
+		if gone(a) {
+			n++
 		}
 	}
-	return ""
+	t.drop(gone)
+	return n
 }
 
 func (t *Tracker) add(e Event) *Agent {
