@@ -7,6 +7,7 @@ package ui
 #cgo LDFLAGS: -framework AppKit
 
 #import <AppKit/AppKit.h>
+#import "sessionkeys_darwin.h"
 #include <stdint.h>
 
 extern void kazeLightsMoved(uint64_t gen, double inset);
@@ -64,8 +65,8 @@ static void kzDetach(uint64_t gen) {
 	for (id o in obs[0]) {
 		[[NSNotificationCenter defaultCenter] removeObserver:o];
 	}
-	if ([obs count] > 1) {
-		[NSEvent removeMonitor:obs[1]];
+	for (NSUInteger i = 1; i < [obs count]; i++) {
+		[NSEvent removeMonitor:obs[i]];
 	}
 	[kzObservers removeObjectForKey:@(gen)];
 }
@@ -122,7 +123,11 @@ static void kzAttach(CFTypeRef viewRef, uint64_t gen, double barH, double left) 
 		}
 		return nil;
 	}];
-	kzObservers[@(gen)] = mon != nil ? @[obs, mon] : @[obs];
+	NSMutableArray *attachment = [NSMutableArray arrayWithObject:obs];
+	if (mon != nil) { [attachment addObject:mon]; }
+	id keys = kzMonitorSessionKeys(view);
+	if (keys != nil) { [attachment addObject:keys]; }
+	kzObservers[@(gen)] = attachment;
 	kazeLightsMoved(gen, kzPlace(w, barH, left));
 }
 

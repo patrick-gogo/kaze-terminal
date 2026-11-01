@@ -68,6 +68,10 @@ func Repo(dir string) (key, name string) {
 	if !ok {
 		return "", ""
 	}
+	return repoAt(gd, top, trueCase)
+}
+
+func repoAt(gd, top string, canonical func(string) string) (key, name string) {
 	if fi, err := os.Stat(gd); err != nil || !fi.IsDir() {
 		return "", "" // a .git file pointing at a file, e.g. itself
 	}
@@ -79,11 +83,11 @@ func Repo(dir string) (key, name string) {
 		}
 		common = filepath.Clean(common)
 	}
-	common = trueCase(common)
+	common = canonical(common)
 	if filepath.Base(common) == ".git" {
 		return common, filepath.Base(filepath.Dir(common))
 	}
-	return common, filepath.Base(trueCase(top))
+	return common, filepath.Base(canonical(top))
 }
 
 // caseless is true where the usual disks ignore letter case, so one folder can

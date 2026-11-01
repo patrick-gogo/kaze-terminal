@@ -5,6 +5,10 @@ import (
 	"slices"
 	"sort"
 
+	"gioui.org/io/system"
+	"gioui.org/text"
+	"gioui.org/unit"
+
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
 	"github.com/patrick-gogo/kaze-terminal/internal/subagents"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
@@ -52,17 +56,30 @@ type pane struct {
 	agent      subagents.Key
 	scroll     int  // px the body is scrolled down
 	follow     bool // keep the newest line in view
-	wrapKey    [5]int
+	wrapKey    paneWrapKey
 	wrapped    []agentLine
 	promptWrap wrapCache // the prompt and report laid out once, so a new step
 	reportWrap wrapCache // only redoes the one-line summary
 }
 
 // wrapCache is one block of text wrapped to a width, kept until either changes.
+type paneWrapKey struct {
+	width          int
+	prompt, report string
+	activity       subagents.Activity
+	state          subagents.State
+	metric         unit.Metric
+	locale         system.Locale
+	shaper         *text.Shaper
+}
+
 type wrapCache struct {
-	src   string
-	w     int
-	lines []agentLine
+	metric unit.Metric
+	locale system.Locale
+	shaper *text.Shaper
+	src    string
+	w      int
+	lines  []agentLine
 }
 
 // paneHits is where the last frame drew a pane, in window px.

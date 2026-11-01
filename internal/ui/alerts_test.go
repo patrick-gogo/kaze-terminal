@@ -361,6 +361,10 @@ func TestBurstWhileMinimizedIsKept(t *testing.T) {
 
 func TestOnNotifyNeverBlocksAndStaysBounded(t *testing.T) {
 	win, _, _ := liveWindow(t, 2)
+	// This test calls hooks concurrently; the other fixtures record into plain
+	// slices/counters for their synchronous assertions. Use safe callbacks here.
+	win.chime = func(time.Time) {}
+	win.flash = func() {}
 	ids := win.mgr.Tabs()
 	win.publish(win.mgr.Active(), false)
 	done := make(chan struct{})

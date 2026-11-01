@@ -54,7 +54,9 @@ func (win *window) startPrompt(prompt string, shift bool) {
 		a, m = win.agentOf(cur.ID), win.alerts.markOf(cur.ID)
 	}
 	if typeHere(cur, isSession, win.set.shown, a, m, shift) {
-		win.typeInto(cur, p+" ")
+		if !win.typeInto(cur, p+" ") {
+			return
+		}
 		win.palette.recent.add(p)
 		win.note("Typed " + p + " into " + win.titleOf(cur) + ". Press Enter to send.")
 		win.wantFocus = true
@@ -91,10 +93,13 @@ func (win *window) startPrompt(prompt string, shift bool) {
 }
 
 // typeInto writes text the way typed keys reach the shell; no Enter.
-func (win *window) typeInto(t *tabs.Tab, text string) {
+func (win *window) typeInto(t *tabs.Tab, text string) bool {
 	win.takeOver(t)
-	t.Session.Write(input.EncodeText(text))
+	if !win.writeInput(t, input.EncodeText(text)) {
+		return false
+	}
 	win.snapToBottom(t.Session)
+	return true
 }
 
 // titleOf is t's sidebar title.

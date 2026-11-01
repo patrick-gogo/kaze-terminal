@@ -16,6 +16,8 @@ const (
 	readBufSize = 64 * 1024
 	// writeQueueLen bounds queued input chunks; past it, input is dropped rather than blocking the UI.
 	writeQueueLen = 1024
+	// Include the active write. One maximum clipboard paste and its markers fit.
+	writeQueueBytes = (64 << 20) + 4096
 	// maxSize caps each dimension so a bad UI measurement can't allocate billions of cells.
 	maxSize = 4096
 	// maxCells caps the whole grid; 4096x4096 alone would be 16M cells.
@@ -46,10 +48,12 @@ type Session struct {
 	onChange func()
 	notifyCh chan struct{} // wakes the one goroutine allowed to call onChange
 
-	writes    chan []byte
-	done      chan struct{} // closed by Close
-	closeOnce sync.Once
-	closed    atomic.Bool
+	writes                  chan []byte
+	writeMu                 sync.Mutex // guards reservations; copying and PTY I/O happen outside it
+	writeBytes, writeChunks int
+	done                    chan struct{} // closed by Close
+	closeOnce               sync.Once
+	closed                  atomic.Bool
 
 	resizeMu sync.Mutex // keeps the PTY's last size equal to the screen's
 
@@ -120,14 +124,9 @@ func (s *Session) Screen() *screen.Screen { return s.scr }
 // Applier is only safe to use while the session is locked.
 func (s *Session) Applier() *Applier { return s.app }
 
-// Write queues input for the shell and never blocks. It is a no-op once the process has exited or the session is closed.
-func (s *Session) Write(p []byte) {
-	if s.exited.Load() || s.closed.Load() || len(p) == 0 {
-		return
-	}
-	s.inSeq.Add(1)
-	s.enqueue(p)
-}
+// Write queues a whole input message without waiting for room and reports rejection.
+// Accepted writes advance echo tracking; closed sessions retain no new input.
+func (s *Session) Write(p []byte) SubmitResult { return s.Submit(p) }
 
 // EchoMark is where a session's input and output stood, taken before a frame's input.
 type EchoMark struct{ in, out uint64 }
@@ -189,19 +188,68 @@ func (s *Session) Submit(p []byte) SubmitResult {
 	if s.exited.Load() || s.closed.Load() {
 		return Closed
 	}
-	if len(p) == 0 || s.enqueue(p) {
+	if len(p) == 0 {
 		return Accepted
+	}
+	if s.enqueue(p) {
+		s.inSeq.Add(1)
+		return Accepted
+	}
+	if s.exited.Load() || s.closed.Load() {
+		return Closed
 	}
 	return QueueFull
 }
 
-func (s *Session) enqueue(p []byte) bool {
-	b := append([]byte(nil), p...) // callers reuse their buffers
-	select {
-	case s.writes <- b:
-		return true
-	default:
+func (s *Session) reserveWrite(n int) bool {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.closed.Load() || s.exited.Load() || s.writeChunks >= writeQueueLen || n > writeQueueBytes-s.writeBytes {
 		return false
+	}
+	s.writeChunks++
+	s.writeBytes += n
+	return true
+}
+
+func (s *Session) releaseWrite(n int) {
+	s.writeMu.Lock()
+	s.writeBytes -= n
+	s.writeChunks--
+	s.writeMu.Unlock()
+}
+
+func (s *Session) enqueue(p []byte) bool {
+	if !s.reserveWrite(len(p)) {
+		return false
+	}
+	b := append([]byte(nil), p...) // callers reuse their buffers
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if !s.closed.Load() && !s.exited.Load() {
+		select {
+		case s.writes <- b:
+			return true
+		default:
+		}
+	}
+	s.writeBytes -= len(b)
+	s.writeChunks--
+	return false
+}
+
+// discardWrites releases queued payloads even if the active PTY write is stuck.
+func (s *Session) discardWrites() {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	for {
+		select {
+		case b := <-s.writes:
+			s.writeBytes -= len(b)
+			s.writeChunks--
+		default:
+			return
+		}
 	}
 }
 
@@ -236,6 +284,7 @@ func (s *Session) Close() {
 	s.closeOnce.Do(func() {
 		s.closed.Store(true)
 		close(s.done)
+		s.discardWrites()
 		_ = s.pty.Close()
 	})
 }
@@ -268,7 +317,10 @@ func (s *Session) writeLoop() {
 		case <-s.done:
 			return
 		case b := <-s.writes:
-			_, _ = s.pty.Write(b) // a dead PTY is reported through Wait, not here
+			if !s.closed.Load() && !s.exited.Load() {
+				_, _ = s.pty.Write(b) // a dead PTY is reported through Wait, not here
+			}
+			s.releaseWrite(len(b))
 		}
 	}
 }
@@ -293,6 +345,7 @@ func (s *Session) waitLoop(readDone chan struct{}) {
 	s.exited.Store(true)
 	s.parser.Feed([]byte(fmt.Sprintf("\x1b[0m\r\n[process exited %d]", code))) // default pen, whatever the shell left set
 	s.mu.Unlock()
+	s.discardWrites()
 	s.notify()
 }
 
