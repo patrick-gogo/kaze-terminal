@@ -22,7 +22,22 @@
     <div class="section-intro"><a class="archive-back" href="index.html#changelog">Back to Kaze</a><h1 id="changelog-title">Changelog.</h1><p>Features, improvements and fixes, release by release. Kaze checks for updates in Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.15.1</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.16</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-body">
+          <h3>Clickable links and Codex helpers</h3>
+          <ul>
+            <li><b>Clickable links:</b> web links in the terminal show a hand cursor. <kbd>⌘</kbd>-click them (<kbd>Ctrl</kbd>-click on Windows) to open them in your browser, even while Claude Code is running. A plain click still selects text.</li>
+            <li><b>Codex helpers:</b> the helpers Codex starts now show in the sidebar, the live panes and the agents board, just like Claude Code subagents. Settings, Agents, Codex offers the three new hooks; then run <code>/hooks</code> in Codex to trust them.</li>
+            <li><b>Clear finished subagents:</b> each done card on the agents board has a × to remove it, and Clear empties the Done column.</li>
+            <li><b>Paste screenshots with <kbd>⌘</kbd> <kbd>V</kbd>:</b> with an image on the clipboard, <kbd>⌘</kbd> <kbd>V</kbd> pastes it into Claude Code or Codex. A plain shell is left alone.</li>
+            <li><b>Fixed:</b> subagents started without a type show their task again, and Claude Code's own background helpers no longer appear as "subagent" cards.</li>
+            <li><b>Fixed:</b> sessions in the same repo stay in one sidebar group, even when the folder was typed with different capitals.</li>
+            <li><b>Fixed:</b> the running ring in the title bar is no longer cut in half.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
+        <div class="release-meta"><span class="version">0.15.1</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Smoother sessions, less overhead</h3>
           <ul>
