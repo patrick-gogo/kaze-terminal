@@ -62,6 +62,8 @@ func TestPaneSelectionAutoScrollsOnlyItsOwnHistory(t *testing.T) {
 			if below {
 				to.Y = v.grid.Min.Y + v.rows*ch + ch
 			}
+			// Agent detection's one follow-up check would also wake; this test is about selection.
+			win.probe = agentProbe{fg: func(*tabs.Tab) int { return 0 }, out: func(*tabs.Tab) uint64 { return 0 }, name: func(int) string { return "" }}
 			now := time.Unix(1000, 0)
 			r.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: at(from)})
 			floatFrameAt(t, win, r, now)

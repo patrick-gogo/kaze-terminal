@@ -156,17 +156,19 @@ type window struct {
 	hwnd        atomic.Uintptr // native window handle, 0 until known
 
 	// Claude usage from `kaze statusline`.
-	usageIn usageBox                  // notify goroutines -> UI goroutine
-	acct    notify.Usage              // plan limits (no Ctx); UI goroutine only
-	ctx     map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
-	agents  map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
-	subs    subagents.Tracker         // every subagent the hooks reported; UI goroutine only
-	subIn   subInbox                  // subagent events on their way to subs
-	subTabs map[int]bool              // tabs subs has seen, so closing one forgets its subagents
-	board   boardState                // the agents board; UI goroutine only
-	stat    statusState               // the status bar as last drawn
-	names   map[tabs.TabID]string     // row names the owner gave; UI goroutine only
-	lc      lineCounter               // git lines added and removed per tab; UI goroutine only
+	usageIn  usageBox                  // notify goroutines -> UI goroutine
+	acct     notify.Usage              // plan limits (no Ctx); UI goroutine only
+	ctx      map[tabs.TabID]ctxEntry   // per-tab context use; UI goroutine only
+	agents   map[tabs.TabID]agentState // per-tab Claude state; UI goroutine only
+	probe    agentProbe                // what runs in a tab; tests replace it
+	detected map[tabs.TabID]detection  // the agent found in front of each tab; UI goroutine only
+	subs     subagents.Tracker         // every subagent the hooks reported; UI goroutine only
+	subIn    subInbox                  // subagent events on their way to subs
+	subTabs  map[int]bool              // tabs subs has seen, so closing one forgets its subagents
+	board    boardState                // the agents board; UI goroutine only
+	stat     statusState               // the status bar as last drawn
+	names    map[tabs.TabID]string     // row names the owner gave; UI goroutine only
+	lc       lineCounter               // git lines added and removed per tab; UI goroutine only
 
 	set     settingsState // the Settings page; UI goroutine only
 	cfgPath string        // where the page saves; "" applies changes without saving
@@ -608,6 +610,9 @@ func (win *window) frame(gtx layout.Context) error {
 	}
 	win.drainUsage()
 	win.leaveAgents(list) // after the drains, so a report in the same batch still ends Claude
+	if wake := win.detectAgents(gtx.Now); !wake.IsZero() {
+		gtx.Execute(op.InvalidateCmd{At: wake}) // a tab printed during the last check's second
+	}
 	win.visit(win.shownTab())
 	if v, ok := win.paneKeyView(); ok {
 		win.visit(v.tab) // the pane being typed into is seen too

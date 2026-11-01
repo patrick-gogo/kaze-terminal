@@ -318,3 +318,15 @@ func (s *Session) notifyLoop() {
 		}
 	}
 }
+
+// Foreground is the process group in front of the tab's pty (its leader's pid),
+// or 0 when the platform can't tell.
+func (s *Session) Foreground() int {
+	if f, ok := s.pty.(ptyx.Foregrounder); ok {
+		return f.Foreground()
+	}
+	return 0
+}
+
+// OutputSeq counts the reads of program output; it moves whenever the tab printed.
+func (s *Session) OutputSeq() uint64 { return s.outSeq.Load() }
