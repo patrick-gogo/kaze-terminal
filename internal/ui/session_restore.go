@@ -18,6 +18,9 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/workspaces"
 )
 
+// restoreWaitDefault bounds how long an updated Kaze waits for the old one to close.
+const restoreWaitDefault = 8 * time.Second
+
 // restorePlan is prepared before entering the rendering loop.
 type restorePlan struct {
 	entry     sessionstate.Entry
@@ -37,7 +40,11 @@ func (win *window) initRestore() {
 		win.restorePath = filepath.Join(filepath.Dir(win.cfgPath), "sessions.json")
 	}
 	var err error
-	deadline := time.Now().Add(8 * time.Second)
+	wait := win.restoreWaitFor
+	if wait <= 0 {
+		wait = restoreWaitDefault
+	}
+	deadline := time.Now().Add(wait)
 	for {
 		win.restore, err = sessionstate.Open(win.restorePath)
 		if err == nil || !errors.Is(err, sessionstate.ErrOwned) || !win.restoreWait || !time.Now().Before(deadline) {
@@ -46,8 +53,11 @@ func (win *window) initRestore() {
 		time.Sleep(50 * time.Millisecond)
 	}
 	if err != nil {
-		if win.restoreWait {
-			win.restoreFatal = fmt.Errorf("could not hand off restored sessions: %w", err)
+		// Only a stuck previous owner stops an updated Kaze: opening anyway could
+		// resume conversations it still runs. Other errors open without restoring.
+		if win.restoreWait && errors.Is(err, sessionstate.ErrOwned) {
+			win.restoreFatal = errors.New("Kaze updated, but the previous Kaze window is still closing, so its sessions were not reopened. " +
+				"They are saved: close the other Kaze window, then open Kaze again")
 		}
 		win.opt.Warnings = append(win.opt.Warnings, "Session restoration unavailable: "+err.Error())
 		return
@@ -63,7 +73,12 @@ func (win *window) initRestore() {
 		win.restoreSaved = sessionstate.Snapshot{}
 	}
 	if err != nil && !os.IsNotExist(err) {
-		win.opt.Warnings = append(win.opt.Warnings, "Could not read saved sessions: "+err.Error())
+		msg := "Could not read saved sessions: " + err.Error()
+		// Keep the unreadable file (a newer Kaze's, or damaged): the first save would replace it.
+		if bak := win.restorePath + ".bak"; os.Rename(win.restorePath, bak) == nil {
+			msg += "; kept a copy at " + bak
+		}
+		win.opt.Warnings = append(win.opt.Warnings, msg)
 	}
 	if strings.TrimSpace(win.opt.Workspace) == "" {
 		for _, e := range win.restoreSaved.Entries {
@@ -130,7 +145,12 @@ func (win *window) freezeRestore() {
 		win.restore.Freeze(true)
 	}
 }
-func (win *window) closeRestore() {
+func (win *window) closeRestore() { win.finishRestore(true) }
+
+// finishRestore saves and stops restoration. When shells did not close in time
+// it keeps ownership until the process exits, so an updated Kaze waiting on it
+// cannot resume a conversation the old shells still run.
+func (win *window) finishRestore(released bool) {
 	if win.restore == nil {
 		return
 	}
@@ -139,7 +159,11 @@ func (win *window) closeRestore() {
 		win.mgr.SetStateObserver(nil)
 	}
 	win.restore.Freeze(true)
-	if err := win.restore.Close(); err != nil {
+	closeStore := win.restore.Close
+	if !released {
+		closeStore = win.restore.CloseKeepingOwnership
+	}
+	if err := closeStore(); err != nil {
 		fmt.Fprintln(os.Stderr, "kaze: could not save sessions:", err)
 	}
 }
@@ -154,7 +178,14 @@ func (win *window) originIdentity(m notify.Msg, t *tabs.Tab) {
 	if agent == "" {
 		agent = "claude"
 	}
-	win.restore.Note(int(t.ID), agent, m.Session, m.Transcript, shellSeq(t), m.Kind == notify.KindSession)
+	win.restore.Note(int(t.ID), agent, m.Session, m.Transcript, m.Cwd, shellSeq(t), m.Kind == notify.KindSession)
+}
+
+// restoreAgentQuit forgets a tab's conversation once its agent left the front.
+func (win *window) restoreAgentQuit(id tabs.TabID) {
+	if win.restore != nil {
+		win.restore.Cancel(int(id))
+	}
 }
 func (win *window) restoreWarning(s string) {
 	win.opt.Warnings = append(win.opt.Warnings, "Session restore: "+s)
@@ -202,10 +233,19 @@ func (win *window) restoreStartup() bool {
 	}
 	var selected tabs.TabID
 	groups := map[uint64]*wsRun{}
+	// Startup warnings go to the first tab, as on the workspace path; each tab
+	// also shows its own restore warnings, never another tab's.
+	startWarns := append([]string(nil), win.opt.Warnings...)
+	first := true
 	for i, p := range win.restorePlans {
 		e, dir := p.entry, p.dir
+		var warns []string
+		if first {
+			warns = startWarns
+		}
 		for _, warn := range p.warnings {
 			win.restoreWarning(warn)
+			warns = append(warns, win.opt.Warnings[len(win.opt.Warnings)-1])
 		}
 		var group *tabs.Group
 		if e.Workspace != "" {
@@ -223,12 +263,12 @@ func (win *window) restoreStartup() bool {
 			group = &tabs.Group{Workspace: e.Workspace, Name: e.WorkspaceName, Run: r.id, Member: len(r.members)}
 		}
 		resume := p.line
-		warns := append([]string(nil), win.opt.Warnings...)
 		t, err := win.mgr.NewOpts(tabs.StartOpts{Dir: dir, Title: e.FixedTitle, Color: e.Color, Group: group, Prefeed: func(s *term.Session) { injectWarnings(s, warns) }})
 		if err != nil {
 			win.restoreWarning("could not open " + dir + ": " + err.Error())
 			continue
 		}
+		first = false
 		if e.Title != "" {
 			if win.names == nil {
 				win.names = map[tabs.TabID]string{}

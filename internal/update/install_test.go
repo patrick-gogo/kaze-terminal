@@ -168,6 +168,8 @@ func TestRelaunchStartsTheNewKaze(t *testing.T) {
 	var got []string
 	start = func(c *exec.Cmd) error { got = c.Args; return nil }
 	t.Cleanup(func() { start = func(c *exec.Cmd) error { return c.Start() } })
+	openApp = func(c *exec.Cmd) error { got = c.Args; return nil }
+	t.Cleanup(func() { openApp = func(c *exec.Cmd) error { return c.Run() } })
 	Relaunch(Target{Path: "/Applications/Kaze.app", App: true})
 	if !slices.Equal(got, []string{"open", "-n", "/Applications/Kaze.app"}) {
 		t.Fatalf("mac relaunch %v", got)
@@ -193,6 +195,8 @@ func TestRelaunchWaitsForOldSessionOwner(t *testing.T) {
 	var got []string
 	start = func(c *exec.Cmd) error { got = c.Args; return nil }
 	t.Cleanup(func() { start = func(c *exec.Cmd) error { return c.Start() } })
+	openApp = func(c *exec.Cmd) error { got = c.Args; return nil }
+	t.Cleanup(func() { openApp = func(c *exec.Cmd) error { return c.Run() } })
 	RelaunchWaiting(Target{Path: "/Applications/Kaze.app", App: true})
 	if !slices.Equal(got, []string{"open", "-n", "/Applications/Kaze.app", "--args", "--restore-wait"}) {
 		t.Fatal(got)
@@ -200,5 +204,23 @@ func TestRelaunchWaitsForOldSessionOwner(t *testing.T) {
 	RelaunchWaiting(Target{Path: `C:\kaze\kaze.exe`})
 	if !slices.Equal(got, []string{`C:\kaze\kaze.exe`, "--restore-wait"}) {
 		t.Fatal(got)
+	}
+}
+
+// open(1) exits non-zero when Launch Services cannot start the app; that is a failed relaunch.
+func TestMacRelaunchReportsAFailedOpen(t *testing.T) {
+	var got []string
+	openApp = func(c *exec.Cmd) error { got = c.Args; return errors.New("probe: LSOpenURLsWithRole() failed") }
+	t.Cleanup(func() { openApp = func(c *exec.Cmd) error { return c.Run() } })
+	start = func(*exec.Cmd) error { return nil } // never launches anything real
+	t.Cleanup(func() { start = func(c *exec.Cmd) error { return c.Start() } })
+	if err := RelaunchWaiting(Target{Path: "/Applications/Kaze.app", App: true}); err == nil {
+		t.Fatal("failed open reported as a relaunch")
+	}
+	if !slices.Equal(got, []string{"open", "-n", "/Applications/Kaze.app", "--args", "--restore-wait"}) {
+		t.Fatal(got)
+	}
+	if err := Relaunch(Target{Path: "/Applications/Kaze.app", App: true}); err == nil {
+		t.Fatal("failed open reported as a relaunch")
 	}
 }

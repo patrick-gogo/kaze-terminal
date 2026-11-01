@@ -176,6 +176,7 @@ type window struct {
 	restorePlans       []restorePlan
 	restorePath        string
 	restoreWait        bool
+	restoreWaitFor     time.Duration // the updater handoff bound; 0 is restoreWaitDefault
 	restoreStarted     bool
 	restartBusy        bool
 	restoreCaptureMu   sync.Mutex
@@ -387,10 +388,11 @@ func (win *window) shutdown() {
 		done = make(chan struct{})
 		go func() { win.srv.Close(); close(done) }()
 	}
+	released := true
 	if win.mgr != nil {
-		win.mgr.CloseAll()
+		released = win.mgr.CloseAllReleased()
 	}
-	win.closeRestore()
+	win.finishRestore(released)
 	if done != nil {
 		select {
 		case <-done:

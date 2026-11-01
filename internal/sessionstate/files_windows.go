@@ -27,3 +27,6 @@ func replaceFile(src, dst string) error {
 	}
 	return windows.MoveFileEx(a, b, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
 }
+
+// syncFolder is a no-op: MoveFileEx with MOVEFILE_WRITE_THROUGH is already durable.
+func syncFolder(string) error { return nil }

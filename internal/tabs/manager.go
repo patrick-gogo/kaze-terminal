@@ -400,7 +400,10 @@ const closeWait = 2 * time.Second
 
 // CloseAll closes every tab and waits, up to closeWait, for every shell to be
 // released, including ones Close is still releasing.
-func (m *Manager) CloseAll() {
+func (m *Manager) CloseAll() { m.CloseAllReleased() }
+
+// CloseAllReleased is CloseAll, reporting whether every shell was released in time.
+func (m *Manager) CloseAllReleased() bool {
 	m.mu.Lock()
 	es := m.entries
 	m.entries = nil
@@ -416,7 +419,9 @@ func (m *Manager) CloseAll() {
 	go func() { wg.Wait(); m.closing.Wait(); close(done) }()
 	select {
 	case <-done:
+		return true
 	case <-time.After(closeWait): // a hung PTY must not keep the app from quitting
+		return false
 	}
 }
 

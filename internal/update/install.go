@@ -20,10 +20,11 @@ type Target struct {
 	App  bool   // Path is a macOS bundle
 }
 
-// rename and start are os.Rename and Cmd.Start; tests replace them.
+// rename, start and openApp are os.Rename, Cmd.Start and Cmd.Run; tests replace them.
 var (
-	rename = os.Rename
-	start  = func(c *exec.Cmd) error { return c.Start() }
+	rename  = os.Rename
+	start   = func(c *exec.Cmd) error { return c.Start() }
+	openApp = func(c *exec.Cmd) error { return c.Run() }
 )
 
 // FindTarget is the installed kaze that exe (os.Executable) belongs to, if it
@@ -103,9 +104,10 @@ func Cleanup(t Target) {
 }
 
 // Relaunch starts the installed kaze as a new process; the caller then quits.
+// On macOS it waits for open(1), which fails when Launch Services cannot start the app.
 func Relaunch(t Target) error {
 	if t.App {
-		return start(exec.Command("open", "-n", t.Path))
+		return openApp(exec.Command("open", "-n", t.Path))
 	}
 	return start(exec.Command(t.Path))
 }
@@ -114,7 +116,7 @@ func Relaunch(t Target) error {
 // its session ownership lock after closing its shells.
 func RelaunchWaiting(t Target) error {
 	if t.App {
-		return start(exec.Command("open", "-n", t.Path, "--args", "--restore-wait"))
+		return openApp(exec.Command("open", "-n", t.Path, "--args", "--restore-wait"))
 	}
 	return start(exec.Command(t.Path, "--restore-wait"))
 }

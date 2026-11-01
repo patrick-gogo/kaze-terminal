@@ -78,3 +78,40 @@ is exercised through its UI/manager code with controlled PTYs, not a restart of 
 owner's daily Kaze window. No screenshots were retaken; Settings gains a Startup toggle
 and the update confirmation explains restoration, so captures showing those areas
 should be refreshed for the eventual release.
+
+## Review fixes (2026-11-01)
+
+A three-part review of PR #76 (persistence, UI lifecycle, updater handoff and
+requirements) found no critical bugs. Every finding below was fixed test first:
+each test was watched failing, then passing.
+
+- **Agent folder:** the hook's `cwd` is saved for a tab whose agent is known, so a
+  shell without OSC 7 no longer resumes `claude --resume` in the tab's start folder.
+- **Save retries:** a failed save stays dirty and is retried by the worker (1 s), by
+  `Flush` and by `Close`. `Save` retries a replace briefly (Windows scanners and
+  indexers hold new files open). Unix syncs the folder after the rename.
+- **One bad field:** display text is cleaned (control characters dropped, cut to
+  4096 bytes); an invalid folder, workspace or conversation clears only that field
+  group; trailing entries are dropped to fit 1 MiB. Saving never fails as a whole.
+- **Frozen events:** hook, rename and tab events during a freeze are held (bounded)
+  and applied on unfreeze, so a failed update restart loses nothing. A store closed
+  while frozen drops them, so shutdown's tab closes are still never saved.
+  `Pending` refuses a closed store.
+- **Finished conversations:** on macOS and Linux, when foreground detection sees the
+  agent leave and a shell come back, the saved conversation is cleared, even
+  without OSC 7 or OSC 133 prompt reports. Windows still relies on prompt reports.
+- **Warnings:** startup warnings go to the first restored tab; each tab shows only
+  its own restore warnings.
+- **Ownership at shutdown:** `Manager.CloseAllReleased` reports hung shells; then
+  the store saves but keeps its lock until process exit
+  (`Store.CloseKeepingOwnership`), so an updated Kaze cannot resume a conversation
+  the old shells may still run.
+- **Handoff:** the wait is tested (acquire after release, bounded timeout, no wait
+  on a plain launch). Only a stuck previous owner is fatal, with a message saying
+  what to do; other store errors open Kaze without restoration and with a warning.
+- **Unreadable file:** an unreadable `sessions.json` is moved to `sessions.json.bak`
+  before the first save, and the warning names the copy.
+- **macOS relaunch:** the updater waits for `open -n`, so a Launch Services failure
+  is a failed relaunch: Kaze stays open and keeps ownership.
+
+The Windows runtime and a real installed-app update restart remain manual checks.
