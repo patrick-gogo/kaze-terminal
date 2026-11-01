@@ -165,6 +165,13 @@ func (win *window) drawAgentsBadge(gtx layout.Context, r image.Rectangle) {
 	place(ops, call, image.Pt(box.Min.X+(box.Dx()-sz.X)/2, box.Min.Y+(box.Dy()-sz.Y)/2))
 }
 
+// crumbDot is where the crumb's state mark goes, at its left edge. It sits in
+// by the running ring's overflow, since the crumb clips what is drawn past it.
+func crumbDot(gtx layout.Context, r image.Rectangle) image.Rectangle {
+	d, mid, x := gtx.Dp(9), r.Min.Y+r.Dy()/2, r.Min.X+ringOverflow(gtx)
+	return image.Rect(x, mid-d/2, x+d, mid-d/2+d)
+}
+
 // drawCrumb draws the session crumb: state mark, repo / title, command, state pill.
 func (win *window) drawCrumb(gtx layout.Context, b titleLayout) {
 	r := b.Crumb
@@ -179,8 +186,7 @@ func (win *window) drawCrumb(gtx layout.Context, b titleLayout) {
 	defer cl.Pop()
 	x := r.Min.X
 	if cp.State != "" {
-		d := gtx.Dp(9)
-		dot := image.Rect(x, mid-d/2, x+d, mid-d/2+d)
+		dot := crumbDot(gtx, r)
 		mk := markNone
 		switch cp.State {
 		case "needs":
@@ -189,7 +195,7 @@ func (win *window) drawCrumb(gtx layout.Context, b titleLayout) {
 			mk = markDone
 		}
 		c.stateDot(gtx, dot, mk, cp.State == "running", false)
-		x += gtx.Dp(10) + gap
+		x = dot.Min.X + gtx.Dp(10) + gap
 	}
 	text := func(s string, col color.NRGBA, w font.Weight) {
 		call, sz := c.sans(gtx, s, 12.5, col, w)

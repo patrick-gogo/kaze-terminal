@@ -174,3 +174,17 @@ func TestClickingSearchOpensThePalette(t *testing.T) {
 		t.Fatal("clicking the search box did not open the palette")
 	}
 }
+
+// The running ring is drawn past its dot; the crumb clips, so the dot must sit
+// far enough inside it for the whole ring to show.
+func TestCrumbRunningRingFitsInTheCrumb(t *testing.T) {
+	gtx := barContext(1000)
+	for _, scale := range []float32{1, 1.5, 2} {
+		gtx.Metric = unit.Metric{PxPerDp: scale, PxPerSp: scale}
+		r := image.Rect(300, 0, 700, gtx.Dp(42))
+		ring := crumbDot(gtx, r).Inset(-ringOverflow(gtx))
+		if !ring.In(r) {
+			t.Fatalf("scale %v: ring %v leaves the crumb %v", scale, ring, r)
+		}
+	}
+}

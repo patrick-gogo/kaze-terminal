@@ -128,8 +128,11 @@ func (c *chrome) stateDot(gtx layout.Context, d image.Rectangle, mk mark, runnin
 
 // runningRing is an open ring around d, its gap at the top. It is drawn still, so a
 // session stuck in running never costs a frame.
+// ringOverflow is how far the running ring reaches past its dot on each side.
+func ringOverflow(gtx layout.Context) int { return max(gtx.Dp(2), 1) }
+
 func runningRing(gtx layout.Context, d image.Rectangle) clip.Op {
-	sw := float32(max(gtx.Dp(2), 1))
+	sw := float32(ringOverflow(gtx))
 	r := float32(d.Dx())/2 + sw/2
 	cx, cy := float32(d.Min.X)+float32(d.Dx())/2, float32(d.Min.Y)+float32(d.Dy())/2
 	ctr := f32.Pt(cx, cy)
