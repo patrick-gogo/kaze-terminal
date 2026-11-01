@@ -38,37 +38,37 @@
     <div class="section-intro"><h2 id="sessions-title">Built around the agent.<br><span>Still just a terminal.</span></h2><p>Run Claude Code or Codex in as many sessions as you like. Kaze keeps track,<br class="desktop-break"> so you only look when something needs you.</p></div>
     <div class="feature-grid">
       <article>
-        <span class="feature-symbol" aria-hidden="true">◐</span>
+        <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M6 8h0M6 12h0M6 16h0"/></svg>
         <h3>A sidebar of sessions.</h3>
         <p>Sessions group by repo, worktrees included. Each row shows its folder, branch, the lines changed and the slash command it runs, plus a plain <b class="state needs">needs you</b>, <b class="state running">running</b> or <b class="state done">done</b>.</p>
         <button type="button" class="show-shot" data-show="sessions">See the sidebar <span aria-hidden="true">↑</span></button>
       </article>
       <article>
-        <span class="feature-symbol" aria-hidden="true">⇥</span>
+        <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12h12m-5-5 5 5-5 5M20 5v14"/></svg>
         <h3>Jump to what’s waiting.</h3>
         <p>Next waiting takes you to the next session that needs an answer, in sidebar order. A toast and an optional chime tell you when Claude asks, even while you work elsewhere.</p>
         <a href="https://github.com/patrick-gogo/kaze-terminal#alerts-claude-code-hooks">Set up the hooks <span aria-hidden="true">↗</span></a>
       </article>
       <article>
-        <span class="feature-symbol" aria-hidden="true">▣</span>
+        <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
         <h3>Floating panes.</h3>
         <p>Watch a server’s log without leaving your Claude session. Click a workspace member and it floats over the session: drag it, resize it, type into it, or expand it to the main view.</p>
         <button type="button" class="show-shot" data-show="sessions">See a floating pane <span aria-hidden="true">↑</span></button>
       </article>
       <article>
-        <span class="feature-symbol" aria-hidden="true">›_</span>
+        <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 8 4 4-4 4m7 0h3"/></svg>
         <h3>A scratch shell, per session.</h3>
         <p>Press <kbd>Ctrl</kbd> <kbd>`</kbd> for a quick shell in the session’s folder. Press it again to hide it; it keeps running, with its screen, until the session closes.</p>
         <button type="button" class="show-shot" data-show="scratch">See the scratch shell <span aria-hidden="true">↑</span></button>
       </article>
       <article>
-        <span class="feature-symbol" aria-hidden="true">⋔</span>
+        <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4m-6 4v-4h12v4"/></svg>
         <h3>See every subagent.</h3>
         <p>When Claude hands work to subagents, each one shows under its session with its task and current step. Click one to watch its steps live and read its report, or press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> for a board of every subagent: running, waiting on you and done.</p>
         <button type="button" class="show-shot" data-show="agents">See the subagents <span aria-hidden="true">↑</span></button>
       </article>
       <article>
-        <span class="feature-symbol" aria-hidden="true">⌕</span>
+        <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
         <h3>One key finds everything.</h3>
         <p><kbd>⌘</kbd> <kbd>K</kbd> opens the palette: waiting sessions first, then every session and server, your Claude Code skills and slash commands, and Kaze’s own actions.</p>
         <button type="button" class="show-shot" data-show="palette">See the palette <span aria-hidden="true">↑</span></button>
@@ -91,10 +91,10 @@
   </section>
 
   <section class="details wrap" aria-label="More features">
-    <article><span class="feature-symbol" aria-hidden="true">▤</span><h3>Context in the status bar.</h3><p>Your folder and branch with its line changes, your servers and subagents at a glance, and Claude usage as small meters. Hover the usage to see when each limit resets.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <span aria-hidden="true">↗</span></a></article>
-    <article><span class="feature-symbol" aria-hidden="true">⌘</span><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing and cursor controls. Change them in Settings, or edit the small config file directly.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <span aria-hidden="true">↗</span></a></article>
-    <article><span class="feature-symbol" aria-hidden="true">✓</span><h3>Checks your Claude setup.</h3><p>Settings shows which Claude Code hooks are missing and adds them for you, after showing the change and backing up your file.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-code-setup-check">See the setup check <span aria-hidden="true">↗</span></a></article>
-    <article><span class="feature-symbol" aria-hidden="true">⌨</span><h3>Your keys, your way.</h3><p>Every shortcut can be changed in the config, and Settings lists the commands so far with their keys.</p><a href="https://github.com/patrick-gogo/kaze-terminal#shortcuts">See the shortcuts <span aria-hidden="true">↗</span></a></article>
+    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18m-12 0v5m6-5v5"/></svg><h3>Context in the status bar.</h3><p>Your folder and branch with its line changes, your servers and subagents at a glance, and Claude usage as small meters. Hover the usage to see when each limit resets.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <span aria-hidden="true">↗</span></a></article>
+    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m14 4 6 6M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15zM14 20h7"/></svg><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing and cursor controls. Change them in Settings, or edit the small config file directly.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <span aria-hidden="true">↗</span></a></article>
+    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 12 2 2 4-4"/><path d="M12 3 4 6v6c0 4 4 7 8 9 4-2 8-5 8-9V6z"/></svg><h3>Checks your Claude setup.</h3><p>Settings shows which Claude Code hooks are missing and adds them for you, after showing the change and backing up your file.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-code-setup-check">See the setup check <span aria-hidden="true">↗</span></a></article>
+    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h0m4 0h0m4 0h0m4 0h0M6 13h0m4 0h0m4 0h0m4 0h0M8 16h8"/></svg><h3>Your keys, your way.</h3><p>Every shortcut can be changed in the config, and Settings lists the commands so far with their keys.</p><a href="https://github.com/patrick-gogo/kaze-terminal#shortcuts">See the shortcuts <span aria-hidden="true">↗</span></a></article>
   </section>
 
   <section class="engineering wrap" aria-labelledby="engineering-title"><div><h2 id="engineering-title">Quiet, down to the renderer.</h2><p>Kaze redraws the cells that changed and caches its glyphs. When nothing changes, there’s no frame to draw, floating panes included.</p></div><div class="engineering-facts"><span><b>Go + Gio</b>macOS and Windows</span><span><b>Open source</b>Small enough to make your own</span></div></section>
