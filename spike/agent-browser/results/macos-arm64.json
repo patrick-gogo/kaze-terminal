@@ -1,0 +1,665 @@
+{
+  "date": "2026-11-01T10:13:03.681Z",
+  "platform": "darwin",
+  "release": "25.6.0",
+  "arch": "arm64",
+  "node": "v22.14.0",
+  "nodeExecutable": "/usr/local/bin/node",
+  "phases": [
+    "isolation",
+    "mcp"
+  ],
+  "baseCommit": "b16c58e3fbec56f166fe077ba486a7feb52c40ad",
+  "dependencies": {
+    "@playwright/mcp": "0.0.84",
+    "chrome-devtools-mcp": "1.12.0",
+    "ws": "8.22.1"
+  },
+  "observations": {
+    "sharedWindows": {
+      "sharedSignIn": true,
+      "foreignWindowListed": true,
+      "foreignWindowReadable": true,
+      "isolated": false,
+      "startupMs": 415
+    },
+    "separateContexts": {
+      "cookiesSeparated": true,
+      "foreignContextReadableThroughBrowserEndpoint": true,
+      "isolatedConnection": false
+    },
+    "pageEndpoint": {
+      "foreignWindowListed": true,
+      "foreignWindowReadable": true,
+      "isolated": false
+    },
+    "separateInstances": {
+      "cookiesSeparated": true,
+      "foreignTargetsAbsent": true,
+      "foreignTargetAttachRejected": true,
+      "startupMs": 270
+    },
+    "browserProcesses": [
+      {
+        "label": "shared-browser",
+        "processCount": 12,
+        "rssKiB": 1736432,
+        "note": "RSS sum includes shared memory more than once; not physical footprint"
+      },
+      {
+        "label": "separate-session-browser",
+        "processCount": 9,
+        "rssKiB": 1219152,
+        "note": "RSS sum includes shared memory more than once; not physical footprint"
+      }
+    ],
+    "playwright": {
+      "kind": "playwright",
+      "toolCalls": [
+        {
+          "name": "browser_navigate",
+          "args": {
+            "url": "http://127.0.0.1:58600/playwright"
+          },
+          "ms": 609,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Ran Playwright code\n```js\nawait page.goto('http://127.0.0.1:58600/playwright');\n```\n### Page\n- Page URL: http://127.0.0.1:58600/playwright\n- Page Title: Kaze fixture /playwright\n- Console: 2 errors, 0 warnings\n### Snapshot\n- [Snapshot](./page-2026-11-01T10-13-07-712Z.yml)\n### Events\n- New console entries: console-2026-11-01T10-13-07-658Z.log#L1-L2",
+          "images": []
+        },
+        {
+          "name": "browser_snapshot",
+          "args": {},
+          "ms": 5,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Page\n- Page URL: http://127.0.0.1:58600/playwright\n- Page Title: Kaze fixture /playwright\n- Console: 2 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=f1e1]:\n  - heading \"Kaze browser fixture\" [level=1] [ref=f1e2]\n  - generic [ref=f1e3]:\n    - text: Message\n    - textbox \"Message\" [ref=f1e4]\n  - button \"Apply\" [ref=f1e5]\n  - status [ref=f1e6]: Waiting\n```",
+          "images": []
+        },
+        {
+          "name": "browser_type",
+          "args": {
+            "target": "f1e4",
+            "text": "playwright-applied"
+          },
+          "ms": 28,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Ran Playwright code\n```js\nawait page.getByRole('textbox', { name: 'Message' }).fill('playwright-applied');\n```",
+          "images": []
+        },
+        {
+          "name": "browser_click",
+          "args": {
+            "target": "f1e5"
+          },
+          "ms": 568,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Ran Playwright code\n```js\nawait page.getByRole('button', { name: 'Apply' }).click();\n```\n### Page\n- Page URL: http://127.0.0.1:58600/playwright\n- Page Title: Kaze fixture /playwright\n- Console: 2 errors, 0 warnings\n### Snapshot\n- [Snapshot](./page-2026-11-01T10-13-08-311Z.yml)",
+          "images": []
+        },
+        {
+          "name": "browser_snapshot",
+          "args": {},
+          "ms": 13,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Page\n- Page URL: http://127.0.0.1:58600/playwright\n- Page Title: Kaze fixture /playwright\n- Console: 2 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=f1e1]:\n  - heading \"Kaze browser fixture\" [level=1] [ref=f1e2]\n  - generic [ref=f1e3]:\n    - text: Message\n    - textbox \"Message\" [ref=f1e4]: playwright-applied\n  - button \"Apply\" [active] [ref=f1e5]\n  - status [ref=f1e6]: playwright-applied\n```",
+          "images": []
+        },
+        {
+          "name": "browser_console_messages",
+          "args": {
+            "level": "error"
+          },
+          "ms": 10,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Result\nTotal messages: 2 (Errors: 2, Warnings: 0)\n\n[ERROR] kaze-fixture-console-error @ http://127.0.0.1:58600/playwright:0\n[ERROR] Failed to load resource: net::ERR_EMPTY_RESPONSE @ http://127.0.0.1:58600/network-failure:0",
+          "images": []
+        },
+        {
+          "name": "browser_network_requests",
+          "args": {
+            "includeStatic": true
+          },
+          "ms": 8,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Result\n2. [GET] http://127.0.0.1:58600/network-failure => [FAILED] net::ERR_EMPTY_RESPONSE\n\nNote: 1 static request not shown, run with \"static\" option to see it.",
+          "images": []
+        },
+        {
+          "name": "browser_take_screenshot",
+          "args": {
+            "type": "png",
+            "scale": "css"
+          },
+          "ms": 69,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Result\n- [Screenshot of viewport](./page-2026-11-01T10-13-08-408Z.png)\n### Ran Playwright code\n```js\n// Screenshot viewport and save it as ./page-2026-11-01T10-13-08-408Z.png\nawait page.screenshot({\n  path: './page-2026-11-01T10-13-08-408Z.png',\n  scale: 'css',\n  type: 'png'\n});\n```",
+          "images": [
+            {
+              "mimeType": "image/png",
+              "bytes": 14664
+            }
+          ]
+        },
+        {
+          "name": "browser_tabs",
+          "args": {
+            "action": "list"
+          },
+          "ms": 7,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Result\n- 0: (current) [Kaze fixture /playwright](http://127.0.0.1:58600/playwright)",
+          "images": []
+        },
+        {
+          "name": "browser_tabs",
+          "args": {
+            "action": "new",
+            "url": "http://127.0.0.1:58600/playwright-new-page"
+          },
+          "ms": 83,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Result\n- 0: [Kaze fixture /playwright](http://127.0.0.1:58600/playwright)\n- 1: (current) [Kaze fixture /playwright-new-page](http://127.0.0.1:58600/playwright-new-page)\n### Ran Playwright code\n```js\nawait page.goto('http://127.0.0.1:58600/playwright-new-page');\n```\n### Open tabs\n- 0: [Kaze fixture /playwright](http://127.0.0.1:58600/playwright)\n- 1: (current) [Kaze fixture /playwright-new-page](http://127.0.0.1:58600/playwright-new-page)\n### Page\n- Page URL: http://127.0.0.1:58600/playwright-new-page\n- Page Title: Kaze fixture /playwright-new-page\n- Console: 2 errors, 0 warnings\n### Snapshot\n- [Snapshot](./page-2026-11-01T10-13-08-505Z.yml)\n### Events\n- New console entries: console-2026-11-01T10-13-08-449Z.log#L1-L2",
+          "images": []
+        },
+        {
+          "name": "browser_tabs",
+          "args": {
+            "action": "select",
+            "index": 0
+          },
+          "ms": 6,
+          "focusCommandsBlocked": [
+            "Page.bringToFront"
+          ],
+          "isError": false,
+          "text": "### Result\n- 0: (current) [Kaze fixture /playwright](http://127.0.0.1:58600/playwright)\n- 1: [Kaze fixture /playwright-new-page](http://127.0.0.1:58600/playwright-new-page)",
+          "images": []
+        },
+        {
+          "name": "browser_tabs",
+          "args": {
+            "action": "list"
+          },
+          "ms": 18,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Result\n- 0: (current) [Kaze fixture /playwright](http://127.0.0.1:58600/playwright)\n- 1: [Kaze fixture /playwright-new-page](http://127.0.0.1:58600/playwright-new-page)\n- 2: [Kaze fixture /foreign-window](http://127.0.0.1:58600/foreign-window)\n- 3: [Kaze fixture /foreign-context](http://127.0.0.1:58600/foreign-context)",
+          "images": []
+        },
+        {
+          "name": "browser_tabs",
+          "args": {
+            "action": "list"
+          },
+          "ms": 9,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Result\n- 0: (current) [Kaze fixture /playwright](http://127.0.0.1:58600/playwright)\n- 1: [Kaze fixture /playwright-new-page](http://127.0.0.1:58600/playwright-new-page)",
+          "images": []
+        },
+        {
+          "name": "browser_navigate",
+          "args": {
+            "url": "http://127.0.0.1:58600/playwright-reconnected"
+          },
+          "ms": 578,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "### Ran Playwright code\n```js\nawait page.goto('http://127.0.0.1:58600/playwright-reconnected');\n```\n### Page\n- Page URL: http://127.0.0.1:58600/playwright-reconnected\n- Page Title: Kaze fixture /playwright-reconnected\n- Console: 2 errors, 0 warnings\n### Snapshot\n- [Snapshot](./page-2026-11-01T10-13-10-594Z.yml)\n### Events\n- New console entries: console-2026-11-01T10-13-10-536Z.log#L1-L2",
+          "images": []
+        }
+      ],
+      "launches": 2,
+      "initialize": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+          "tools": {
+            "listChanged": true
+          }
+        },
+        "serverInfo": {
+          "name": "Playwright",
+          "version": "1.65.0-alpha-2026-10-30"
+        }
+      },
+      "tools": [
+        "browser_close",
+        "browser_resize",
+        "browser_console_messages",
+        "browser_handle_dialog",
+        "browser_emulate_media",
+        "browser_evaluate",
+        "browser_file_upload",
+        "browser_drop",
+        "browser_find",
+        "browser_fill_form",
+        "browser_press_key",
+        "browser_type",
+        "browser_navigate",
+        "browser_navigate_back",
+        "browser_network_requests",
+        "browser_network_request",
+        "browser_run_code_unsafe",
+        "browser_take_screenshot",
+        "browser_snapshot",
+        "browser_click",
+        "browser_drag",
+        "browser_hover",
+        "browser_select_option",
+        "browser_tabs",
+        "browser_wait_for"
+      ],
+      "afterDiscovery": {
+        "relayConnections": 0,
+        "browserLaunches": 0,
+        "nodeProcessRunning": true
+      },
+      "idleWorker": {
+        "intervalMs": 1000,
+        "cpuTimeAndRssBefore": "0:00.22 131168",
+        "cpuTimeAndRssAfter": "0:00.22 131168",
+        "browserLaunches": 0,
+        "relayConnections": 0
+      },
+      "unfilteredRelay": {
+        "foreignWindowListed": true,
+        "foreignContextListed": true
+      },
+      "separateInstanceNeighborHidden": true,
+      "reconnect": {
+        "firstCallSucceeded": true,
+        "browserRelaunched": true
+      },
+      "connections": 2,
+      "focusCommandsBlocked": [
+        "Page.bringToFront"
+      ],
+      "cdpMethods": [
+        "Browser.getVersion",
+        "Target.setAutoAttach",
+        "Runtime.runIfWaitingForDebugger",
+        "Page.enable",
+        "Page.getFrameTree",
+        "Log.enable",
+        "Page.setLifecycleEventsEnabled",
+        "Runtime.enable",
+        "Page.addScriptToEvaluateOnNewDocument",
+        "Network.enable",
+        "Inspector.enable",
+        "Emulation.setUserAgentOverride",
+        "Target.getTargetInfo",
+        "Page.createIsolatedWorld",
+        "Target.detachFromTarget",
+        "Page.setInterceptFileChooserDialog",
+        "Page.navigate",
+        "Runtime.evaluate",
+        "Runtime.callFunctionOn",
+        "DOM.describeNode",
+        "DOM.resolveNode",
+        "Runtime.releaseObject",
+        "Input.insertText",
+        "DOM.scrollIntoViewIfNeeded",
+        "DOM.getContentQuads",
+        "Input.dispatchMouseEvent",
+        "Page.getLayoutMetrics",
+        "Page.captureScreenshot",
+        "Target.createTarget",
+        "Page.bringToFront"
+      ]
+    },
+    "devtools": {
+      "kind": "devtools",
+      "toolCalls": [
+        {
+          "name": "list_pages",
+          "args": {},
+          "ms": 519,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "## Pages\n1: Kaze fixture /devtools-initial (http://127.0.0.1:58600/devtools-initial) [selected]",
+          "images": []
+        },
+        {
+          "name": "navigate_page",
+          "args": {
+            "pageId": 1,
+            "type": "url",
+            "url": "http://127.0.0.1:58600/devtools"
+          },
+          "ms": 125,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "Successfully navigated to http://127.0.0.1:58600/devtools.\n## Pages\n1: Kaze fixture /devtools (http://127.0.0.1:58600/devtools) [selected]",
+          "images": []
+        },
+        {
+          "name": "take_snapshot",
+          "args": {
+            "pageId": 1
+          },
+          "ms": 14,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "## Latest page snapshot\nuid=1_0 RootWebArea \"Kaze fixture /devtools\" url=\"http://127.0.0.1:58600/devtools\"\n  uid=1_1 heading \"Kaze browser fixture\" level=\"1\"\n  uid=1_2 \"Message \"\n  uid=1_3 textbox \"Message\"\n  uid=1_4 button \"Apply\"\n  uid=1_5 status atomic live=\"polite\" relevant=\"additions text\"\n    uid=1_6 \"Waiting\"\n",
+          "images": []
+        },
+        {
+          "name": "fill",
+          "args": {
+            "pageId": 1,
+            "uid": "1_3",
+            "value": "devtools-applied"
+          },
+          "ms": 298,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "Successfully filled out the element",
+          "images": []
+        },
+        {
+          "name": "click",
+          "args": {
+            "pageId": 1,
+            "uid": "1_4"
+          },
+          "ms": 264,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "Successfully clicked on the element",
+          "images": []
+        },
+        {
+          "name": "take_snapshot",
+          "args": {
+            "pageId": 1
+          },
+          "ms": 12,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "## Latest page snapshot\nuid=1_0 RootWebArea \"Kaze fixture /devtools\" url=\"http://127.0.0.1:58600/devtools\"\n  uid=1_1 heading \"Kaze browser fixture\" level=\"1\"\n  uid=1_2 \"Message \"\n  uid=1_3 textbox \"Message\" value=\"devtools-applied\"\n  uid=1_4 button \"Apply\" focusable focused\n  uid=1_5 status atomic live=\"polite\" relevant=\"additions text\"\n    uid=2_0 \"devtools-applied\"\n",
+          "images": []
+        },
+        {
+          "name": "list_console_messages",
+          "args": {
+            "pageId": 1,
+            "types": [
+              "error"
+            ]
+          },
+          "ms": 6,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "## Console messages\nShowing 1-2 of 2 (Page 1 of 1).\nmsgid=1 [error] kaze-fixture-console-error (1 args)\nmsgid=2 [error] Failed to load resource: net::ERR_EMPTY_RESPONSE (0 args)",
+          "images": []
+        },
+        {
+          "name": "list_network_requests",
+          "args": {
+            "pageId": 1
+          },
+          "ms": 7,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "## Network requests\nShowing 1-3 of 3 (Page 1 of 1).\nreqid=1 GET http://127.0.0.1:58600/devtools [200]\nreqid=2 GET http://127.0.0.1:58600/network-failure [net::ERR_EMPTY_RESPONSE]\nreqid=3 GET http://127.0.0.1:58600/favicon.ico [204]",
+          "images": []
+        },
+        {
+          "name": "take_screenshot",
+          "args": {
+            "pageId": 1,
+            "format": "png"
+          },
+          "ms": 57,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "Took a screenshot of the current page's viewport.",
+          "images": [
+            {
+              "mimeType": "image/png",
+              "bytes": 63237
+            }
+          ]
+        },
+        {
+          "name": "select_page",
+          "args": {
+            "pageId": 1,
+            "bringToFront": true
+          },
+          "ms": 7,
+          "focusCommandsBlocked": [
+            "Page.bringToFront"
+          ],
+          "isError": false,
+          "text": "## Pages\n1: Kaze fixture /devtools (http://127.0.0.1:58600/devtools) [selected]",
+          "images": []
+        },
+        {
+          "name": "list_pages",
+          "args": {},
+          "ms": 3,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "## Pages\n1: Kaze fixture /devtools (http://127.0.0.1:58600/devtools) [selected]\n2: Kaze fixture /foreign-window (http://127.0.0.1:58600/foreign-window)\n3: Kaze fixture /foreign-context (http://127.0.0.1:58600/foreign-context)",
+          "images": []
+        },
+        {
+          "name": "list_pages",
+          "args": {},
+          "ms": 5,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "## Pages\n1: Kaze fixture /devtools (http://127.0.0.1:58600/devtools) [selected]",
+          "images": []
+        },
+        {
+          "name": "list_pages",
+          "args": {},
+          "ms": 509,
+          "focusCommandsBlocked": [],
+          "isError": false,
+          "text": "Note: the browser was restarted or reconnected since the last call. Page ids have changed. Call list_pages to see open pages.\n## Pages\n4: Kaze fixture /devtools-initial (http://127.0.0.1:58600/devtools-initial) [selected]",
+          "images": []
+        }
+      ],
+      "launches": 2,
+      "initialize": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+          "logging": {},
+          "tools": {
+            "listChanged": true
+          }
+        },
+        "serverInfo": {
+          "name": "chrome_devtools",
+          "title": "Chrome DevTools MCP server",
+          "version": "1.12.0"
+        }
+      },
+      "tools": [
+        "click",
+        "close_page",
+        "drag",
+        "emulate",
+        "evaluate_script",
+        "fill",
+        "fill_form",
+        "get_console_message",
+        "get_css_styles",
+        "get_network_request",
+        "handle_dialog",
+        "hover",
+        "lighthouse_audit",
+        "list_console_messages",
+        "list_network_requests",
+        "list_pages",
+        "navigate_page",
+        "new_page",
+        "performance_analyze_insight",
+        "performance_start_trace",
+        "performance_stop_trace",
+        "press_key",
+        "resize_page",
+        "screencast_start",
+        "screencast_stop",
+        "select_page",
+        "take_heapsnapshot",
+        "take_screenshot",
+        "take_snapshot",
+        "type_text",
+        "upload_file",
+        "wait_for"
+      ],
+      "afterDiscovery": {
+        "relayConnections": 0,
+        "browserLaunches": 0,
+        "nodeProcessRunning": true
+      },
+      "idleWorker": {
+        "intervalMs": 1000,
+        "cpuTimeAndRssBefore": "0:00.29 162800",
+        "cpuTimeAndRssAfter": "0:00.29 162800",
+        "browserLaunches": 0,
+        "relayConnections": 0
+      },
+      "unfilteredRelay": {
+        "foreignWindowListed": true,
+        "foreignContextListed": true
+      },
+      "separateInstanceNeighborHidden": true,
+      "reconnect": {
+        "firstCallSucceeded": true,
+        "browserRelaunched": true
+      },
+      "connections": 2,
+      "focusCommandsBlocked": [
+        "Page.bringToFront"
+      ],
+      "cdpMethods": [
+        "Target.getBrowserContexts",
+        "Target.setDiscoverTargets",
+        "Target.setAutoAttach",
+        "Runtime.runIfWaitingForDebugger",
+        "Target.detachFromTarget",
+        "Network.enable",
+        "Page.enable",
+        "Page.getFrameTree",
+        "Page.setLifecycleEventsEnabled",
+        "Runtime.enable",
+        "Audits.enable",
+        "Performance.enable",
+        "Log.enable",
+        "WebMCP.enable",
+        "Page.addScriptToEvaluateOnNewDocument",
+        "Page.createIsolatedWorld",
+        "Target.attachToTarget",
+        "Network.setAttachDebugStack",
+        "Page.getResourceTree",
+        "Debugger.setSkipAllPauses",
+        "Debugger.enable",
+        "Debugger.setPauseOnExceptions",
+        "Debugger.setAsyncCallStackDepth",
+        "Log.startViolationsReport",
+        "DOM.enable",
+        "CSS.enable",
+        "Runtime.getIsolateId",
+        "Debugger.setBlackboxPatterns",
+        "Autofill.enable",
+        "Autofill.setAddresses",
+        "Target.getDevToolsTarget",
+        "Storage.getStorageKey",
+        "Profiler.enable",
+        "Debugger.setBlackboxExecutionContexts",
+        "Target.getTargets",
+        "Emulation.setFocusEmulationEnabled",
+        "Page.navigate",
+        "Runtime.callFunctionOn",
+        "Runtime.releaseObject",
+        "Accessibility.getFullAXTree",
+        "DOM.resolveNode",
+        "DOM.describeNode",
+        "Runtime.addBinding",
+        "Runtime.evaluate",
+        "Input.dispatchKeyEvent",
+        "Input.dispatchMouseEvent",
+        "Page.captureScreenshot",
+        "Page.bringToFront"
+      ]
+    }
+  },
+  "browserInstances": [
+    {
+      "label": "shared-browser",
+      "pid": 97634,
+      "startupMs": 415,
+      "startedAt": 1793527984262
+    },
+    {
+      "label": "separate-session-browser",
+      "pid": 97660,
+      "startupMs": 270,
+      "startedAt": 1793527984905
+    },
+    {
+      "label": "playwright-lazy",
+      "pid": 97694,
+      "startupMs": 308,
+      "startedAt": 1793527987461
+    },
+    {
+      "label": "playwright-neighbor",
+      "pid": 97784,
+      "startupMs": 284,
+      "startedAt": 1793527989057
+    },
+    {
+      "label": "playwright-lazy",
+      "pid": 97811,
+      "startupMs": 301,
+      "startedAt": 1793527990327
+    },
+    {
+      "label": "devtools-lazy",
+      "pid": 97841,
+      "startupMs": 301,
+      "startedAt": 1793527992619
+    },
+    {
+      "label": "devtools-neighbor",
+      "pid": 97864,
+      "startupMs": 282,
+      "startedAt": 1793527994167
+    },
+    {
+      "label": "devtools-lazy",
+      "pid": 97887,
+      "startupMs": 295,
+      "startedAt": 1793527995445
+    }
+  ],
+  "fixtureOrigin": "http://127.0.0.1:58600",
+  "chrome": "Chrome/156.0.8078.79",
+  "focusMonitor": {
+    "baselineReceived": true,
+    "runningUntilCleanup": true
+  },
+  "focusEvents": [
+    {
+      "at_ms": 1793527983691,
+      "pid": 72445,
+      "bundle": "com.patrickgogo.kaze"
+    }
+  ],
+  "chromeActivationEvents": []
+}
