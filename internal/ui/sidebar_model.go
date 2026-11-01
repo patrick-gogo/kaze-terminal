@@ -232,10 +232,11 @@ func (win *window) sideRuns() []sideRun {
 				mem.Mark = win.alerts.markOf(t.ID)
 			}
 			exited := t != nil && t.Exited
-			if text == "Finished" || (exited && !failed) {
-				mem.Status = "stopped" // an exited shell is not starting or waiting, whatever its run said
+			closed := wm.tab != 0 && t == nil
+			if text == "Finished" || ((exited || closed) && !failed) {
+				mem.Status = "stopped" // a closed or exited shell is not starting or waiting
 			}
-			mem.Down = text == "Finished" || failed || exited
+			mem.Down = text == "Finished" || failed || exited || closed
 			if mem.Down {
 				sr.Down++
 			}

@@ -1,8 +1,34 @@
 # kaze handoff
 
-Last updated: 2026-11-01, after PR #84 merged and release 0.19.1 was prepared. Read this first when you pick up kaze on another machine.
+Last updated: 2026-11-02, after local implementation of resource usage (#92). Read this first when you pick up kaze on another machine.
 
 ## Where things stand
+
+**Resource usage (#92) is implemented locally** after owner approval of the
+mockup and plan. The status group shows whole-machine CPU share and summed
+process memory for Kaze plus observed descendants. Hover shows Kaze and session
+rows, core count, units, scope and unavailable readings; scratch shells count
+under their parent and workspace members have stable independent rows. Collection
+runs off the UI thread, at most every 2 s on activity, without a new timer, and
+pauses while minimized. No GPU measurement. macOS CPU Mach tick conversion is
+verified against getrusage; the local 4-root collector benchmark averages about
+0.4 ms per scan, projecting to 0.0213% of one core at a 2 s cadence. Tests, vet,
+focused races and native macOS / Windows cross-builds pass. Native Windows runtime
+and installed-app hover/minimize checks remain open. See
+`docs/audits/2026-11-02-resource-usage.md` and the approved resource-usage plan.
+The owner authorized committing and opening a review PR on 2026-11-02.
+Changes are prepared on `fix/issues-88-90-89`; the release hold remains active.
+
+**Issues #88, #90 and #89 are fixed for review** on `fix/issues-88-90-89`.
+No release has been published from this work. Update confirmation text wraps within a growing strip,
+with actions below it on narrow layouts. Closed workspace members show stopped
+and count down; the status bar says `N/M UP`. Restored agents resolve through the
+ready shell's PATH, avoiding the minimal PATH of Finder/updater launches. Native
+zsh tests with isolated fake agents verify exact Claude/Codex resume arguments and
+visible errors for missing commands. Full tests, vet, UI races and native macOS /
+Windows cross-builds pass. Installed update/relaunch with real conversations and
+Windows runtime checks remain open. See `docs/audits/2026-11-02-issues-88-90-89.md`.
+The combined-release hold in CLAUDE.md remains active.
 
 **Audit follow-up merged in PR #84.** The owner authorized merging and publishing
 fix-only release **0.19.1** on 2026-11-01; the release PR prepares its version,

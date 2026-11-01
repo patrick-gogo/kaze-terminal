@@ -32,6 +32,7 @@ type statusLayout struct {
 	Groups  map[statusGroup]image.Rectangle // only the shown ones
 	Compact struct {
 		ServersLabel, UsageLabels, UsageMeters bool
+		ResourcesLabel, ResourcesMeter         bool
 		Agents, Update, AggregateServers       bool
 		BranchCounts                           bool // the +N -M were dropped
 	}
@@ -70,6 +71,7 @@ func serversCount(ds []serverDot) string {
 // statusFit is one compaction state of the layout.
 type statusFit struct {
 	noTabs, noMem, serversLabel, usageLabels           bool
+	resourceLabel, resourceMeter                       bool
 	folderBudget, branchBudget                         int // -1: as is; 0: omitted
 	noCounts, compactPills, noMeters, tight, aggregate bool
 	noServers, noBranch, noUpdate, noAgents            bool
@@ -82,7 +84,8 @@ func layoutStatusBar(m statusModel, width int, measure func(s string, mono bool)
 	f := statusFit{folderBudget: -1, branchBudget: -1}
 	steps := []func(){
 		func() { f.noTabs = true },
-		func() { f.noMem = true },
+		func() { f.resourceLabel = true },
+		func() { f.resourceMeter = true },
 		func() { f.serversLabel = true },
 		func() { f.usageLabels = true },
 		func() { f.folderBudget = -2 }, // shorten to whatever is left
@@ -93,6 +96,7 @@ func layoutStatusBar(m statusModel, width int, measure func(s string, mono bool)
 		func() { f.noMeters, f.usageLabels, f.tight, f.aggregate = true, false, true, true },
 		func() { f.noServers = true },
 		func() { f.noBranch = true },
+		func() { f.noMem = true },
 		func() { f.usageDrop = 1 },
 		func() { f.usageDrop = 2 },
 		func() { f.usageDrop = 3 },
@@ -166,6 +170,7 @@ func statusPlace(m statusModel, width int, measure func(s string, mono bool) int
 		ip, gap = d.ItemPad/2, d.Gap/2
 	}
 	p.Tight = f.tight
+	p.Compact.ResourcesLabel, p.Compact.ResourcesMeter = f.resourceLabel, f.resourceMeter
 	p.Compact.ServersLabel, p.Compact.UsageLabels, p.Compact.UsageMeters = f.serversLabel || f.aggregate, f.usageLabels, f.noMeters
 	p.Compact.Agents, p.Compact.Update, p.Compact.AggregateServers = f.compactPills, f.compactPills, f.aggregate
 	p.Compact.BranchCounts = f.noCounts
@@ -194,9 +199,20 @@ func statusPlace(m statusModel, width int, measure func(s string, mono bool) int
 		}
 		w := n*d.Dot + (n-1)*(d.Dot*2/3)
 		if !f.serversLabel && !f.aggregate {
-			w += gap + measure(serversCount(m.Servers), true) + gap + measure("SERVERS", false)
+			w += gap + measure(serversCount(m.Servers), true) + gap + measure("UP", false)
 		}
 		right = append(right, item{grpServers, 2*ip + w, true})
+	}
+	if !f.noMem {
+		cpu, ram := resourceValues(m.Resources.Total, m.Resources.Partial)
+		w := measure(cpu, true) + gap + measure("·", false) + gap + measure(ram, true)
+		if !f.resourceLabel {
+			w += measure("CPU", false) + gap/2
+		}
+		if !f.resourceMeter {
+			w += d.Meter + gap/2
+		}
+		right = append(right, item{grpMem, 2*ip + w, true})
 	}
 	keys := []string{}
 	if n := len(m.Usage) - f.usageDrop; n > 0 {
@@ -217,9 +233,7 @@ func statusPlace(m statusModel, width int, measure func(s string, mono bool) int
 		right = append(right, item{grpUsage, 2*ip + w, true})
 	}
 	p.UsageKeys = keys
-	if !f.noMem {
-		right = append(right, item{grpMem, 2*ip + d.Icon + gap + measure(strconv.Itoa(m.MemMB)+" MB", true), true})
-	}
+
 	if !f.noTabs {
 		right = append(right, item{grpTabs, 2*ip + d.Icon + gap + measure(strconv.Itoa(m.Tabs)+" tabs", true), f.noMem})
 	}

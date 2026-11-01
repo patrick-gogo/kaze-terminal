@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -202,19 +201,14 @@ func (win *window) resumeLine(e sessionstate.Entry) (string, error) {
 			return "", errors.New("saved conversation file is unavailable; opened a shell")
 		}
 	}
-	lookup := win.resumeLookPath
-	if lookup == nil {
-		lookup = exec.LookPath
-	}
-	exe, err := lookup(e.Agent)
-	if err != nil {
-		return "", fmt.Errorf("%s is unavailable; opened a shell", e.Agent)
-	}
 	kind := workspaces.KindOf(win.opt.Shell)
 	if kind == workspaces.ShellUnknown {
 		return "", errors.New("this shell cannot launch resumed agents automatically")
 	}
-	q, err := workspaces.QuoteArg(kind, exe)
+	// The ready interactive shell owns command resolution. Finder and updater
+	// launches can have a minimal PATH that omits agents installed by the user.
+	// If the command is missing, the shell displays its error in this tab.
+	q, err := workspaces.QuoteArg(kind, e.Agent)
 	if err != nil {
 		return "", err
 	}

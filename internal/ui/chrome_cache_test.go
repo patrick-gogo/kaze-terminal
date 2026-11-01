@@ -24,7 +24,7 @@ func TestStatusGeometryCacheInvalidates(t *testing.T) {
 	if calls != 0 {
 		t.Fatal("unchanged status reshaped")
 	}
-	changes := []func(){func() { m.Branch += "x" }, func() { m.Usage[0].Pct++ }, func() { m.Servers[0].Down = true }, func() { m.Notice = "failed" }, func() { metric.PxPerSp = 2 }, func() { shape = new(text.Shaper) }}
+	changes := []func(){func() { m.Resources.Total.Bytes = 2 << 30 }, func() { m.Resources.Total.CPUValid = false }, func() { m.Resources.Partial = true }, func() { m.Branch += "x" }, func() { m.Usage[0].Pct++ }, func() { m.Servers[0].Down = true }, func() { m.Notice = "failed" }, func() { metric.PxPerSp = 2 }, func() { shape = new(text.Shaper) }}
 	for i, change := range changes {
 		calls = 0
 		change()

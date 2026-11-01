@@ -29,6 +29,7 @@ type statusState struct {
 	m      statusModel
 	y      int         // the bar's top in window px
 	hover  statusGroup // grpNone when the pointer is elsewhere
+	card   resourceCardState
 	cache  statusLayoutCache
 	locale system.Locale
 }
@@ -115,7 +116,7 @@ func (win *window) drawStatus(gtx layout.Context, y int, now time.Time) {
 		return box
 	}
 	for g, r := range l.Groups {
-		if g == win.stat.hover && clickable(g) {
+		if g == win.stat.hover && (clickable(g) || g == grpMem) {
 			hr := image.Rect(r.Min.X+gtx.Dp(2), mid-gtx.Dp(12), r.Max.X-gtx.Dp(2), mid+gtx.Dp(12))
 			paint.FillShape(ops, th.Active, clip.UniformRRect(hr, gtx.Dp(7)).Op(ops))
 		}
@@ -177,7 +178,7 @@ func (win *window) drawStatus(gtx layout.Context, y int, now time.Time) {
 			}
 			if !l.Compact.ServersLabel {
 				x = text(x-d.Dot*2/3+gap, serversCount(m.Servers), true, th.ActiveFG)
-				c.statusLabel(gtx, x+gap, mid, "SERVERS")
+				c.statusLabel(gtx, x+gap, mid, "UP")
 			}
 		case grpUsage:
 			for i, k := range l.UsageKeys {
@@ -199,8 +200,21 @@ func (win *window) drawStatus(gtx layout.Context, y int, now time.Time) {
 				x = text(x, strconv.Itoa(u.Pct)+"%", true, pc)
 			}
 		case grpMem:
-			x = icon(x, "chip", th.Muted) + gap
-			text(x, strconv.Itoa(m.MemMB)+" MB", true, c.statusValueColor())
+			cpu, ram := resourceValues(m.Resources.Total, m.Resources.Partial)
+			col := c.resourceColor(m.Resources.Level)
+			if !l.Compact.ResourcesLabel {
+				x = c.statusLabel(gtx, x, mid, "CPU") + gap/2
+			}
+			if !l.Compact.ResourcesMeter {
+				if m.Resources.Total.CPUValid {
+					x = c.meter(gtx, x, mid, d.Meter, int(m.Resources.Total.CPU), col) + gap/2
+				} else {
+					x = c.meter(gtx, x, mid, d.Meter, 0, th.Muted) + gap/2
+				}
+			}
+			x = text(x, cpu, true, col)
+			x = text(x+gap, "·", false, th.Muted)
+			text(x+gap, ram, true, c.statusValueColor())
 		case grpTabs:
 			x = icon(x, "tabs", th.Muted) + gap
 			unit := " tabs"
@@ -265,6 +279,7 @@ func usageByKey(ds []usage.Detail, k string) usage.Detail {
 
 // statusEvents handles hover and clicks on the status bar (spec 6.2).
 func (win *window) statusEvents(gtx layout.Context) {
+	win.resourceCardEvents(gtx)
 	if win.stat.tag == nil {
 		win.stat.tag = new(int) // before the first draw, so its filter is up when the first click comes
 	}
@@ -290,6 +305,9 @@ func (win *window) statusPointer(e pointer.Event) {
 	}
 	switch e.Kind {
 	case pointer.Leave:
+		if win.stat.card.hovered || p.In(win.stat.card.bridge) {
+			return
+		}
 		at = grpNone
 	case pointer.Press:
 		if e.Buttons.Contain(pointer.ButtonPrimary) {
