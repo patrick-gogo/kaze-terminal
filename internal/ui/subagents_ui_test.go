@@ -35,12 +35,13 @@ func TestAgentKindsNeverChime(t *testing.T) {
 func TestDrainFeedsTracker(t *testing.T) {
 	win, _, _ := liveWindow(t, 2)
 	id := int(win.mgr.Tabs()[1].ID)
-	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindTool, Session: "s1", Tool: "Agent", AgentType: "Explore", Description: "Find auth"})
+	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindTool, Session: "s1", Tool: "Agent", AgentType: "Explore", Description: "Find auth", TaskPrompt: "Find the auth code."})
 	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindAgentStart, Session: "s1", AgentID: "a1", AgentType: "Explore"})
 	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindTool, Session: "s1", AgentID: "a1", Tool: "Grep", Summary: "auth"})
 	win.drainSubs(t0)
 	shown, _ := win.subs.Tree(id)
-	if len(shown) != 1 || shown[0].Task != "Find auth" || len(shown[0].Steps) != 1 || shown[0].Steps[0].Summary != "auth" {
+	if len(shown) != 1 || shown[0].Task != "Find auth" || shown[0].Prompt != "Find the auth code." ||
+		len(shown[0].Steps) != 1 || shown[0].Steps[0].Summary != "auth" {
 		t.Fatalf("tree %+v", shown)
 	}
 }

@@ -110,6 +110,35 @@ func TestStepsCapAt200(t *testing.T) {
 	}
 }
 
+func TestCallPromptPairsWithItsAgent(t *testing.T) {
+	var tr Tracker
+	a, b := agentCall("A", "Explore"), agentCall("B", "Explore")
+	a.Prompt, b.Prompt = "prompt A", "prompt B"
+	tr.Apply(a)
+	tr.Apply(b)
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	tr.Apply(ev(EvStart, "a2", "Explore"))
+	if x, y := tr.Get(Key{"s1", "a1"}), tr.Get(Key{"s1", "a2"}); x.Prompt != "prompt A" || y.Prompt != "prompt B" {
+		t.Fatalf("prompts %q %q", x.Prompt, y.Prompt)
+	}
+}
+
+func TestActivityCountsEveryStep(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	names := []string{"Grep", "Glob", "Bash", "Bash", "Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch",
+		"WebFetch", "WebSearch", "TodoWrite", "mcp__x__y"}
+	for range 20 {
+		for _, n := range names {
+			tr.Apply(tool("a1", n))
+		}
+	}
+	want := Activity{Searches: 40, Commands: 40, Reads: 20, Edits: 100, Web: 40, Other: 40}
+	if got := tr.Get(Key{"s1", "a1"}).Activity; got != want {
+		t.Fatalf("activity %+v, want %+v", got, want)
+	}
+}
+
 func TestNeedsWithAgentID(t *testing.T) {
 	var tr Tracker
 	tr.Apply(ev(EvStart, "a1", "Explore"))
@@ -410,7 +439,7 @@ func TestLateTypeFillsInTheAgent(t *testing.T) {
 	var tr Tracker
 	tr.Apply(ev(EvStart, "a0", "Plan")) // something running, so a needs is shown
 	tr.Apply(agentCall("audit the board", ""))
-	tr.Apply(ev(EvNeeds, "a1", ""))     // a needs may name the agent with no type
+	tr.Apply(ev(EvNeeds, "a1", "")) // a needs may name the agent with no type
 	a := tr.Get(Key{"s1", "a1"})
 	if a == nil || a.Type != "" {
 		t.Fatalf("setup: %+v", a)

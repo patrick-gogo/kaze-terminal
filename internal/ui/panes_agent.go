@@ -40,36 +40,41 @@ type agentLineKind uint8
 
 const (
 	lineWaiting agentLineKind = iota
-	lineEarlier
-	lineStep
+	linePromptHead
+	linePrompt
+	lineActivity
 	lineReportHead
 	lineReport
 )
 
 // agentLine is one line of a live pane's body before wrapping.
 type agentLine struct {
-	kind              agentLineKind
-	text              string
-	at, tool, summary string // steps only
+	kind agentLineKind
+	text string
 }
 
-// agentPaneLines is what a live pane says about a: the waiting strip, the
-// steps and, once done, the report (spec 6.2).
+// agentPaneLines is what a live pane says about a, read like a conversation:
+// the prompt it was given, one line of what it has done (never the tool
+// calls themselves), the waiting strip and, once done, its report (#78).
 func agentPaneLines(a *subagents.Agent) []agentLine {
 	var out []agentLine
+	if p := strings.TrimSpace(a.Prompt); p != "" {
+		out = append(out, agentLine{kind: linePromptHead, text: "Prompt"})
+		for _, l := range strings.Split(p, "\n") {
+			out = append(out, agentLine{kind: linePrompt, text: l})
+		}
+	}
+	act := activityText(a.Activity)
+	switch {
+	case a.State != subagents.Done && act == "":
+		out = append(out, agentLine{kind: lineActivity, text: "Working…"})
+	case a.State != subagents.Done:
+		out = append(out, agentLine{kind: lineActivity, text: act + " so far"})
+	case act != "":
+		out = append(out, agentLine{kind: lineActivity, text: act})
+	}
 	if a.State == subagents.Waiting {
 		out = append(out, agentLine{kind: lineWaiting, text: "Waiting for your approval in the session below"})
-	}
-	if a.Dropped > 0 {
-		out = append(out, agentLine{kind: lineEarlier, text: strconv.Itoa(a.Dropped) + " earlier steps"})
-	}
-	for _, s := range a.Steps {
-		at := s.At.Format("15:04:05")
-		text := at + "  " + s.Tool
-		if s.Summary != "" {
-			text += "  " + s.Summary
-		}
-		out = append(out, agentLine{kind: lineStep, text: text, at: at, tool: s.Tool, summary: s.Summary})
 	}
 	if a.State == subagents.Done {
 		out = append(out, agentLine{kind: lineReportHead, text: "Report"})
@@ -78,6 +83,33 @@ func agentPaneLines(a *subagents.Agent) []agentLine {
 		}
 	}
 	return out
+}
+
+// activityText sums up a subagent's steps in one sentence, like Claude
+// Code's collapsed view: "Searched for 13 patterns, ran 15 shell commands".
+func activityText(a subagents.Activity) string {
+	var parts []string
+	add := func(n int, verb, one, many string) {
+		if n == 0 {
+			return
+		}
+		noun := many
+		if n == 1 {
+			noun = one
+		}
+		parts = append(parts, verb+" "+strconv.Itoa(n)+" "+noun)
+	}
+	add(a.Searches, "searched for", "pattern", "patterns")
+	add(a.Commands, "ran", "shell command", "shell commands")
+	add(a.Reads, "read", "file", "files")
+	add(a.Edits, "edited", "file", "files")
+	add(a.Web, "made", "web request", "web requests")
+	add(a.Other, "used", "other tool", "other tools")
+	if len(parts) == 0 {
+		return ""
+	}
+	s := strings.Join(parts, ", ")
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // agentScroll moves a live pane's body by d px with max the furthest scroll:
@@ -172,17 +204,16 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 			paint.FillShape(ops, tint(th.Needs, 0x22), clip.UniformRRect(strip, gtx.Dp(4)).Op(ops))
 			call, sz := c.sans(gtx, l.text, 11, th.Needs, font.Medium)
 			place(ops, call, image.Pt(x+gtx.Dp(8), mid-sz.Y/2))
-		case lineEarlier:
+		case linePromptHead:
+			call, sz := c.sans(gtx, l.text, 11, th.Accent, font.SemiBold)
+			place(ops, call, image.Pt(x, mid-sz.Y/2))
+		case linePrompt:
+			// The prompt is what you sent: a quiet bar on its left sets it apart from the answer.
+			paint.FillShape(ops, th.Border, clip.Rect(image.Rect(x, top, x+gtx.Dp(2), y)).Op())
+			call, sz := c.sans(gtx, l.text, 12, th.Muted, font.Normal)
+			place(ops, call, image.Pt(x+gtx.Dp(10), mid-sz.Y/2))
+		case lineActivity:
 			call, sz := c.sans(gtx, l.text, 11, th.Muted, font.Normal)
-			place(ops, call, image.Pt(x, mid-sz.Y/2))
-		case lineStep:
-			call, sz := c.label(gtx, l.at, 10.5, th.Muted)
-			place(ops, call, image.Pt(x, mid-sz.Y/2))
-			x += sz.X + gtx.Dp(10)
-			call, sz = c.label(gtx, l.tool, 10.5, th.Accent)
-			place(ops, call, image.Pt(x, mid-sz.Y/2))
-			x += sz.X + gtx.Dp(10)
-			call, sz = c.fitSide(gtx, l.summary, 11, inner.Max.X-x, th.Folder)
 			place(ops, call, image.Pt(x, mid-sz.Y/2))
 		case lineReportHead:
 			paint.FillShape(ops, th.Border, clip.Rect(image.Rect(x, top+gtx.Dp(2), inner.Max.X, top+gtx.Dp(2)+1)).Op())
@@ -199,25 +230,33 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 	area.Pop()
 }
 
-// agentWrapped is a's lines with the report wrapped to w px, cached on p
-// until a, its step count or w changes, so a still pane shapes nothing new.
+// agentWrapped is a's lines with the prompt, activity and report wrapped to
+// w px, cached on p until a, its step count or w changes, so a still pane
+// shapes nothing new.
 func (win *window) agentWrapped(gtx layout.Context, p *pane, a *subagents.Agent, w int) []agentLine {
-	key := [4]int{w, len(a.Steps) + a.Dropped, int(a.State), len(a.Report)}
+	key := [5]int{w, len(a.Steps) + a.Dropped, int(a.State), len(a.Report), len(a.Prompt)}
 	if p.wrapKey == key && p.wrapped != nil {
 		return p.wrapped
 	}
 	var out []agentLine
 	for _, l := range agentPaneLines(a) {
-		if l.kind != lineReport {
+		size, width := unit.Sp(12), w
+		switch l.kind {
+		case lineReport:
+		case linePrompt:
+			width = w - gtx.Dp(10) // room for the bar
+		case lineActivity:
+			size = 11
+		default:
 			out = append(out, l)
 			continue
 		}
-		parts := win.wrapSans(gtx, l.text, 12, w)
+		parts := win.wrapSans(gtx, l.text, size, width)
 		if len(parts) == 0 {
 			parts = []string{""}
 		}
 		for _, s := range parts {
-			out = append(out, agentLine{kind: lineReport, text: s})
+			out = append(out, agentLine{kind: l.kind, text: s})
 		}
 	}
 	p.wrapKey, p.wrapped = key, out

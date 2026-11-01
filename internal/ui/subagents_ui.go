@@ -152,7 +152,7 @@ func eventsOf(m notify.Msg, src int, now time.Time) []subagents.Event {
 	case notify.KindTool:
 		e.Kind, e.Tool, e.Summary, e.Desc = subagents.EvTool, m.Tool, m.Summary, m.Description
 		if m.AgentID == "" {
-			e.Kind = subagents.EvAgentCall
+			e.Kind, e.Prompt = subagents.EvAgentCall, m.TaskPrompt
 		}
 	case notify.KindNeeds:
 		e.Kind = subagents.EvNeeds

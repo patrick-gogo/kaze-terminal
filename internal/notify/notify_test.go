@@ -455,6 +455,28 @@ func TestServerCleansSubagentFields(t *testing.T) {
 	}
 }
 
+func TestServerKeepsPromptOnlyOnAgentCalls(t *testing.T) {
+	s, ch := start(t)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindTool, Tool: "Agent", Description: "d", TaskPrompt: "Look\n\tdeep\x07"}, time.Second)
+	if m := recv(t, ch); m.TaskPrompt != "Look\n\tdeep" {
+		t.Fatalf("agent call prompt %q", m.TaskPrompt)
+	}
+	for _, in := range []Msg{
+		{Tab: 1, Kind: KindTool, AgentID: "a1", Tool: "Bash", TaskPrompt: "x"},
+		{Tab: 1, Kind: KindAgentStart, AgentID: "a1", TaskPrompt: "x"},
+		{Tab: 1, Kind: KindDone, TaskPrompt: "x"},
+	} {
+		Send(s.Addr(), s.Token(), in, time.Second)
+		if m := recv(t, ch); m.TaskPrompt != "" {
+			t.Fatalf("%s kept prompt %q", in.Kind, m.TaskPrompt)
+		}
+	}
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindTool, Tool: "Agent", TaskPrompt: strings.Repeat("p", MaxPrompt+100)}, time.Second)
+	if m := recv(t, ch); len(m.TaskPrompt) != MaxPrompt {
+		t.Fatalf("prompt len %d", len(m.TaskPrompt))
+	}
+}
+
 func TestCleanLineCapsAndStrips(t *testing.T) {
 	if got := CleanLine("a\x1b[31mb\u202ec\nd", 3); got != "a[3" {
 		t.Fatalf("got %q", got)

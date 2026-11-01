@@ -183,3 +183,34 @@ func TestToolSummaryTable(t *testing.T) {
 		t.Fatalf("%d runes", n)
 	}
 }
+
+func TestNotifyAgentCallCarriesPrompt(t *testing.T) {
+	srv, got := startServer(t)
+	in := hookJSON(t, map[string]any{"tool_name": "Agent",
+		"tool_input": map[string]any{"description": "Find auth", "subagent_type": "Explore", "prompt": "Find the auth middleware.\n\nReport file:line."}})
+	runNotify([]string{"tool"}, in, envOf(srv, "3"))
+	if m := wait(t, got); m.TaskPrompt != "Find the auth middleware.\n\nReport file:line." {
+		t.Fatalf("prompt %q", m.TaskPrompt)
+	}
+}
+
+func TestNotifyAgentCallHugePromptFits(t *testing.T) {
+	srv, got := startServer(t)
+	in := hookJSON(t, map[string]any{"tool_name": "Agent",
+		"tool_input": map[string]any{"description": "Big", "prompt": strings.Repeat("<a>\"", 50<<10)}})
+	runNotify([]string{"tool"}, in, envOf(srv, "3"))
+	m := wait(t, got)
+	if m.TaskPrompt == "" || len(m.TaskPrompt) > notify.MaxPrompt || !utf8.ValidString(m.TaskPrompt) {
+		t.Fatalf("prompt len %d", len(m.TaskPrompt))
+	}
+}
+
+func TestNotifyStepInSubagentHasNoPrompt(t *testing.T) {
+	srv, got := startServer(t)
+	in := hookJSON(t, map[string]any{"agent_id": "a1", "agent_type": "Explore", "tool_name": "Agent",
+		"tool_input": map[string]any{"description": "nested", "prompt": "inner"}})
+	runNotify([]string{"tool"}, in, envOf(srv, "3"))
+	if m := wait(t, got); m.TaskPrompt != "" {
+		t.Fatalf("a step carried a prompt: %q", m.TaskPrompt)
+	}
+}

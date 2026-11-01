@@ -32,6 +32,30 @@ type Step struct {
 	Tool, Summary string
 }
 
+// Activity is how many steps of each kind a subagent took, for a one-line
+// summary instead of a list of tool calls.
+type Activity struct {
+	Searches, Commands, Reads, Edits, Web, Other int
+}
+
+// count adds one step of tool. Codex names its shell Bash and its edits apply_patch.
+func (a *Activity) count(tool string) {
+	switch tool {
+	case "Grep", "Glob":
+		a.Searches++
+	case "Bash":
+		a.Commands++
+	case "Read":
+		a.Reads++
+	case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch":
+		a.Edits++
+	case "WebFetch", "WebSearch":
+		a.Web++
+	default:
+		a.Other++
+	}
+}
+
 type Agent struct {
 	Key            Key
 	Tab            int // the row it shows under
@@ -40,8 +64,10 @@ type Agent struct {
 	Depth          int // 0 = top level; deeper nesting draws at 1
 	State          State
 	Started, Ended time.Time
-	Steps          []Step // the newest maxSteps
-	Dropped        int    // steps dropped off the front
+	Prompt         string   // what its Agent call asked, "" when kaze never saw the call
+	Steps          []Step   // the newest maxSteps
+	Dropped        int      // steps dropped off the front
+	Activity       Activity // every step counted by kind, dropped ones included
 	Report         string
 	InTree         bool // false once the session's next prompt came after it finished
 
@@ -67,12 +93,13 @@ type Event struct {
 	Src                         int // the tab the hook ran in (a scratch shell's own id): session resets use it
 	Session, AgentID, AgentType string
 	Tool, Summary, Desc, Report string
+	Prompt                      string // an Agent call's prompt
 	At                          time.Time
 }
 
 type call struct {
-	desc, typ string
-	parent    Key
+	desc, typ, prompt string
+	parent            Key
 }
 
 type queueKey struct {
@@ -106,7 +133,7 @@ func (t *Tracker) Apply(e Event) bool {
 		return t.session(e)
 	case EvAgentCall:
 		q := queueKey{e.Src, e.Session}
-		c := call{desc: e.Desc, typ: e.AgentType}
+		c := call{desc: e.Desc, typ: e.AgentType, prompt: e.Prompt}
 		if e.AgentID != "" {
 			c.parent = k
 		}
@@ -129,6 +156,7 @@ func (t *Tracker) Apply(e Event) bool {
 			return false
 		}
 		a := t.get(e)
+		a.Activity.count(e.Tool)
 		step := Step{At: e.At, Tool: e.Tool, Summary: e.Summary}
 		if len(a.Steps) == maxSteps {
 			// Keep the public chronological slice without allocating a new
@@ -244,6 +272,7 @@ func (t *Tracker) pair(a *Agent, e Event) {
 	if c.desc != "" {
 		a.Task = c.desc
 	}
+	a.Prompt = c.prompt
 	if p := t.agents[c.parent]; p != nil && p != a {
 		a.Parent, a.Depth = c.parent, min(p.Depth+1, 1)
 	}

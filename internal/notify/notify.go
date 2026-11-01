@@ -45,6 +45,7 @@ const (
 	MaxPath       = 1024     // bytes
 	MaxAgentField = 128      // runes
 	MaxReport     = 24 << 10 // bytes
+	MaxPrompt     = 16 << 10 // bytes; an Agent call carries no report, so this fits the body cap
 )
 
 const (
@@ -67,12 +68,14 @@ type Msg struct {
 	Session    string `json:"session,omitempty"`
 	Transcript string `json:"transcript,omitempty"`
 	Cwd        string `json:"cwd,omitempty"`
-	// Subagent fields: AgentID also on needs, Report only on agent-stop.
+	// Subagent fields: AgentID also on needs, Report only on agent-stop,
+	// TaskPrompt only on an Agent call (a tool message with no AgentID).
 	AgentID     string `json:"agent_id,omitempty"`
 	AgentType   string `json:"agent_type,omitempty"`
 	Tool        string `json:"tool,omitempty"`
 	Summary     string `json:"summary,omitempty"`
 	Description string `json:"description,omitempty"`
+	TaskPrompt  string `json:"task_prompt,omitempty"`
 	Report      string `json:"report,omitempty"`
 	Token       string `json:"token"`
 }
@@ -227,6 +230,11 @@ func (s *Server) handle(c net.Conn) {
 	}
 	if m.Kind != KindTool {
 		m.Tool, m.Summary, m.Description = "", "", ""
+	}
+	if m.Kind == KindTool && m.AgentID == "" {
+		m.TaskPrompt = CleanReport(m.TaskPrompt, MaxPrompt)
+	} else {
+		m.TaskPrompt = ""
 	}
 	switch m.Kind {
 	case KindAgentStart, KindAgentStop, KindTool:

@@ -51,8 +51,8 @@ type pane struct {
 	// Live panes only.
 	agent   subagents.Key
 	scroll  int  // px the body is scrolled down
-	follow  bool // keep the newest step in view
-	wrapKey [4]int
+	follow  bool // keep the newest line in view
+	wrapKey [5]int
 	wrapped []agentLine
 }
 
