@@ -461,9 +461,14 @@ func TestServerKeepsPromptOnlyOnAgentCalls(t *testing.T) {
 	if m := recv(t, ch); m.TaskPrompt != "Look\n\tdeep" {
 		t.Fatalf("agent call prompt %q", m.TaskPrompt)
 	}
+	// A Codex helper's next turn arrives as an agent start with its message.
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindAgentStart, Agent: "codex", AgentID: "t1", TaskPrompt: "again\x07"}, time.Second)
+	if m := recv(t, ch); m.TaskPrompt != "again" {
+		t.Fatalf("helper turn prompt %q", m.TaskPrompt)
+	}
 	for _, in := range []Msg{
 		{Tab: 1, Kind: KindTool, AgentID: "a1", Tool: "Bash", TaskPrompt: "x"},
-		{Tab: 1, Kind: KindAgentStart, AgentID: "a1", TaskPrompt: "x"},
+		{Tab: 1, Kind: KindAgentStop, AgentID: "a1", TaskPrompt: "x"},
 		{Tab: 1, Kind: KindDone, TaskPrompt: "x"},
 	} {
 		Send(s.Addr(), s.Token(), in, time.Second)

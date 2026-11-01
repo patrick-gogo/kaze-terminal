@@ -69,7 +69,8 @@ type Msg struct {
 	Transcript string `json:"transcript,omitempty"`
 	Cwd        string `json:"cwd,omitempty"`
 	// Subagent fields: AgentID also on needs, Report only on agent-stop,
-	// TaskPrompt only on an Agent call (a tool message with no AgentID).
+	// TaskPrompt only on an Agent call (a tool message with no AgentID) or a
+	// Codex helper's next turn (an agent start).
 	AgentID     string `json:"agent_id,omitempty"`
 	AgentType   string `json:"agent_type,omitempty"`
 	Tool        string `json:"tool,omitempty"`
@@ -231,7 +232,7 @@ func (s *Server) handle(c net.Conn) {
 	if m.Kind != KindTool {
 		m.Tool, m.Summary, m.Description = "", "", ""
 	}
-	if m.Kind == KindTool && m.AgentID == "" {
+	if (m.Kind == KindTool && m.AgentID == "") || m.Kind == KindAgentStart {
 		m.TaskPrompt = CleanReport(m.TaskPrompt, MaxPrompt)
 	} else {
 		m.TaskPrompt = ""

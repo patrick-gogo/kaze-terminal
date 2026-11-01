@@ -56,13 +56,12 @@ type agentLine struct {
 // agentPaneLines is what a live pane says about a, read like a conversation:
 // the prompt it was given, one line of what it has done (never the tool
 // calls themselves), the waiting strip and, once done, its report (#78).
+// The prompt and the report are one line each; agentWrapped splits them.
 func agentPaneLines(a *subagents.Agent) []agentLine {
 	var out []agentLine
-	if p := strings.TrimSpace(a.Prompt); p != "" {
+	if p := trimBlock(a.Prompt); p != "" {
 		out = append(out, agentLine{kind: linePromptHead, text: "Prompt"})
-		for _, l := range strings.Split(p, "\n") {
-			out = append(out, agentLine{kind: linePrompt, text: l})
-		}
+		out = append(out, agentLine{kind: linePrompt, text: p})
 	}
 	act := activityText(a.Activity)
 	switch {
@@ -78,11 +77,22 @@ func agentPaneLines(a *subagents.Agent) []agentLine {
 	}
 	if a.State == subagents.Done {
 		out = append(out, agentLine{kind: lineReportHead, text: "Report"})
-		for _, l := range strings.Split(strings.TrimRight(a.Report, "\n"), "\n") {
-			out = append(out, agentLine{kind: lineReport, text: l})
-		}
+		out = append(out, agentLine{kind: lineReport, text: trimBlock(a.Report)})
 	}
 	return out
+}
+
+// trimBlock drops blank lines around s and trailing spaces, but keeps the
+// first line's indent: a prompt that opens with a code block stays indented.
+func trimBlock(s string) string {
+	s = strings.TrimRight(s, " \t\r\n")
+	for {
+		line, rest, ok := strings.Cut(s, "\n")
+		if !ok || strings.TrimSpace(line) != "" {
+			return s
+		}
+		s = rest
+	}
 }
 
 // activityText sums up a subagent's steps in one sentence, like Claude
@@ -230,41 +240,81 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 	area.Pop()
 }
 
-// agentWrapped is a's lines with the prompt, activity and report wrapped to
-// w px, cached on p until a, its step count or w changes, so a still pane
-// shapes nothing new.
+// agentWrapped is a's lines wrapped to w px. The whole result is cached on p
+// until a, its step count or w changes, so a still pane shapes nothing new;
+// the prompt and report have caches of their own, so a new step lays out
+// only the one-line summary again (PR 79 review).
 func (win *window) agentWrapped(gtx layout.Context, p *pane, a *subagents.Agent, w int) []agentLine {
 	key := [5]int{w, len(a.Steps) + a.Dropped, int(a.State), len(a.Report), len(a.Prompt)}
 	if p.wrapKey == key && p.wrapped != nil {
 		return p.wrapped
 	}
-	var out []agentLine
+	out := p.wrapped[:0]
 	for _, l := range agentPaneLines(a) {
-		size, width := unit.Sp(12), w
 		switch l.kind {
-		case lineReport:
 		case linePrompt:
-			width = w - gtx.Dp(10) // room for the bar
+			out = append(out, win.wrapCached(gtx, &p.promptWrap, l, w-gtx.Dp(10))...) // room for the bar
+		case lineReport:
+			out = append(out, win.wrapCached(gtx, &p.reportWrap, l, w)...)
 		case lineActivity:
-			size = 11
+			for _, s := range win.wrapSans(gtx, l.text, 11, w) {
+				out = append(out, agentLine{kind: l.kind, text: s})
+			}
 		default:
 			out = append(out, l)
-			continue
-		}
-		parts := win.wrapSans(gtx, l.text, size, width)
-		if len(parts) == 0 {
-			parts = []string{""}
-		}
-		for _, s := range parts {
-			out = append(out, agentLine{kind: l.kind, text: s})
 		}
 	}
 	p.wrapKey, p.wrapped = key, out
 	return out
 }
 
-// wrapSans breaks s into lines no wider than w in the UI font.
+// wrapCached is block l wrapped to w, from c unless its text or w changed.
+func (win *window) wrapCached(gtx layout.Context, c *wrapCache, l agentLine, w int) []agentLine {
+	if c.lines != nil && c.w == w && c.src == l.text {
+		return c.lines
+	}
+	lines := make([]agentLine, 0, strings.Count(l.text, "\n")+1)
+	for _, s := range win.wrapBlock(gtx, l.text, 12, w) {
+		lines = append(lines, agentLine{kind: l.kind, text: s})
+	}
+	c.src, c.w, c.lines = l.text, w, lines
+	return lines
+}
+
+// wrapBlock wraps each line of s to w px, keeping blank lines and each
+// line's indent (a tab counts as four spaces) on all of its pieces.
+func (win *window) wrapBlock(gtx layout.Context, s string, size unit.Sp, w int) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		rest := strings.TrimLeft(line, " \t")
+		if strings.TrimSpace(rest) == "" {
+			out = append(out, "")
+			continue
+		}
+		lead := line[:len(line)-len(rest)]
+		indent := strings.ReplaceAll(lead, "\t", "    ")
+		iw := 0
+		if indent != "" {
+			_, sz := win.ui.sans(gtx, indent, size, win.ui.th.Muted, font.Normal)
+			if iw = sz.X; iw > w/2 {
+				indent, iw = "", 0 // deep nesting in a narrow pane: the words matter more
+			}
+		}
+		for _, part := range win.wrapSans(gtx, rest, size, w-iw) {
+			out = append(out, indent+part)
+		}
+	}
+	return out
+}
+
+// wrapSans breaks s into lines no wider than w in the UI font. A word wider
+// than w on its own, such as a long path or URL, is broken where it fills
+// the line, so nothing runs off the edge.
 func (win *window) wrapSans(gtx layout.Context, s string, size unit.Sp, w int) []string {
+	width := func(s string) int {
+		_, sz := win.ui.sans(gtx, s, size, win.ui.th.Muted, font.Normal)
+		return sz.X
+	}
 	var lines []string
 	cur := ""
 	for _, word := range strings.Fields(s) {
@@ -272,16 +322,46 @@ func (win *window) wrapSans(gtx layout.Context, s string, size unit.Sp, w int) [
 		if cur != "" {
 			try = cur + " " + word
 		}
-		if _, sz := win.ui.sans(gtx, try, size, win.ui.th.Muted, font.Normal); sz.X > w && cur != "" {
-			lines = append(lines, cur)
-			try = word
+		if width(try) <= w {
+			cur = try
+			continue
 		}
-		cur = try
+		if cur != "" {
+			lines = append(lines, cur)
+		}
+		for width(word) > w {
+			n := fitPrefix(word, w, width)
+			lines = append(lines, word[:n])
+			word = word[n:]
+		}
+		cur = word
 	}
 	if cur != "" {
 		lines = append(lines, cur)
 	}
 	return lines
+}
+
+// fitPrefix is the byte length of the longest prefix of word, at least one
+// rune, that fits in w px. It measures O(log n) prefixes, not every one.
+func fitPrefix(word string, w int, width func(string) int) int {
+	var cuts []int // rune boundaries after the first rune
+	for i := range word {
+		if i > 0 {
+			cuts = append(cuts, i)
+		}
+	}
+	cuts = append(cuts, len(word))
+	lo, hi := 0, len(cuts)-1 // cuts[lo] always kept: one rune even if it alone is too wide
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if width(word[:cuts[mid]]) <= w {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	return cuts[lo]
 }
 
 // agentPaneEvents scrolls live panes and raises one on a click.

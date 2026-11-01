@@ -49,11 +49,20 @@ type pane struct {
 	grab   paneGrab
 
 	// Live panes only.
-	agent   subagents.Key
-	scroll  int  // px the body is scrolled down
-	follow  bool // keep the newest line in view
-	wrapKey [5]int
-	wrapped []agentLine
+	agent      subagents.Key
+	scroll     int  // px the body is scrolled down
+	follow     bool // keep the newest line in view
+	wrapKey    [5]int
+	wrapped    []agentLine
+	promptWrap wrapCache // the prompt and report laid out once, so a new step
+	reportWrap wrapCache // only redoes the one-line summary
+}
+
+// wrapCache is one block of text wrapped to a width, kept until either changes.
+type wrapCache struct {
+	src   string
+	w     int
+	lines []agentLine
 }
 
 // paneHits is where the last frame drew a pane, in window px.

@@ -101,6 +101,7 @@ func runNotifyOutput(args []string, stdin io.Reader, env func(string) string, st
 			// helper's next turn, which reopens it if it had finished.
 			kind = notify.KindAgentStart
 			msg.Kind = kind
+			msg.TaskPrompt = notify.FitReport(strings.TrimSpace(hook.Prompt), notify.MaxPrompt)
 		}
 		if !agentMsg(&msg, kind, parsed, hook.AgentID, hook.AgentType, hook.ToolName, hook.ToolInput, hook.Last) {
 			return 0 // nothing kaze shows: a main-conversation tool call, or unreadable

@@ -91,9 +91,11 @@ Each `kaze notify tool` from inside a subagent adds a step: the tool name and a 
 | WebSearch | `query` |
 | anything else | the tool name only |
 
-Summaries are cut to 120 characters and cleaned like prompt arguments. kaze keeps the last 200 steps per subagent; older ones drop off with a "N earlier steps" line.
+Summaries are cut to 120 characters and cleaned like prompt arguments. kaze keeps the last 200 steps per subagent; older ones drop off. Every step is also counted by kind (searches, shell commands, reads, edits, web requests, other), dropped ones included, for the live pane's summary line (6.2).
 
 The latest step is the subagent's **current action** in the tree.
+
+**Prompt (#78, 2026-11-01):** the main conversation's Agent call also sends its `prompt` (Codex: `spawn_agent`'s `message`) as `task_prompt`, cleaned like a report and capped at 16 KB. It pairs with the subagent the same way the description does (5.2). A Codex helper's next turn (its own `UserPromptSubmit`, sent as an agent start) carries that turn's message, which replaces the prompt; a turn whose message kaze didn't get clears it, so an old prompt never sits above a new answer. The owner's next prompt forgets Agent calls that never started (a denied call), so they can't lend their description or prompt to a later subagent of the same type.
 
 ### 5.4 Waiting on you
 
@@ -125,9 +127,13 @@ A permission prompt fires `Notification` (`permission_prompt`), which kaze alrea
 
 - A floating pane (agent sidebar design, section 8): same header, drag, resize, front-on-click, max 4 per session. It is **drawn by kaze, not a terminal**, and takes no keyboard input except scrolling.
 - **Header:** state mark, type, task, elapsed time, ×. × hides the pane; the subagent keeps running.
-- **Body:** the steps, newest at the bottom, each as `HH:MM:SS  Tool  summary` with the tool name in mono. The pane follows the newest step unless the owner scrolled up (same rule as terminal panes).
-- **When it finishes:** a "Report" block under the steps with `last_assistant_message`, wrapped, selectable and copyable with the usual copy key. Long reports scroll in the pane. Plain text: no markdown rendering in v1.
-- **While waiting on you:** an amber strip "Waiting for your approval in the session below" at the top of the body.
+- **Body (changed by #78, 2026-11-01; was a list of every step):** it reads like a conversation, top to bottom:
+  1. **Prompt:** the prompt the subagent was given (5.3), with a thin bar on its left. Left out when kaze never got it.
+  2. **One summary line** of what it has done, like Claude Code's collapsed view: "Searched for 13 patterns, ran 15 shell commands so far" while it runs ("Working…" before its first step), without "so far" once done. Individual tool calls are never listed.
+  3. **While waiting on you:** the amber strip "Waiting for your approval in the session below", at the bottom where the pane is following.
+  4. **When it finishes:** a "Report" block with `last_assistant_message`, copyable. Plain text: no markdown rendering.
+- The prompt and report keep their line breaks, blank lines and indentation (a tab counts as four spaces). Long lines wrap; a word wider than the pane (a long path or URL) breaks where it fills the line. The pane follows the bottom unless the owner scrolled up (same rule as terminal panes).
+- The prompt and report are laid out once and cached; a new step lays out only the summary line again.
 - One pane per subagent. Clicking another subagent opens a second pane (up to the limit); clicking one that is already open brings it to the front.
 - Panes for subagents of a closed session close with it.
 
@@ -171,7 +177,7 @@ A permission prompt fires `Notification` (`permission_prompt`), which kaze alrea
 
 ## 10. Claude's calls (for the owner to check)
 
-1. Hooks only, no transcript reading (3, 5), even though #23 Part 1 hands kaze the transcript path. **Owner's decision (2026-10-31):** the live pane shows steps and the final report only. Reading the transcript when a pane opens (the subagent's own messages, and steps from before kaze saw it) may come later, with #23 Part 4's transcript reader. That also replaces the main design's 6.3 data source, which watched transcript files.
+1. Hooks only, no transcript reading (3, 5), even though #23 Part 1 hands kaze the transcript path. **Owner's decision (2026-10-31):** the live pane shows steps and the final report only. Reading the transcript when a pane opens (the subagent's own messages, and steps from before kaze saw it) may come later, with #23 Part 4's transcript reader. That also replaces the main design's 6.3 data source, which watched transcript files. **Updated by #78 (2026-11-01):** the pane now shows the prompt, a summary line and the report instead of steps (6.2). The subagent's in-between messages still need the transcript and are still left for later.
 2. The waiting fallback marks the session, not a guessed subagent (5.4).
 3. Finished subagents leave the tree at the next prompt but stay on the board (6.1, 6.3).
 4. Esc closes the board (unlike panes, where Esc goes to the program).

@@ -60,6 +60,16 @@ func TestNeedsAndPromptReachTracker(t *testing.T) {
 	}
 }
 
+func TestHelperTurnMessageReachesTracker(t *testing.T) {
+	win, _, _ := liveWindow(t, 2)
+	id := int(win.mgr.Tabs()[1].ID)
+	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindAgentStart, Session: "s1", AgentID: "h1", AgentType: "explorer", TaskPrompt: "check it"})
+	win.drainSubs(t0)
+	if a := win.subs.Get(subagents.Key{Session: "s1", ID: "h1"}); a == nil || a.Prompt != "check it" {
+		t.Fatalf("agent %+v", a)
+	}
+}
+
 func TestSessionIdentityStored(t *testing.T) {
 	win, _ := alertWindow(t, 2)
 	id := win.mgr.Tabs()[1].ID

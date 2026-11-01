@@ -140,7 +140,17 @@ func TestCodexHelperPromptStartsItsNextTurn(t *testing.T) {
 	srv, got := startServer(t)
 	runNotifyOutput([]string{"prompt", "--agent", "codex"}, strings.NewReader(`{"session_id":"s1","agent_id":"t1","agent_type":"explorer","prompt":"$review"}`), envOf(srv, "2"), io.Discard)
 	m := wait(t, got)
-	if m.Kind != notify.KindAgentStart || m.AgentID != "t1" || m.AgentType != "explorer" || m.Command != "" || m.Session != "s1" {
+	if m.Kind != notify.KindAgentStart || m.AgentID != "t1" || m.AgentType != "explorer" || m.Command != "" || m.Session != "s1" ||
+		m.TaskPrompt != "$review" {
+		t.Fatalf("got %+v", m)
+	}
+}
+
+// A Claude SubagentStart carries no prompt field, so nothing is sent for it.
+func TestClaudeAgentStartHasNoPrompt(t *testing.T) {
+	srv, got := startServer(t)
+	runNotify([]string{"agent-start"}, strings.NewReader(`{"session_id":"s1","agent_id":"a1","agent_type":"Explore","prompt":"x"}`), envOf(srv, "2"))
+	if m := wait(t, got); m.Kind != notify.KindAgentStart || m.TaskPrompt != "" {
 		t.Fatalf("got %+v", m)
 	}
 }

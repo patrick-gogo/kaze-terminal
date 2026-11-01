@@ -147,9 +147,20 @@ func (t *Tracker) Apply(e Event) bool {
 			return false
 		}
 		if a := t.agents[k]; a != nil {
-			return t.reopen(a)
+			if t.reopen(a, e.Prompt) {
+				return true
+			}
+			if a.Prompt == "" && e.Prompt != "" {
+				a.Prompt = e.Prompt
+				return true
+			}
+			return false
 		}
-		t.pair(t.add(e), e)
+		a := t.add(e)
+		t.pair(a, e)
+		if a.Prompt == "" {
+			a.Prompt = e.Prompt
+		}
 		return true
 	case EvTool:
 		if e.AgentID == "" || t.untracked(k, e) {
@@ -206,6 +217,9 @@ func (t *Tracker) Apply(e Event) bool {
 		}
 		return true
 	case EvPrompt:
+		// Every Agent call of the last turn has started by now; one still
+		// queued was denied and must not name a later agent.
+		delete(t.queues, queueKey{e.Src, e.Session})
 		changed := t.waits[e.Tab]
 		delete(t.waits, e.Tab)
 		for _, a := range t.order {
@@ -219,13 +233,16 @@ func (t *Tracker) Apply(e Event) bool {
 }
 
 // reopen starts a finished agent's next turn: Codex helpers take several. It
-// leaves the done column and its next stop gives the new report.
-func (t *Tracker) reopen(a *Agent) bool {
+// leaves the done column and its next stop gives the new report. The turn's
+// message replaces the first prompt ("" when kaze didn't get it, so an old
+// prompt never sits above a new answer) and its steps are counted afresh.
+func (t *Tracker) reopen(a *Agent, prompt string) bool {
 	if a.State != Done {
 		return false
 	}
 	t.done = slices.DeleteFunc(t.done, func(old *Agent) bool { return old == a })
 	a.State, a.stopped, a.Ended, a.InTree = Running, false, time.Time{}, true
+	a.Prompt, a.Activity = prompt, Activity{}
 	return true
 }
 

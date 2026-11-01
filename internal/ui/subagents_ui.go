@@ -146,7 +146,7 @@ func eventsOf(m notify.Msg, src int, now time.Time) []subagents.Event {
 	e := base
 	switch m.Kind {
 	case notify.KindAgentStart:
-		e.Kind = subagents.EvStart
+		e.Kind, e.Prompt = subagents.EvStart, m.TaskPrompt
 	case notify.KindAgentStop:
 		e.Kind, e.Report = subagents.EvStop, m.Report
 	case notify.KindTool:
