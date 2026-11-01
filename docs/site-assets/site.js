@@ -78,6 +78,35 @@ if (/Windows/.test(navigator.userAgent)) {
   selectPlatform('windows');
 }
 
+// Sum release ZIP downloads, including the same ZIPs used for app updates.
+// Keep the count hidden if GitHub is unavailable rather than showing a partial total.
+(async () => {
+  const count = document.getElementById('download-count');
+  if (!count) return;
+  try {
+    let total = 0;
+    for (let page = 1; ; page++) {
+      const response = await fetch(`https://api.github.com/repos/patrick-gogo/kaze-terminal/releases?per_page=100&page=${page}`, {
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) return;
+      const releases = await response.json();
+      for (const release of releases) {
+        for (const asset of release.assets || []) {
+          if (asset.name.endsWith('.zip')) total += asset.download_count;
+        }
+      }
+      if (releases.length < 100) break;
+    }
+    if (total > 0) {
+      count.textContent = `${total.toLocaleString('en-US')} total ${total === 1 ? 'download' : 'downloads'}`;
+      count.hidden = false;
+    }
+  } catch {
+    // Downloads and installation links remain usable offline or after rate limiting.
+  }
+})();
+
 // Rotate real product captures while the gallery is visible and idle.
 (() => {
   const gallery = document.getElementById('product');
