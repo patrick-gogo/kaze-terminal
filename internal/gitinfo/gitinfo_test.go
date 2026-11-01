@@ -187,7 +187,7 @@ func TestRepoOfASubmodule(t *testing.T) {
 	sub := filepath.Join(base, "super", "sub")
 	write(t, filepath.Join(sub, ".git"), "gitdir: ../.git/modules/sub\n")
 	key, name := Repo(sub)
-	if key != modGit || name != "sub" {
+	if !sameDirectory(key, modGit) || name != "sub" {
 		t.Fatalf("got %q, %q", key, name)
 	}
 }
