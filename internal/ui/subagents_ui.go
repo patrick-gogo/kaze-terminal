@@ -134,10 +134,8 @@ func subKind(k notify.Kind) bool {
 
 // eventsOf is what one hook message tells the tracker: its session first,
 // then the event itself. src is the tab the hook ran in; m.Tab is the row.
+// Claude subagents and Codex helpers share the same hook shapes.
 func eventsOf(m notify.Msg, src int, now time.Time) []subagents.Event {
-	if m.Agent == "codex" {
-		return nil
-	}
 	base := subagents.Event{Tab: m.Tab, Src: src, Session: m.Session, AgentID: m.AgentID, AgentType: m.AgentType, At: now}
 	var out []subagents.Event
 	if m.Session != "" {

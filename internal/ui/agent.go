@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/notify"
@@ -125,6 +126,7 @@ func (win *window) leaveAgents(list []*tabs.Tab) {
 
 // pruneAgents forgets closed tabs, and the names the owner gave their rows.
 func (win *window) pruneAgents(list []*tabs.Tab) {
+	win.terms.prune(list)
 	for id := range win.agents {
 		if !tabIn(list, id) {
 			delete(win.agents, id)
@@ -145,4 +147,54 @@ func tabIn(list []*tabs.Tab, id tabs.TabID) bool {
 		}
 	}
 	return false
+}
+
+// termAgents is which agent each terminal runs, by the tab its hooks ran in.
+// A scratch shell's hooks count on its session's row (agents), but input such
+// as a screenshot paste goes to the scratch terminal itself, so this keeps
+// the source. Written on notify goroutines, read on the UI goroutine.
+type termAgents struct {
+	mu sync.Mutex
+	m  map[tabs.TabID]termAgent
+}
+
+type termAgent struct {
+	agent   string // "claude" or "codex"
+	shellAt uint64 // the terminal's own shellSeq when its last hook arrived
+}
+
+// note records that a hook from agent ran in terminal id, at shell seq.
+func (ta *termAgents) note(id tabs.TabID, agent string, seq uint64) {
+	if agent == "" {
+		agent = "claude"
+	}
+	ta.mu.Lock()
+	defer ta.mu.Unlock()
+	if ta.m == nil {
+		ta.m = map[tabs.TabID]termAgent{}
+	}
+	ta.m[id] = termAgent{agent, seq}
+}
+
+// in is the agent t runs now: one was seen there and its shell prompt has not
+// come back since.
+func (ta *termAgents) in(t *tabs.Tab) string {
+	ta.mu.Lock()
+	a, ok := ta.m[t.ID]
+	ta.mu.Unlock()
+	if !ok || shellSeq(t) > a.shellAt {
+		return ""
+	}
+	return a.agent
+}
+
+// prune forgets closed tabs.
+func (ta *termAgents) prune(list []*tabs.Tab) {
+	ta.mu.Lock()
+	defer ta.mu.Unlock()
+	for id := range ta.m {
+		if !tabIn(list, id) {
+			delete(ta.m, id)
+		}
+	}
 }

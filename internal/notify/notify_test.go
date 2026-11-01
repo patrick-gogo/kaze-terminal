@@ -449,8 +449,10 @@ func TestServerCleansSubagentFields(t *testing.T) {
 	if m := recv(t, ch); m.Report != "ok\nfine" {
 		t.Fatalf("got %q", m.Report)
 	}
-	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindTool, Agent: "codex", Tool: "Bash"}, time.Second)
-	expectNone(t, ch)
+	Send(s.Addr(), s.Token(), Msg{Tab: 1, Kind: KindTool, Agent: "codex", AgentID: "t1", Tool: "Bash", Reason: "x"}, time.Second)
+	if m := recv(t, ch); m.Agent != "codex" || m.Tool != "Bash" || m.Reason != "" {
+		t.Fatalf("codex step %+v", m)
+	}
 }
 
 func TestCleanLineCapsAndStrips(t *testing.T) {

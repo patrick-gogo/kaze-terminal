@@ -132,6 +132,11 @@ func (win *window) onNotify(m notify.Msg) {
 	src := m.Tab // the tab the hook ran in, before a scratch shell maps to its session
 	var t *tabs.Tab
 	if mgr := win.liveMgr.Load(); mgr != nil {
+		if m.Kind != notify.KindUsage && !subKind(m.Kind) {
+			if st := mgr.Lookup(id); st != nil {
+				win.terms.note(id, m.Agent, shellSeq(st)) // the terminal itself, scratch or not
+			}
+		}
 		// A scratch shell's messages count on its session's row (spec 8.3).
 		if p := hookTab(mgr, id, m.Kind); p != id {
 			id, m.Tab = p, int(p)

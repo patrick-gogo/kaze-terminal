@@ -41,6 +41,14 @@ func toolSummary(tool string, input json.RawMessage) string {
 		}
 	case "WebSearch":
 		s = in.Query
+	case "apply_patch": // Codex: the patch is in command; name its first file
+		for _, line := range strings.Split(in.Command, "\n") {
+			for _, h := range []string{"*** Update File: ", "*** Add File: ", "*** Delete File: "} {
+				if f, ok := strings.CutPrefix(strings.TrimSpace(line), h); ok && s == "" {
+					s = lastParts(f, 3)
+				}
+			}
+		}
 	}
 	return notify.CleanLine(strings.TrimSpace(s), summaryRunes)
 }

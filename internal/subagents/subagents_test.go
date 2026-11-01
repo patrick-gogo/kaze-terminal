@@ -17,7 +17,8 @@ func ev(k EventKind, id, typ string) Event {
 
 func agentCall(desc, typ string) Event { e := ev(EvAgentCall, "", typ); e.Desc = desc; return e }
 
-func tool(id, name string) Event { e := ev(EvTool, id, ""); e.Tool = name; return e }
+// tool is a step inside a subagent; real ones always carry agent_type (#61).
+func tool(id, name string) Event { e := ev(EvTool, id, "Explore"); e.Tool = name; return e }
 
 func treeIDs(tr *Tracker, tab int) []string {
 	shown, _ := tr.Tree(tab)
@@ -339,5 +340,155 @@ func TestFinishedLeaveTreeWhenNoneRun(t *testing.T) {
 	}
 	if _, _, done := tr.Board(); len(done) != 2 {
 		t.Fatal("finished subagents must stay on the board")
+	}
+}
+
+// A Codex helper can take more turns after it finishes: a new start reopens
+// it, and its next stop replaces the report, with one board card throughout.
+func TestFinishedHelperReopensForANewTurn(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "h1", "explorer"))
+	stop := ev(EvStop, "h1", "explorer")
+	stop.Report = "first"
+	tr.Apply(stop)
+	again := ev(EvStart, "h1", "explorer")
+	again.At = at(30)
+	if !tr.Apply(again) {
+		t.Fatal("a new turn changed nothing")
+	}
+	a := tr.Get(Key{"s1", "h1"})
+	if a.State != Running || !a.Ended.IsZero() || !a.InTree {
+		t.Fatalf("not reopened: %+v", a)
+	}
+	if _, _, done := tr.Board(); len(done) != 0 {
+		t.Fatalf("still on the done column: %d", len(done))
+	}
+	tr.Apply(tool("h1", "Bash"))
+	if len(a.Steps) != 1 {
+		t.Fatalf("steps %d", len(a.Steps))
+	}
+	stop.Report, stop.At = "second", at(60)
+	tr.Apply(stop)
+	running, _, done := tr.Board()
+	if a.State != Done || a.Report != "second" || len(done) != 1 || len(running) != 0 {
+		t.Fatalf("second stop: %+v, done %d", a, len(done))
+	}
+	if tr.Active(1) != 0 {
+		t.Fatal("still counted as active")
+	}
+}
+
+// Issue #61, seen live on Claude Code 2.1.316: an Agent call with no
+// subagent_type starts a "general-purpose" agent. It must still get its task.
+func TestUntypedCallPairsWithItsStart(t *testing.T) {
+	var tr Tracker
+	tr.Apply(agentCall("Run sleep and echo 1", ""))
+	tr.Apply(agentCall("Run sleep and echo 2", ""))
+	tr.Apply(ev(EvStart, "a1", "general-purpose"))
+	tr.Apply(ev(EvStart, "a2", "general-purpose"))
+	a, b := tr.Get(Key{"s1", "a1"}), tr.Get(Key{"s1", "a2"})
+	if a.Task != "Run sleep and echo 1" || b.Task != "Run sleep and echo 2" || a.Type != "general-purpose" {
+		t.Fatalf("got %q/%q %q/%q", a.Type, a.Task, b.Type, b.Task)
+	}
+}
+
+// A typed call still prefers a start of its own type over an untyped one.
+func TestTypedCallWinsOverUntyped(t *testing.T) {
+	var tr Tracker
+	tr.Apply(agentCall("anything", ""))
+	tr.Apply(agentCall("look", "Explore"))
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	tr.Apply(ev(EvStart, "a2", "general-purpose"))
+	if a, b := tr.Get(Key{"s1", "a1"}), tr.Get(Key{"s1", "a2"}); a.Task != "look" || b.Task != "anything" {
+		t.Fatalf("tasks %q %q", a.Task, b.Task)
+	}
+}
+
+// An agent first seen through a message with no type (a needs without
+// agent_type) takes the type, and a waiting task, from the next message that has one.
+func TestLateTypeFillsInTheAgent(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "a0", "Plan")) // something running, so a needs is shown
+	tr.Apply(agentCall("audit the board", ""))
+	tr.Apply(ev(EvNeeds, "a1", ""))     // a needs may name the agent with no type
+	a := tr.Get(Key{"s1", "a1"})
+	if a == nil || a.Type != "" {
+		t.Fatalf("setup: %+v", a)
+	}
+	step := ev(EvTool, "a1", "general-purpose")
+	if !tr.Apply(step) || a.Type != "general-purpose" || a.Task != "audit the board" {
+		t.Fatalf("got %q %q", a.Type, a.Task)
+	}
+}
+
+// Claude Code's own background helpers (the next-prompt suggestion) fire a
+// SubagentStop with no type and no start. Seen as "subagent · took <1m" cards
+// whose report read like a suggested prompt (#61): they are not subagents.
+func TestTypelessStopOfAnUnknownAgentIsIgnored(t *testing.T) {
+	var tr Tracker
+	stop := ev(EvStop, "x1", "")
+	stop.Report = "merged, cut the release"
+	if tr.Apply(stop) || tr.Get(Key{"s1", "x1"}) != nil {
+		t.Fatal("a typeless stop with no start made an agent")
+	}
+	if tr.Apply(ev(EvTool, "x1", "")) || tr.Get(Key{"s1", "x1"}) != nil {
+		t.Fatal("a typeless step with no start made an agent")
+	}
+	// A typed stop for an agent kaze missed the start of still shows.
+	stop = ev(EvStop, "a1", "Explore")
+	stop.Report = "found it"
+	if !tr.Apply(stop) || tr.Get(Key{"s1", "a1"}) == nil {
+		t.Fatal("a real late stop was dropped")
+	}
+}
+
+// Dismissing removes a finished agent from the board and the tree; a running
+// one stays.
+func TestDismissRemovesOnlyDoneAgents(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	tr.Apply(ev(EvStart, "a2", "Plan"))
+	tr.Apply(ev(EvStop, "a1", "Explore"))
+	if tr.Dismiss(Key{"s1", "a2"}) {
+		t.Fatal("dismissed a running agent")
+	}
+	if !tr.Dismiss(Key{"s1", "a1"}) || tr.Get(Key{"s1", "a1"}) != nil {
+		t.Fatal("done agent not dismissed")
+	}
+	if _, _, done := tr.Board(); len(done) != 0 {
+		t.Fatalf("done column %d", len(done))
+	}
+	if ids := treeIDs(&tr, 1); len(ids) != 1 || ids[0] != "a2" {
+		t.Fatalf("tree %v", ids)
+	}
+}
+
+// ClearDone removes every finished agent, or only one tab's.
+func TestClearDoneByTab(t *testing.T) {
+	var tr Tracker
+	for _, x := range []struct {
+		id  string
+		tab int
+	}{{"a1", 1}, {"a2", 2}, {"a3", 2}} {
+		e := ev(EvStart, x.id, "Explore")
+		e.Tab, e.Src = x.tab, x.tab
+		tr.Apply(e)
+		e.Kind = EvStop
+		tr.Apply(e)
+	}
+	run := ev(EvStart, "a4", "Plan")
+	run.Tab, run.Src = 2, 2
+	tr.Apply(run)
+	if n := tr.ClearDone(2); n != 2 {
+		t.Fatalf("cleared %d", n)
+	}
+	if _, _, done := tr.Board(); len(done) != 1 || done[0].Key.ID != "a1" {
+		t.Fatalf("left %v", done)
+	}
+	if tr.Get(Key{"s1", "a4"}) == nil {
+		t.Fatal("cleared a running agent")
+	}
+	if n := tr.ClearDone(0); n != 1 {
+		t.Fatalf("clear all %d", n)
 	}
 }

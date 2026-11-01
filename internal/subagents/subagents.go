@@ -1,4 +1,4 @@
-// Package subagents folds Claude Code's subagent hook messages into what the
+// Package subagents folds Claude Code subagent and Codex helper hook messages into what the
 // sidebar tree, the live pane and the board show. It has no UI and reads no
 // clock: every event carries its time.
 package subagents
@@ -116,24 +116,16 @@ func (t *Tracker) Apply(e Event) bool {
 		}
 		return false
 	case EvStart:
-		if e.AgentID == "" || t.agents[k] != nil {
+		if e.AgentID == "" {
 			return false
 		}
-		a := t.add(e)
-		q := queueKey{e.Src, e.Session}
-		if i := slices.IndexFunc(t.queues[q], func(c call) bool { return c.typ == e.AgentType }); i >= 0 {
-			c := t.queues[q][i]
-			t.queues[q] = slices.Delete(t.queues[q], i, i+1)
-			if c.desc != "" {
-				a.Task = c.desc
-			}
-			if p := t.agents[c.parent]; p != nil {
-				a.Parent, a.Depth = c.parent, min(p.Depth+1, 1)
-			}
+		if a := t.agents[k]; a != nil {
+			return t.reopen(a)
 		}
+		t.pair(t.add(e), e)
 		return true
 	case EvTool:
-		if e.AgentID == "" {
+		if e.AgentID == "" || t.untracked(k, e) {
 			return false
 		}
 		a := t.get(e)
@@ -166,7 +158,7 @@ func (t *Tracker) Apply(e Event) bool {
 		a.State = Waiting
 		return true
 	case EvStop:
-		if e.AgentID == "" {
+		if e.AgentID == "" || t.untracked(k, e) {
 			return false
 		}
 		a := t.get(e)
@@ -198,6 +190,17 @@ func (t *Tracker) Apply(e Event) bool {
 	return false
 }
 
+// reopen starts a finished agent's next turn: Codex helpers take several. It
+// leaves the done column and its next stop gives the new report.
+func (t *Tracker) reopen(a *Agent) bool {
+	if a.State != Done {
+		return false
+	}
+	t.done = slices.DeleteFunc(t.done, func(old *Agent) bool { return old == a })
+	a.State, a.stopped, a.Ended, a.InTree = Running, false, time.Time{}, true
+	return true
+}
+
 // session handles a session report: a new one in a source tab ends that
 // tab's old conversation (spec 5.0). Finished subagents stay on the board.
 func (t *Tracker) session(e Event) bool {
@@ -221,11 +224,69 @@ func (t *Tracker) session(e Event) bool {
 	return true
 }
 
+// unknownTask names an agent whose type and task kaze never learned.
+const unknownTask = "subagent"
+
+// pair gives a newly typed agent the task of its waiting Agent call: one of
+// the same type first, else one that named no type. Claude Code starts an
+// untyped call as "general-purpose" and Codex as "default" (#61).
+func (t *Tracker) pair(a *Agent, e Event) {
+	q := queueKey{e.Src, e.Session}
+	i := slices.IndexFunc(t.queues[q], func(c call) bool { return c.typ == e.AgentType })
+	if i < 0 {
+		i = slices.IndexFunc(t.queues[q], func(c call) bool { return c.typ == "" })
+	}
+	if i < 0 {
+		return
+	}
+	c := t.queues[q][i]
+	t.queues[q] = slices.Delete(t.queues[q], i, i+1)
+	if c.desc != "" {
+		a.Task = c.desc
+	}
+	if p := t.agents[c.parent]; p != nil && p != a {
+		a.Parent, a.Depth = c.parent, min(p.Depth+1, 1)
+	}
+}
+
+// untracked reports whether e is about an agent kaze never saw start and it
+// names no type. Real subagents always carry agent_type; Claude Code's own
+// background helpers (the next-prompt suggestion) fire a typeless
+// SubagentStop with no start, and are not subagents (#61).
+func (t *Tracker) untracked(k Key, e Event) bool {
+	return t.agents[k] == nil && e.AgentType == ""
+}
+
+// Dismiss removes a finished agent from the board and the tree. A running or
+// waiting one stays, and so does an agent kaze does not know.
+func (t *Tracker) Dismiss(k Key) bool {
+	a := t.agents[k]
+	if a == nil || a.State != Done {
+		return false
+	}
+	t.drop(func(x *Agent) bool { return x == a })
+	return true
+}
+
+// ClearDone removes every finished agent shown under tab, or all of them for
+// tab 0, and says how many went.
+func (t *Tracker) ClearDone(tab int) int {
+	gone := func(a *Agent) bool { return a.State == Done && (tab == 0 || a.Tab == tab) }
+	n := 0
+	for _, a := range t.order {
+		if gone(a) {
+			n++
+		}
+	}
+	t.drop(gone)
+	return n
+}
+
 func (t *Tracker) add(e Event) *Agent {
 	a := &Agent{Key: Key{e.Session, e.AgentID}, Tab: e.Tab, src: e.Src, Type: e.AgentType, Task: e.AgentType,
 		Started: e.At, InTree: true}
 	if a.Task == "" {
-		a.Task = "subagent"
+		a.Task = unknownTask
 	}
 	t.agents[a.Key] = a
 	t.order = append(t.order, a)
@@ -235,6 +296,14 @@ func (t *Tracker) add(e Event) *Agent {
 // get finds the event's subagent, or starts one kaze missed the start of.
 func (t *Tracker) get(e Event) *Agent {
 	if a := t.agents[Key{e.Session, e.AgentID}]; a != nil {
+		if a.Type == "" && e.AgentType != "" {
+			// First seen through a message with no type: fill it in now (#61).
+			a.Type = e.AgentType
+			if a.Task == unknownTask {
+				a.Task = e.AgentType
+			}
+			t.pair(a, e)
+		}
 		return a
 	}
 	return t.add(e)

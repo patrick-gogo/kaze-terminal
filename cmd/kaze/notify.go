@@ -21,6 +21,13 @@ const (
 	reasonMaxRunes = 120
 )
 
+// codexSpawn is Codex's tool that starts a helper; codexDefaultRole is the
+// agent_type its SubagentStart reports when the call named none.
+const (
+	codexSpawn       = "spawn_agent"
+	codexDefaultRole = "default"
+)
+
 // quietNotification are Claude Code notification types that don't need the
 // owner: "idle for a minute" and a finished login. Any other type, or none
 // (older Claude Code), is an alert.
@@ -48,7 +55,7 @@ func notifyArgs(args []string) (notify.Kind, string, bool) {
 	case notify.KindInterrupt:
 		return kind, agent, agent == "codex"
 	case notify.KindAgentStart, notify.KindAgentStop, notify.KindTool:
-		return kind, agent, agent != "codex"
+		return kind, agent, true
 	}
 	return "", "", false
 }
@@ -64,7 +71,8 @@ func runNotifyOutput(args []string, stdin io.Reader, env func(string) string, st
 	if !ok {
 		return 0
 	}
-	if kind == notify.KindDone && agent == "codex" {
+	// Codex requires JSON on stdout from Stop and SubagentStop hooks.
+	if (kind == notify.KindDone || kind == notify.KindAgentStop) && agent == "codex" {
 		defer func() { _, _ = io.WriteString(stdout, "{}\n") }()
 	}
 	start := time.Now()
@@ -88,6 +96,12 @@ func runNotifyOutput(args []string, stdin io.Reader, env func(string) string, st
 			Last       string          `json:"last_assistant_message"`
 		}
 		parsed := json.Unmarshal(readStdinLimited(stdin, stdinWait), &hook) == nil
+		if parsed && kind == notify.KindPrompt && agent == "codex" && hook.AgentID != "" {
+			// A Codex helper's input is not the owner's prompt: it starts that
+			// helper's next turn, which reopens it if it had finished.
+			kind = notify.KindAgentStart
+			msg.Kind = kind
+		}
 		if !agentMsg(&msg, kind, parsed, hook.AgentID, hook.AgentType, hook.ToolName, hook.ToolInput, hook.Last) {
 			return 0 // nothing kaze shows: a main-conversation tool call, or unreadable
 		}
@@ -220,15 +234,28 @@ func agentMsg(m *notify.Msg, kind notify.Kind, parsed bool, id, typ, tool string
 			m.Summary = toolSummary(tool, input)
 			return true
 		}
-		if tool != "Agent" && tool != "Task" {
+		if tool != "Agent" && tool != "Task" && tool != codexSpawn {
 			return false
 		}
 		var call struct {
 			Description string `json:"description"`
 			Type        string `json:"subagent_type"`
+			TaskName    string `json:"task_name"`  // Codex
+			Message     string `json:"message"`    // Codex
+			AgentType   string `json:"agent_type"` // Codex
 		}
 		_ = json.Unmarshal(input, &call)
-		m.Tool, m.Description, m.AgentType = "Agent", call.Description, call.Type
+		desc, typ := call.Description, call.Type
+		if tool == codexSpawn {
+			desc, typ = call.TaskName, call.AgentType
+			if desc == "" {
+				desc, _, _ = strings.Cut(strings.TrimSpace(call.Message), "\n")
+			}
+			if typ == "" {
+				typ = codexDefaultRole // what SubagentStart reports when none is named
+			}
+		}
+		m.Tool, m.Description, m.AgentType = "Agent", trimRunes(strings.TrimSpace(desc), reasonMaxRunes), typ
 		return true
 	}
 	return true

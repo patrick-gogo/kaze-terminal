@@ -250,3 +250,56 @@ func TestBoardNamesSessionsLikeTheSidebar(t *testing.T) {
 		t.Fatalf("board says %q, sidebar says %q", title, want)
 	}
 }
+
+// A done card's × removes it and keeps the board open; running cards have none.
+func TestBoardDismissDoneCard(t *testing.T) {
+	win, _ := boardWindow(t)
+	win.openBoard(0)
+	win.drawBoard(pageContext(1200, 760), boardRect)
+	var x image.Rectangle
+	for _, h := range win.board.cards {
+		if h.card.key.ID == "run" && !h.close.Empty() {
+			t.Fatal("a running card has a close button")
+		}
+		if h.card.key.ID == "done" {
+			x = h.close
+		}
+	}
+	if x.Empty() {
+		t.Fatal("the done card has no close button")
+	}
+	win.boardPress(x.Min.Add(x.Size().Div(2)))
+	if !win.board.open {
+		t.Fatal("closing a card closed the board")
+	}
+	if win.subs.Get(subagents.Key{Session: "s", ID: "done"}) != nil {
+		t.Fatal("card not removed")
+	}
+	if len(win.fl.sets) != 0 {
+		for _, s := range win.fl.sets {
+			if len(s.panes) != 0 {
+				t.Fatal("dismissing opened a pane")
+			}
+		}
+	}
+}
+
+// Clear empties the Done column; running and waiting cards stay.
+func TestBoardClearDone(t *testing.T) {
+	win, _ := boardWindow(t)
+	win.openBoard(0)
+	win.drawBoard(pageContext(1200, 760), boardRect)
+	c := win.board.clear
+	if c.Empty() {
+		t.Fatal("no Clear button")
+	}
+	win.boardPress(c.Min.Add(c.Size().Div(2)))
+	cols := win.boardColumns()
+	if len(cols[2]) != 0 || len(cols[0]) != 1 || len(cols[1]) != 1 {
+		t.Fatalf("columns %d %d %d", len(cols[0]), len(cols[1]), len(cols[2]))
+	}
+	win.drawBoard(pageContext(1200, 760), boardRect)
+	if !win.board.clear.Empty() {
+		t.Fatal("Clear shown with nothing done")
+	}
+}

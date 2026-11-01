@@ -23,7 +23,7 @@ func TestFixPreservesOtherHooksAndIsIdempotent(t *testing.T) {
 		t.Fatalf("stop %+v", r.Stop)
 	}
 	after, summary, err := Fix(before, nil, `/demo/kaze`, present)
-	if err != nil || len(summary) != 4 {
+	if err != nil || len(summary) != 7 {
 		t.Fatalf("%v %v", summary, err)
 	}
 	for _, keep := range []string{`"notify"`, `"leave"`, `"other-tool"`, `"custom": true`, `"startup"`, `1.50`} {
@@ -147,5 +147,30 @@ func TestAmbiguousOrMalformedHookDefinitionsAreNotFixed(t *testing.T) {
 		if _, _, err := Fix([]byte(data), nil, "/demo/kaze", present); err == nil {
 			t.Errorf("rewrote malformed source %s", data)
 		}
+	}
+}
+
+// Issue #63: helpers need SubagentStart, SubagentStop and PreToolUse too.
+func TestFixAddsHelperHooks(t *testing.T) {
+	after, _, err := Fix(nil, nil, "/demo/kaze", present)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"SubagentStart"`, `notify agent-start --agent codex`, `"SubagentStop"`, `notify agent-stop --agent codex`, `"PreToolUse"`, `notify tool --agent codex`} {
+		if !strings.Contains(string(after), want) {
+			t.Fatalf("missing %s in %s", want, after)
+		}
+	}
+	r, err := Inspect(after, nil, present)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Entries()) != 7 || r.AgentStart.State != OK || r.AgentStop.State != OK || r.Tools.State != OK {
+		t.Fatalf("report %+v", r)
+	}
+	// A tool hook limited to some tools would miss helper steps.
+	limited := []byte(`{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"/demo/kaze\" notify tool --agent codex"}]}]}}`)
+	if r, _ := Inspect(limited, nil, present); r.Tools.State != Broken {
+		t.Fatalf("limited tool hook %+v", r.Tools)
 	}
 }

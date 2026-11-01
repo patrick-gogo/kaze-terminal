@@ -146,10 +146,11 @@ func TestNotifyNeedsCarriesAgentID(t *testing.T) {
 	}
 }
 
-func TestNotifyCodexRejectsAgentKinds(t *testing.T) {
+// Codex helpers use the same kinds as Claude subagents (issue #63).
+func TestNotifyAgentKindsForBothAgents(t *testing.T) {
 	for _, k := range []string{"tool", "agent-start", "agent-stop"} {
-		if _, _, ok := notifyArgs([]string{k, "--agent", "codex"}); ok {
-			t.Fatalf("%s accepted for codex", k)
+		if _, _, ok := notifyArgs([]string{k, "--agent", "codex"}); !ok {
+			t.Fatalf("%s rejected for codex", k)
 		}
 		if _, _, ok := notifyArgs([]string{k}); !ok {
 			t.Fatalf("%s rejected for claude", k)
