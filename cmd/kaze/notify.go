@@ -97,7 +97,10 @@ func runNotifyOutput(args []string, stdin io.Reader, env func(string) string, st
 		}
 		parsed := json.Unmarshal(readStdinLimited(stdin, stdinWait), &hook) == nil
 		if parsed && kind == notify.KindPrompt && agent == "codex" && hook.AgentID != "" {
-			return 0 // a Codex helper's own input, not the owner's prompt
+			// A Codex helper's input is not the owner's prompt: it starts that
+			// helper's next turn, which reopens it if it had finished.
+			kind = notify.KindAgentStart
+			msg.Kind = kind
 		}
 		if !agentMsg(&msg, kind, parsed, hook.AgentID, hook.AgentType, hook.ToolName, hook.ToolInput, hook.Last) {
 			return 0 // nothing kaze shows: a main-conversation tool call, or unreadable

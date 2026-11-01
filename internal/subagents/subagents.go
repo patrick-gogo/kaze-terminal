@@ -116,8 +116,11 @@ func (t *Tracker) Apply(e Event) bool {
 		}
 		return false
 	case EvStart:
-		if e.AgentID == "" || t.agents[k] != nil {
+		if e.AgentID == "" {
 			return false
+		}
+		if a := t.agents[k]; a != nil {
+			return t.reopen(a)
 		}
 		a := t.add(e)
 		q := queueKey{e.Src, e.Session}
@@ -196,6 +199,17 @@ func (t *Tracker) Apply(e Event) bool {
 		return changed
 	}
 	return false
+}
+
+// reopen starts a finished agent's next turn: Codex helpers take several. It
+// leaves the done column and its next stop gives the new report.
+func (t *Tracker) reopen(a *Agent) bool {
+	if a.State != Done {
+		return false
+	}
+	t.done = slices.DeleteFunc(t.done, func(old *Agent) bool { return old == a })
+	a.State, a.stopped, a.Ended, a.InTree = Running, false, time.Time{}, true
+	return true
 }
 
 // session handles a session report: a new one in a source tab ends that

@@ -134,14 +134,14 @@ func TestCodexSubagentStopPrintsJSONOutsideKaze(t *testing.T) {
 	}
 }
 
-// A helper's own prompt is Codex talking to itself, not the owner.
-func TestCodexHelperPromptIsIgnored(t *testing.T) {
+// A helper's prompt is a new turn for that helper (Codex helpers take several),
+// never the owner's prompt: it is sent as that helper starting again.
+func TestCodexHelperPromptStartsItsNextTurn(t *testing.T) {
 	srv, got := startServer(t)
-	runNotifyOutput([]string{"prompt", "--agent", "codex"}, strings.NewReader(`{"session_id":"s1","agent_id":"t1","prompt":"$review"}`), envOf(srv, "2"), io.Discard)
-	select {
-	case m := <-got:
-		t.Fatalf("unexpected %+v", m)
-	case <-time.After(100 * time.Millisecond):
+	runNotifyOutput([]string{"prompt", "--agent", "codex"}, strings.NewReader(`{"session_id":"s1","agent_id":"t1","agent_type":"explorer","prompt":"$review"}`), envOf(srv, "2"), io.Discard)
+	m := wait(t, got)
+	if m.Kind != notify.KindAgentStart || m.AgentID != "t1" || m.AgentType != "explorer" || m.Command != "" || m.Session != "s1" {
+		t.Fatalf("got %+v", m)
 	}
 }
 

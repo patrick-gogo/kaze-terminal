@@ -341,3 +341,38 @@ func TestFinishedLeaveTreeWhenNoneRun(t *testing.T) {
 		t.Fatal("finished subagents must stay on the board")
 	}
 }
+
+// A Codex helper can take more turns after it finishes: a new start reopens
+// it, and its next stop replaces the report, with one board card throughout.
+func TestFinishedHelperReopensForANewTurn(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "h1", "explorer"))
+	stop := ev(EvStop, "h1", "explorer")
+	stop.Report = "first"
+	tr.Apply(stop)
+	again := ev(EvStart, "h1", "explorer")
+	again.At = at(30)
+	if !tr.Apply(again) {
+		t.Fatal("a new turn changed nothing")
+	}
+	a := tr.Get(Key{"s1", "h1"})
+	if a.State != Running || !a.Ended.IsZero() || !a.InTree {
+		t.Fatalf("not reopened: %+v", a)
+	}
+	if _, _, done := tr.Board(); len(done) != 0 {
+		t.Fatalf("still on the done column: %d", len(done))
+	}
+	tr.Apply(tool("h1", "Bash"))
+	if len(a.Steps) != 1 {
+		t.Fatalf("steps %d", len(a.Steps))
+	}
+	stop.Report, stop.At = "second", at(60)
+	tr.Apply(stop)
+	running, _, done := tr.Board()
+	if a.State != Done || a.Report != "second" || len(done) != 1 || len(running) != 0 {
+		t.Fatalf("second stop: %+v, done %d", a, len(done))
+	}
+	if tr.Active(1) != 0 {
+		t.Fatal("still counted as active")
+	}
+}
