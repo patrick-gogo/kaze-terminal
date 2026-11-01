@@ -138,7 +138,7 @@ func TestBadShellFallsBackToTheDefault(t *testing.T) {
 	}, 80, 24, nil)
 	t.Cleanup(m.CloseAll)
 
-	tab, warn, err := openFirst(m, &shell, def, []string{"bad font"})
+	tab, warn, err := openFirst(m, &shell, def, []string{"bad font"}, "")
 	if err != nil || tab == nil {
 		t.Fatalf("openFirst: tab %v, err %v", tab, err)
 	}
@@ -170,7 +170,7 @@ func TestBadShellFallsBackToTheDefault(t *testing.T) {
 func TestDefaultShellFailureIsAnError(t *testing.T) {
 	m := tabs.NewManager(func([]string, string) (ptyx.Session, error) { return nil, errors.New("boom") }, 80, 24, nil)
 	shell := []string{"pwsh"}
-	if _, _, err := openFirst(m, &shell, []string{"pwsh"}, nil); err == nil {
+	if _, _, err := openFirst(m, &shell, []string{"pwsh"}, nil, ""); err == nil {
 		t.Fatal("the default shell failing was not reported")
 	}
 }
@@ -193,7 +193,7 @@ func TestNewTabFailureShowsInTheStatusBar(t *testing.T) {
 func TestBothShellsFailingNamesBoth(t *testing.T) {
 	m := tabs.NewManager(func([]string, string) (ptyx.Session, error) { return nil, errors.New("boom") }, 80, 24, nil)
 	shell := []string{"no-such-shell"}
-	_, _, err := openFirst(m, &shell, []string{"pwsh"}, nil)
+	_, _, err := openFirst(m, &shell, []string{"pwsh"}, nil, "")
 	if err == nil || !strings.Contains(err.Error(), `"no-such-shell"`) || strings.Count(err.Error(), "boom") != 2 {
 		t.Fatalf("err = %v; want the configured shell's failure and the default's", err)
 	}

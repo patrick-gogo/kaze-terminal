@@ -962,7 +962,7 @@ func TestListMembersShowCommandsWithoutCutting(t *testing.T) {
 		}
 	}
 	for _, s := range f.win.set.texts {
-		if strings.Contains(s, "…") {
+		if strings.Contains(s, "…") && s != "Choose…" {
 			t.Fatalf("a list line was cut: %q", s)
 		}
 	}

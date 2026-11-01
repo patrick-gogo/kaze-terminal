@@ -45,11 +45,12 @@ type wsPage struct {
 
 // wsPicked is a folder picker's answer for one tab of one draft.
 type wsPicked struct {
-	draft *wsDraft
-	key   int
-	path  string
-	ok    bool
-	err   error
+	startDir bool // result belongs to the Start folder setting, not a draft tab
+	draft    *wsDraft
+	key      int
+	path     string
+	ok       bool
+	err      error
 }
 
 type wsDialog int
@@ -128,7 +129,7 @@ func wsRows(win *window) []settingRow {
 // listRows is one card per workspace, then New and the startup choice.
 func (win *window) listRows() (rows []settingRow) {
 	defer func() {
-		rows = append(rows, settingRow{heading: "Startup"}, settingRow{label: "Restore sessions on launch", hint: "Reopen conversations and folders. Running commands stop when Kaze closes.", ctrls: []ctrl{{kind: ctlToggle, id: "ws.restore", on: win.opt.Config.RestoreSessions}}}, win.startupRow())
+		rows = append(rows, settingRow{heading: "Startup"}, win.startDirRow(), settingRow{label: "Restore sessions on launch", hint: "Reopen conversations and folders. Running commands stop when Kaze closes.", ctrls: []ctrl{{kind: ctlToggle, id: "ws.restore", on: win.opt.Config.RestoreSessions}}}, win.startupRow())
 	}()
 	p := &win.wsp
 	if p.loadErr != "" {
@@ -563,6 +564,10 @@ func wsAct(win *window, id string, arg int) {
 		return p.doc.Workspaces[arg], true
 	}
 	switch id {
+	case "ws.start.pick":
+		win.pickStartDir()
+	case "ws.start.home":
+		win.setStartDir("")
 	case "ws.restore":
 		win.opt.Config.RestoreSessions = arg == 1
 		win.saveSetting("restore_sessions", arg == 1)
@@ -802,6 +807,12 @@ func (win *window) drainPicked() {
 		p.picking = false
 		if r.err != nil {
 			win.note("Could not open the folder picker: " + r.err.Error())
+			return
+		}
+		if r.startDir {
+			if r.ok {
+				win.setStartDir(tildeHome(r.path, win.home))
+			}
 			return
 		}
 		if !r.ok || p.draft != r.draft {
