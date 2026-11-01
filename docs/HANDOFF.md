@@ -4,6 +4,18 @@ Last updated: 2026-10-31, after Agents settings and Codex hooks were built on `f
 
 ## Where things stand
 
+**Agent browser feasibility (issue #30) has macOS results**, with the report at
+`docs/audits/2026-11-01-agent-browser-feasibility.md` and reproducible scripts plus
+recorded evidence under `spike/agent-browser/`. Both MCP candidates passed the
+tested tools, lazy Chrome startup and reconnection. Shared windows, contexts and
+page-specific debugging endpoints still exposed other sessions. Separate browser
+instances passed the assigned-connection checks. No test browser activated while
+the focus guard blocked explicit activation requests; arbitrary popups/dialogs and
+Windows remain unverified. Standard Node workers also run during tool discovery.
+Separate per-session instances/profiles and the Node startup policy are proposals
+to settle before a build plan, not approved changes to the draft design. No browser
+feature has been implemented or released.
+
 **Start folder (issue #77) shipped in 0.19** (PR #81). `start_dir` is an optional config
 string; empty means home, `~` expands, invalid paths/types warn and use home. Settings >
 Workspaces > Startup shows the path, Choose… and Use home, reusing the native folder picker.

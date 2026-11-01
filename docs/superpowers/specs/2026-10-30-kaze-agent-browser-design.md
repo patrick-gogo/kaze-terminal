@@ -2,6 +2,14 @@
 
 Date: 2026-10-30. Owner: Patrick. Issue: #30. Status: draft, reviewed by a builder check; waiting for the owner's approval.
 
+**Feasibility update (2026-11-01):** the owner authorized the spike, and macOS
+results are recorded in the [findings](../../audits/2026-11-01-agent-browser-feasibility.md).
+The core tool workflow works, but stock shared-browser endpoints do not enforce
+session isolation. Separate instances/profiles are a proposed alternative;
+Windows, broader focus behavior and Node startup costs remain open. These findings
+do not approve or silently replace the architecture below. See the
+[reproducible harness](../../../spike/agent-browser/README.md) before planning the build.
+
 Builds on the [main design](2026-10-28-kaze-terminal-design.md) (section 7, item 1, "Browser button") and the [agent sidebar design](2026-10-30-kaze-agent-sidebar-design.md). Everything there stands unless this document changes it.
 
 ## 1. Intent and why

@@ -1,0 +1,14 @@
+{
+  "name": "kaze-agent-browser-feasibility",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test protocol.test.mjs",
+    "probe": "node probe.mjs"
+  },
+  "dependencies": {
+    "@playwright/mcp": "0.0.84",
+    "chrome-devtools-mcp": "1.12.0",
+    "ws": "8.22.1"
+  }
+}
