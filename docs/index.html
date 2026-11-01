@@ -92,7 +92,7 @@
 
   <section class="details wrap" aria-label="More features">
     <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18m-12 0v5m6-5v5"/></svg><h3>Context in the status bar.</h3><p>Your folder and branch with its line changes, your servers and subagents at a glance, and Claude usage as small meters. Hover the usage to see when each limit resets.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <span aria-hidden="true">↗</span></a></article>
-    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m14 4 6 6M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15zM14 20h7"/></svg><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing and cursor controls. Change them in Settings, or edit the small config file directly.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <span aria-hidden="true">↗</span></a></article>
+    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m14 4 6 6M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15zM14 20h7"/></svg><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing and cursor controls. Your sessions reopen after a restart, with the same folders and agent conversations.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <span aria-hidden="true">↗</span></a></article>
     <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 12 2 2 4-4"/><path d="M12 3 4 6v6c0 4 4 7 8 9 4-2 8-5 8-9V6z"/></svg><h3>Checks your Claude setup.</h3><p>Settings shows which Claude Code hooks are missing and adds them for you, after showing the change and backing up your file.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-code-setup-check">See the setup check <span aria-hidden="true">↗</span></a></article>
     <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h0m4 0h0m4 0h0m4 0h0M6 13h0m4 0h0m4 0h0m4 0h0M8 16h8"/></svg><h3>Your keys, your way.</h3><p>Every shortcut can be changed in the config, and Settings lists the commands so far with their keys.</p><a href="https://github.com/patrick-gogo/kaze-terminal#shortcuts">See the shortcuts <span aria-hidden="true">↗</span></a></article>
   </section>
@@ -103,7 +103,18 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>The latest releases.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.17.1</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.18</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-body">
+          <h3>Your sessions come back</h3>
+          <ul>
+            <li><b>Automatic restoration:</b> reopen Kaze and your sessions return with their folders, names, order and selected session, including after an update.</li>
+            <li><b>Resume the same conversation:</b> configured Claude Code and Codex hooks identify each chat, so conversations in the same project stay separate. Resuming waits for shell readiness and never resubmits your prompt.</li>
+            <li><b>Your choice:</b> turn restoration off in Settings, Workspaces, Startup. Workspace recipes are not replayed; running commands and servers still stop when Kaze closes.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
+        <div class="release-meta"><span class="version">0.17.1</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Codex logo, no setup</h3>
           <ul>
@@ -119,21 +130,6 @@
             <li><b>Agent logos in the sidebar:</b> a session running Claude Code shows the Claude logo, and one running Codex shows the OpenAI logo, next to the agent's name.</li>
             <li><b>Named as soon as it opens:</b> the logo and name appear the moment Claude Code or Codex starts, before your first prompt. Settings, Agents offers the new SessionStart hook for each; in Codex, run <code>/hooks</code> to trust it.</li>
             <li><b>Links stand out:</b> web links in the terminal are drawn in blue with an underline. Text a program already colored keeps its color and gets the underline.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.16</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
-        <div class="release-body">
-          <h3>Clickable links and Codex helpers</h3>
-          <ul>
-            <li><b>Clickable links:</b> web links in the terminal show a hand cursor. <kbd>⌘</kbd>-click them (<kbd>Ctrl</kbd>-click on Windows) to open them in your browser, even while Claude Code is running. A plain click still selects text.</li>
-            <li><b>Codex helpers:</b> the helpers Codex starts now show in the sidebar, the live panes and the agents board, just like Claude Code subagents. Settings, Agents, Codex offers the three new hooks; then run <code>/hooks</code> in Codex to trust them.</li>
-            <li><b>Clear finished subagents:</b> each done card on the agents board has a × to remove it, and Clear empties the Done column.</li>
-            <li><b>Paste screenshots with <kbd>⌘</kbd> <kbd>V</kbd>:</b> with an image on the clipboard, <kbd>⌘</kbd> <kbd>V</kbd> pastes it into Claude Code or Codex. A plain shell is left alone.</li>
-            <li><b>Fixed:</b> subagents started without a type show their task again, and Claude Code's own background helpers no longer appear as "subagent" cards.</li>
-            <li><b>Fixed:</b> sessions in the same repo stay in one sidebar group, even when the folder was typed with different capitals.</li>
-            <li><b>Fixed:</b> the running ring in the title bar is no longer cut in half.</li>
           </ul>
         </div>
       </li>
