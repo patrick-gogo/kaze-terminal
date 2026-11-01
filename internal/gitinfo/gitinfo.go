@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -78,10 +79,65 @@ func Repo(dir string) (key, name string) {
 		}
 		common = filepath.Clean(common)
 	}
+	common = trueCase(common)
 	if filepath.Base(common) == ".git" {
 		return common, filepath.Base(filepath.Dir(common))
 	}
-	return common, filepath.Base(top)
+	return common, filepath.Base(trueCase(top))
+}
+
+// caseless is true where the usual disks ignore letter case, so one folder can
+// be typed several ways.
+var caseless = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
+
+// trueCase spells an absolute path the way the disk stores it, so a folder
+// typed as ~/documents and ~/Documents gives one repo key. Symlinks are kept.
+// A part it cannot read is left as typed. No-op on case-sensitive systems.
+func trueCase(p string) string {
+	if !caseless || !filepath.IsAbs(p) {
+		return p
+	}
+	vol := filepath.VolumeName(p)
+	if runtime.GOOS == "windows" {
+		vol = strings.ToUpper(vol)
+	}
+	parts := strings.Split(p[len(filepath.VolumeName(p)):], string(filepath.Separator))
+	cur := vol + string(filepath.Separator)
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		name, ok := storedName(cur, part)
+		if !ok {
+			return filepath.Join(append([]string{cur}, parts[i:]...)...)
+		}
+		cur = filepath.Join(cur, name)
+	}
+	return cur
+}
+
+// storedName finds part in dir: an exact match first, then one that differs
+// only in case.
+func storedName(dir, part string) (string, bool) {
+	f, err := os.Open(dir)
+	if err != nil {
+		return "", false
+	}
+	defer f.Close()
+	names, err := f.Readdirnames(-1)
+	if err != nil {
+		return "", false
+	}
+	found := ""
+	for _, n := range names {
+		if n == part {
+			return n, true
+		}
+		if found == "" && strings.EqualFold(n, part) {
+			found = n
+		}
+	}
+	return found, found != ""
 }
 
 func readSmall(path string) (string, bool) {

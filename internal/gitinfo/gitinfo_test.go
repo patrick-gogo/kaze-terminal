@@ -233,3 +233,20 @@ func TestTopOutsideARepo(t *testing.T) {
 		t.Fatalf("empty dir: got %q", got)
 	}
 }
+
+// A cwd typed with other casing on a case-insensitive disk (macOS, Windows) is
+// the same repo, so it must give the same key and name (issue #65).
+func TestRepoIgnoresPathCasing(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "Docs", "Proj")
+	write(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
+	other := filepath.Join(base, "docs", "proj")
+	if _, err := os.Stat(other); err != nil {
+		t.Skip("case-sensitive file system")
+	}
+	wantK, wantN := Repo(root)
+	key, name := Repo(other)
+	if key != wantK || name != wantN {
+		t.Fatalf("got %q, %q; want %q, %q", key, name, wantK, wantN)
+	}
+}
