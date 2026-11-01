@@ -126,7 +126,10 @@ func wsRows(win *window) []settingRow {
 }
 
 // listRows is one card per workspace, then New and the startup choice.
-func (win *window) listRows() []settingRow {
+func (win *window) listRows() (rows []settingRow) {
+	defer func() {
+		rows = append(rows, settingRow{heading: "Startup"}, settingRow{label: "Restore sessions on launch", hint: "Reopen conversations and folders. Running commands stop when Kaze closes.", ctrls: []ctrl{{kind: ctlToggle, id: "ws.restore", on: win.opt.Config.RestoreSessions}}}, win.startupRow())
+	}()
 	p := &win.wsp
 	if p.loadErr != "" {
 		return []settingRow{{label: "The workspaces file has a problem", lines: []string{truncateRight(cleanText(p.loadErr), 120)},
@@ -135,7 +138,6 @@ func (win *window) listRows() []settingRow {
 	if len(p.doc.Workspaces) == 0 {
 		return []settingRow{{label: "No workspaces yet", hint: "Save a set of tabs, folders and commands to open together.", ctrls: []ctrl{wsNewButton()}}}
 	}
-	var rows []settingRow
 	for i, w := range p.doc.Workspaces {
 		state := win.wsBadge(w.ID)
 		run, strong, tone := "Run", true, "off"
@@ -160,7 +162,7 @@ func (win *window) listRows() []settingRow {
 		}
 		rows = append(rows, row)
 	}
-	return append(rows, settingRow{heading: "Startup"}, win.startupRow())
+	return rows
 }
 
 // wsNewButton starts a new workspace; the list puts it in the page's heading.
@@ -230,7 +232,7 @@ func (win *window) startupRow() settingRow {
 			sel = i + 1
 		}
 	}
-	row := settingRow{label: "Run a workspace when kaze starts", hint: "Instead of the usual first tab", ctrls: []ctrl{{kind: ctlSegmented, id: "ws.startup", options: opts, selected: sel}}}
+	row := settingRow{label: "Run a workspace when kaze starts", hint: "Used when there are no saved sessions to restore", ctrls: []ctrl{{kind: ctlSegmented, id: "ws.startup", options: opts, selected: sel}}}
 	if id != "" && sel == 0 {
 		row.ctrls[0].selected = -1
 		row.hint = "The chosen workspace no longer exists; kaze opens the usual tab"
@@ -561,6 +563,12 @@ func wsAct(win *window, id string, arg int) {
 		return p.doc.Workspaces[arg], true
 	}
 	switch id {
+	case "ws.restore":
+		win.opt.Config.RestoreSessions = arg == 1
+		win.saveSetting("restore_sessions", arg == 1)
+		if win.restore != nil {
+			win.restore.SetEnabled(arg == 1)
+		}
 	case "ws.reload":
 		win.loadWorkspaces()
 	case "ws.run":

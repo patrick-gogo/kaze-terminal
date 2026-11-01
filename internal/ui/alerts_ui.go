@@ -134,6 +134,7 @@ func (win *window) onNotify(m notify.Msg) {
 	if mgr := win.liveMgr.Load(); mgr != nil {
 		if m.Kind != notify.KindUsage && !subKind(m.Kind) {
 			if st := mgr.Lookup(id); st != nil {
+				win.originIdentity(m, st)
 				win.terms.note(id, m.Agent, shellSeq(st)) // the terminal itself, scratch or not
 			}
 		}

@@ -316,7 +316,7 @@ sidebar, and it closes with that row's ×. Its menu on the left has:
 
 - **Appearance:** theme cards (each a small terminal in that theme's colors), a live preview,
   font size, line spacing, cursor shape and blinking.
-- **Workspaces:** saved launch recipes, one card each with its state (see Workspaces below).
+- **Workspaces:** saved launch recipes, one card each with its state, plus startup and session restoration choices (see Workspaces below).
 - **Agents:** shared alert choices (chimes, taskbar flash and done-toast duration), Claude usage,
   and separate setup checks for Claude Code and Codex.
 - **Shortcuts:** every shortcut with its keys and config name, grouped and searchable, and kaze's
@@ -421,7 +421,8 @@ no request at all.
   available" with **Update and restart** and **What's new**.
 - **Update and restart** asks first ("Kaze will close your 3 sessions and restart in 0.12."), then
   downloads the release's zip for your computer, checks it against the release's `SHA256SUMS`, swaps
-  the new kaze in and restarts it. If the swap fails, the old kaze is put back. The copy it replaced
+  the new kaze in and restarts it. With session restoration enabled, conversations and folders
+  reopen automatically; running commands stop. If the swap fails, the old kaze is put back. The copy it replaced
   is removed the next time kaze starts.
 - It only replaces a kaze from a release download: `Kaze.app` (macOS) or `kaze.exe` (Windows),
   in a folder kaze can write to. A kaze built from a clone shows **Download**, which opens the
@@ -505,14 +506,41 @@ delete it before saving from the settings page.
 
 Pick one under Settings > Workspaces (`startup_workspace` in `config.toml`), or run
 `kaze --workspace "My project"`. Either way kaze opens only that workspace's tabs, without the
-usual home-folder tab. `--workspace` wins when both are given. An unknown name opens a normal tab
-and shows a warning.
+usual home-folder tab. An explicit `--workspace` wins over session restoration and the startup
+workspace setting. Otherwise, saved sessions restore first; the startup workspace runs when
+there is nothing to restore. An unknown name opens a normal tab and shows a warning.
 
 ### Known limits
 
 - No folder Browse button yet; type the path.
 - Commands can't be reordered, only added and removed.
 - Closing the window drops a workspace draft you haven't saved.
+
+## Session restoration
+
+Kaze automatically restores the previous sessions when you reopen it, including after
+**Update and restart**. It keeps their folders, custom names, order, colors and selected
+session. Claude Code and Codex reopen the exact conversations reported by their Kaze hooks;
+ordinary terminals start fresh shells. Multiple conversations in one repo stay separate.
+Make sure the agent hooks in Settings > Agents are configured and, for Codex, trusted.
+Process detection can show an agent logo without hooks, but cannot identify its conversation.
+
+Restoring a conversation waits for its shell's first prompt marker. Set up the shell prompt
+report described above. If no marker arrives within three seconds, the session offers
+**Run commands** or **Use shell**; typing first cancels automatic resumption. Kaze never
+resubmits the previous prompt or replays commands. Missing folders, tools or conversation
+files leave a shell and an explanation. A failed resume does not select a different chat.
+
+Running commands, servers, shell variables, scrollback, scratch shells, floating layout and
+live helpers do not survive exit. Workspace members reopen without replaying their recipe
+commands. Kaze saves small metadata snapshots on changes, including while minimized, so it
+can recover the last saved set after a crash. Changes in the last 250 ms may be lost.
+
+Turn off **Restore sessions on launch** under Settings > Workspaces > Startup to clear the
+snapshot and start fresh. Deliberately closed sessions stay closed. `sessions.json` lives
+beside `config.toml`, with a limit of 128 sessions and 1 MiB; exceeded limits show a warning
+and preserve the last valid snapshot. A second Kaze instance opens fresh and does not
+replace the first instance's saved sessions.
 
 ## Config
 
@@ -542,6 +570,7 @@ error makes kaze use all defaults.
 | `done_toast` | How long the "done" toast stays: `3s`, `6s`, `10s` or `until_seen` | `6s` |
 | `show_usage` | Show the Claude usage readout in the status bar | `true` |
 | `check_updates` | Ask GitHub once a day whether a newer kaze is out (see Updates) | `true` |
+| `restore_sessions` | Restore folders and exact Claude/Codex conversations on launch | `true` |
 | `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
 | `sidebar` | Show the session sidebar (the toggle saves it here) | `true` |
@@ -789,6 +818,7 @@ Done:
 - Subagents: each session's subagents in the sidebar, a live pane per subagent and the agents board (replaces Plan 2's child tabs).
 - 0.16: clickable links, Codex helpers alongside Claude Code subagents, and screenshot paste with Cmd+V.
 - 0.17: Claude and Codex logos on the sidebar rows as soon as an agent opens, and links drawn in blue.
+- Session restoration (#75): automatically reopen folders and exact agent conversations after restart.
 - 0.17.1: kaze names Claude and Codex from the program running in the tab, so the Codex logo needs no setup.
 
 Next:

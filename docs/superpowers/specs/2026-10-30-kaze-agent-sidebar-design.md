@@ -36,7 +36,7 @@ Tab hunting is not a problem today. The owner raised one worry while designing t
 - Guessing which skill the owner wants from their branch or folder.
 - Showing skills Claude starts by itself during a run (a skill that calls another skill). The row shows what the owner typed.
 - Claude Code's built-in commands (`/clear`, `/compact` and the like) in the palette: they have no files to read.
-- Saving sessions, floating panes or chips across a kaze restart.
+- Saving floating panes or chips across a Kaze restart. Session metadata restoration was subsequently approved under issue #75; see `2026-11-01-kaze-session-restore-design.md`. Live PTYs still stop at exit.
 - Changing shortcuts from the settings page (read-only list for now).
 - A notification center or history of past chips.
 

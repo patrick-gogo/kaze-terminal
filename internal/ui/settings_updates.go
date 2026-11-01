@@ -84,6 +84,9 @@ func (win *window) updHero(now time.Time) updHero {
 				sessions = "your session"
 			}
 			h.confirm = "Kaze will close " + sessions + " and restart in " + u.rel.Version + "."
+			if win.opt.Config.RestoreSessions && win.restore != nil {
+				h.confirm += " Saved conversations and folders will reopen. Running commands will stop."
+			}
 			break
 		}
 		h.buttons = []ctrl{

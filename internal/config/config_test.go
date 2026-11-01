@@ -320,3 +320,17 @@ func TestSidebarDefaultsOnAndReadsFalse(t *testing.T) {
 		t.Fatalf("warnings = %v, want 1", warns)
 	}
 }
+
+func TestRestoreSessionsDefaultAndOptOut(t *testing.T) {
+	if !Default().RestoreSessions {
+		t.Fatal("restoration must default on")
+	}
+	p := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(p, []byte("restore_sessions = false\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, w, err := Load(p)
+	if err != nil || len(w) != 0 || c.RestoreSessions {
+		t.Fatalf("%+v %v %v", c, w, err)
+	}
+}

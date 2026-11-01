@@ -24,8 +24,9 @@ const (
 )
 
 type Config struct {
-	FontSize   float32 `toml:"font_size"`   // default 14
-	FontFamily string  `toml:"font_family"` // not supported yet; a set value warns
+	RestoreSessions bool    `toml:"restore_sessions"` // restore folders and exact agent conversations; default true
+	FontSize        float32 `toml:"font_size"`        // default 14
+	FontFamily      string  `toml:"font_family"`      // not supported yet; a set value warns
 	// Shell empty means "use the platform default shell"; the caller
 	// resolves it at startup.
 	Shell            []string          `toml:"shell"`
@@ -68,6 +69,7 @@ var (
 
 func Default() Config {
 	return Config{
+		RestoreSessions: true,
 		FontSize:        defaultFontSize,
 		ScrollbackLines: defaultScrollback,
 		ChimeNeeds:      true,
@@ -208,6 +210,8 @@ func Load(path string) (Config, []string, error) {
 			loadBool(v, k, &cfg.ShowUsage, warn)
 		case "sidebar":
 			loadBool(v, k, &cfg.Sidebar, warn)
+		case "restore_sessions":
+			loadBool(v, k, &cfg.RestoreSessions, warn)
 		case "check_updates":
 			loadBool(v, k, &cfg.CheckUpdates, warn)
 		case "startup_workspace":

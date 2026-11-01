@@ -188,3 +188,17 @@ func TestFindTargetIgnoresAGitFolderHigherUp(t *testing.T) {
 		t.Fatalf("a release app under a dotfiles home was refused: %v", err)
 	}
 }
+
+func TestRelaunchWaitsForOldSessionOwner(t *testing.T) {
+	var got []string
+	start = func(c *exec.Cmd) error { got = c.Args; return nil }
+	t.Cleanup(func() { start = func(c *exec.Cmd) error { return c.Start() } })
+	RelaunchWaiting(Target{Path: "/Applications/Kaze.app", App: true})
+	if !slices.Equal(got, []string{"open", "-n", "/Applications/Kaze.app", "--args", "--restore-wait"}) {
+		t.Fatal(got)
+	}
+	RelaunchWaiting(Target{Path: `C:\kaze\kaze.exe`})
+	if !slices.Equal(got, []string{`C:\kaze\kaze.exe`, "--restore-wait"}) {
+		t.Fatal(got)
+	}
+}

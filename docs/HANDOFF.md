@@ -4,6 +4,24 @@ Last updated: 2026-10-31, after Agents settings and Codex hooks were built on `f
 
 ## Where things stand
 
+**Session restoration (issue #75) is implemented** on `feat/session-restore`
+(approved design and plan: `docs/superpowers/{specs,plans}/2026-11-01-kaze-session-restore*.md`).
+Default-on `restore_sessions` has a Startup toggle in Settings > Workspaces, even when
+there are no workspaces or their file is broken. `internal/sessionstate` saves bounded,
+versioned metadata beside config.toml, with atomic replacement, an OS lifetime lock,
+coalesced event-driven writes and a final pre-teardown flush. Background cwd and
+origin-terminal hooks update it while minimized; scratch hooks cannot replace the
+main identity. Restore maps names/order/selection and workspace grouping to fresh tabs,
+queues exact UUID resume commands after shell readiness, and never replays prompts or
+workspace recipes. Explicit --workspace wins; otherwise restoration precedes the
+startup workspace. Ordinary extra instances neither restore nor write the owner snapshot.
+Updater relaunch waits for the old owner to release its lock after shell teardown;
+failed relaunch keeps ownership and restores input. Bench and ordinary test windows
+never touch the owner's state. Prepared for PR review at the owner's request; no install
+or version bump yet. See
+`docs/audits/2026-11-01-session-restore.md` for verification and remaining platform checks.
+
+
 **Performance fixes are built for PR #60** (2026-11-01), alongside its sidebar
 flash, finished-subagent and long-command fixes. Title/status geometry is cached;
 width measurement avoids paint recording; full histories and dirty rows reuse
@@ -195,7 +213,7 @@ kaze has **never been built on macOS**. Expect small fixes.
 - **Renderer:** a CPU-drawn image of the grid, split into 8 horizontal strips; only strips with changed rows are re-uploaded. Chosen by two spikes (`docs/spike-results.md`): Gio's text path and per-glyph ops were far too slow.
 - **Synchronized output:** frames are held while mode 2026 is on, up to 150ms, but never when nothing has been drawn yet (tab switch).
 - **Parser** treats `:` like `;` but records which params were colon-separated, so SGR `4:3` (curly underline) and `38:2::r:g:b` work.
-- **Sessions don't survive kaze closing** (same as Warp). Shells live in the kaze process behind `ptyx.Session`.
+- **Live processes stop when Kaze closes.** Shells live in the Kaze process behind `ptyx.Session`. Issue #75 supersedes the earlier no-restoration decision: folders and exact supported agent conversations now reopen automatically from saved metadata; this does not keep PTYs alive.
 - **Shell env:** each tab gets `KAZE_TAB_ID`, `TERM=xterm-256color`, `COLORTERM=truecolor`, `TERM_PROGRAM=kaze`; inherited `TERM_PROGRAM`/`WT_*` from the launching terminal are dropped.
 - **Title bar:** Plan 1 kept the native one; Plan 3 replaced it on Windows (spec 6.8). macOS keeps the native one for now.
 - **Alert transport:** TCP 127.0.0.1 + random token (spec 6.4 note), not named pipes.

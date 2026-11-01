@@ -109,3 +109,12 @@ func Relaunch(t Target) error {
 	}
 	return start(exec.Command(t.Path))
 }
+
+// RelaunchWaiting defers automatic restoration until the old process releases
+// its session ownership lock after closing its shells.
+func RelaunchWaiting(t Target) error {
+	if t.App {
+		return start(exec.Command("open", "-n", t.Path, "--args", "--restore-wait"))
+	}
+	return start(exec.Command(t.Path, "--restore-wait"))
+}

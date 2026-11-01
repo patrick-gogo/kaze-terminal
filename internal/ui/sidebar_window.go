@@ -399,12 +399,18 @@ func (win *window) endRename(save bool) {
 	}
 	if name == "" {
 		delete(win.names, id)
+		if win.restore != nil {
+			win.restore.Rename(int(id), "")
+		}
 		return
 	}
 	if win.names == nil {
 		win.names = map[tabs.TabID]string{}
 	}
 	win.names[id] = name
+	if win.restore != nil {
+		win.restore.Rename(int(id), name)
+	}
 }
 
 // dropSideEdit gives the keyboard back from the sidebar's editors when the main view
