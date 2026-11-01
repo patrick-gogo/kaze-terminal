@@ -62,16 +62,19 @@ type entry struct {
 	own              bool
 	ownCols, ownRows int
 	// Touched only by this session's single notifier goroutine.
-	seenTitle  string
-	seenExited bool
-	seenPrompt uint64 // workspace dropdown status changes on a later prompt
+	seenStateSeq uint64
+	stateExited  bool
+	seenTitle    string
+	seenExited   bool
+	seenPrompt   uint64 // workspace dropdown status changes on a later prompt
 }
 
 // Manager is driven from the UI goroutine; onChange may be called from any goroutine.
 type Manager struct {
-	start    func(env []string, dir string) (ptyx.Session, error)
-	onChange func()
-	baseEnv  []string
+	start         func(env []string, dir string) (ptyx.Session, error)
+	onChange      func()
+	stateObserver atomic.Pointer[func()]
+	baseEnv       []string
 
 	closing sync.WaitGroup // shells Close is still releasing in the background
 
@@ -165,6 +168,7 @@ func (m *Manager) newTab(o StartOpts, prefeed func(*term.Session)) (*Tab, error)
 	if o.Parent == 0 {
 		m.active.Store(int64(id))
 	}
+	m.stateChanged()
 	return e.tab, nil
 }
 
@@ -173,6 +177,17 @@ func (m *Manager) newTab(o StartOpts, prefeed func(*term.Session)) (*Tab, error)
 func (m *Manager) notify(e *entry) {
 	if e.removed.Load() {
 		return
+	}
+	if sess := e.sess.Load(); sess != nil && m.stateObserver.Load() != nil {
+		sess.Lock()
+		seq := sess.Applier().CwdSeq() + sess.Applier().PromptSeq()
+		sess.Unlock()
+		exited, _ := sess.Exited()
+		if seq != e.seenStateSeq || exited != e.stateExited {
+			e.seenStateSeq = seq
+			e.stateExited = exited
+			m.stateChanged()
+		}
 	}
 	if TabID(m.active.Load()) == e.tab.ID || e.watched.Load() || e.visible.Load() {
 		m.onChange()
@@ -326,6 +341,7 @@ func (m *Manager) Dock(id TabID) {
 
 // SetActive switches to id; an unknown id is ignored.
 func (m *Manager) SetActive(id TabID) {
+	defer m.stateChanged()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.indexLocked(id) >= 0 {
@@ -334,6 +350,7 @@ func (m *Manager) SetActive(id TabID) {
 }
 
 func (m *Manager) step(d int) {
+	defer m.stateChanged()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	n := len(m.entries)
@@ -353,6 +370,7 @@ func (m *Manager) Prev() { m.step(-1) }
 // to a second to release). Closing the active tab activates its right neighbour,
 // or its left one when it was last.
 func (m *Manager) Close(id TabID) {
+	defer m.stateChanged()
 	m.mu.Lock()
 	i := m.indexLocked(id)
 	if i < 0 {
@@ -382,7 +400,10 @@ const closeWait = 2 * time.Second
 
 // CloseAll closes every tab and waits, up to closeWait, for every shell to be
 // released, including ones Close is still releasing.
-func (m *Manager) CloseAll() {
+func (m *Manager) CloseAll() { m.CloseAllReleased() }
+
+// CloseAllReleased is CloseAll, reporting whether every shell was released in time.
+func (m *Manager) CloseAllReleased() bool {
 	m.mu.Lock()
 	es := m.entries
 	m.entries = nil
@@ -398,7 +419,9 @@ func (m *Manager) CloseAll() {
 	go func() { wg.Wait(); m.closing.Wait(); close(done) }()
 	select {
 	case <-done:
+		return true
 	case <-time.After(closeWait): // a hung PTY must not keep the app from quitting
+		return false
 	}
 }
 

@@ -134,6 +134,9 @@ func (win *window) launchOf(t *tabs.Tab) *wsMember {
 // bannerMember is what t's waiting banner shows: a workspace member or a
 // session waiting to start claude.
 func (win *window) bannerMember(t *tabs.Tab) *wsMember {
+	if l := win.launchOf(t); l != nil {
+		return l
+	}
 	if m := win.memberOf(t); m != nil {
 		return m
 	}
@@ -162,6 +165,9 @@ func (win *window) launchTick(now time.Time) (wake time.Time, ok bool) {
 			win.wsEvent(l, t, workspaces.ConfirmTimeoutEvent{})
 		}
 		if l.run.Settled() {
+			if win.restore != nil && l.run.State != workspaces.Launched {
+				win.restore.Cancel(int(id))
+			}
 			win.mgr.Watch(id, false)
 			delete(win.launches, id)
 			continue

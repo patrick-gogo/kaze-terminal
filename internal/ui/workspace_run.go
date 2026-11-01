@@ -321,9 +321,15 @@ func (win *window) wsEvent(m *wsMember, t *tabs.Tab, e workspaces.Event) {
 		res := term.Closed
 		if t != nil {
 			m.promptAt = promptCount(t.Session)
+			if win.restore != nil && win.launchOf(t) == m {
+				win.restore.Launched(int(t.ID), shellSeq(t))
+			}
 			res = t.Session.Submit([]byte(m.run.Line + "\r"))
 		}
 		if res != term.Accepted {
+			if win.restore != nil && t != nil && win.launchOf(t) == m {
+				win.restore.Cancel(int(t.ID))
+			}
 			m.run.Event(workspaces.SubmitFailedEvent{Err: "Could not send the commands to this tab."})
 		}
 	}
@@ -494,6 +500,9 @@ func (win *window) takeOver(t *tabs.Tab) {
 	}
 	if l := win.launchOf(t); l != nil {
 		win.mgr.Watch(t.ID, false)
+		if win.restore != nil {
+			win.restore.Cancel(int(t.ID))
+		}
 		delete(win.launches, t.ID) // the owner typed first: never type claude over it
 	}
 }

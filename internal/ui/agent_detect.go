@@ -59,7 +59,11 @@ func (win *window) detectAgents(now time.Time) (wake time.Time) {
 		}
 		d.at, d.out = now, out
 		if pg := win.probe.fg(t); pg != d.pg || !seen {
+			was := d.agent
 			d.pg, d.agent = pg, win.probe.name(pg)
+			if seen && was != "" && d.agent == "" && pg != 0 {
+				win.restoreAgentQuit(t.ID) // the shell is back: nothing left to resume
+			}
 		}
 		win.detected[t.ID] = d
 	}

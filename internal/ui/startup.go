@@ -11,6 +11,14 @@ import (
 // startup_workspace one, else the usual tab. A workspace that can't run leaves
 // the usual tab with a warning saying why, and nothing typed into any shell.
 func (win *window) openStartup(def []string) error {
+	if win.restoreStarted {
+		return nil
+	}
+	win.restoreStarted = true
+	defer win.trackRestore()
+	if win.restoreStartup() {
+		return nil
+	}
 	ws, warn, ok := win.startupWorkspace()
 	if ok {
 		plan, err := win.preflight(ws)

@@ -168,7 +168,7 @@ Order after Plan 3: Plan 2 (subagent child tabs, 6.3), Plan 4 (Claude usage in t
 - **Language: Go.** Chosen over Swift (a teammate's choice, but Swift on Windows has no usable UI toolkit) and Rust (good fit, but slower to iterate). Claude's recommendation, accepted by Patrick.
 - **UI: Gio** (cross-platform Go UI with its own text shaping). Chosen because it runs on Windows and macOS from one codebase, and the browser opens as a separate window so nothing needs embedding.
 - **Shell process:** ConPTY on Windows, Unix pty on macOS, behind one interface (a library such as `go-pty` covers both).
-- **Sessions do not survive kaze closing, crashing or restarting** (Patrick's decision, same as Warp). Shells run inside the kaze process; no background PTY host. The shell layer stays behind a clean interface so a survive-restart host could be added later without rewriting the UI.
+- **Live shells stop when Kaze closes, crashes or restarts.** There is no background PTY host. The owner approved automatic metadata restoration for issue #75 on 2026-11-01: reopen folders and exact Claude/Codex conversations in fresh shells. See `2026-11-01-kaze-session-restore-design.md`; it supersedes the earlier decision against restoring sessions. Arbitrary running processes still do not survive exit.
 - **Repo:** `<repo>` (e.g. `%USERPROFILE%\Desktop\kaze`), its own git repo, separate from any work repo.
 
 ## 9. Left to the builder

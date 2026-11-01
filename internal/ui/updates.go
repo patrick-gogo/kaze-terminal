@@ -85,7 +85,7 @@ func (win *window) initUpdates() {
 	}
 	win.upd = updater{
 		url: update.LatestURL, client: &http.Client{}, exe: exe, goos: runtime.GOOS, goarch: runtime.GOARCH,
-		relaunch: update.Relaunch,
+		relaunch: update.RelaunchWaiting,
 		quit:     win.closeWindow,
 		open:     openURL,
 	}
@@ -254,7 +254,7 @@ func (win *window) installUpdate() {
 			if err := update.Install(target, unzipped); err != nil {
 				return err
 			}
-			return relaunch(target)
+			return nil
 		}()
 		win.post(func(win *window) {
 			u := &win.upd
@@ -262,8 +262,7 @@ func (win *window) installUpdate() {
 				u.busy, u.err = "", "Update failed: "+err.Error()
 				return
 			}
-			u.busy = "Restarting…"
-			u.quit()
+			win.restartForUpdate(target, relaunch)
 		})
 	}()
 }

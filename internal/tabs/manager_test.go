@@ -425,3 +425,32 @@ func TestLookupFindsOpenTabsOnly(t *testing.T) {
 		t.Fatalf("closed tab found: %v", got)
 	}
 }
+
+// hungClose never releases its PTY until the test ends, as a stuck ConPTY can.
+type hungClose struct {
+	*fakePTY
+	release chan struct{}
+}
+
+func (h *hungClose) Close() error { <-h.release; return h.fakePTY.Close() }
+
+func TestCloseAllReportsWhetherEveryShellWasReleased(t *testing.T) {
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	hang := true
+	m := tabs.NewManager(func([]string, string) (ptyx.Session, error) {
+		if hang {
+			return &hungClose{fakePTY: newFake(), release: release}, nil
+		}
+		return newFake(), nil
+	}, 80, 24, nil)
+	mustNew(t, m)
+	if m.CloseAllReleased() {
+		t.Fatal("a hung shell was reported released")
+	}
+	hang = false
+	mustNew(t, m)
+	if !m.CloseAllReleased() {
+		t.Fatal("a closed shell was reported hung")
+	}
+}

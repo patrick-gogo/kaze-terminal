@@ -35,6 +35,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/ptyx"
 	"github.com/patrick-gogo/kaze-terminal/internal/render"
 	"github.com/patrick-gogo/kaze-terminal/internal/screen"
+	"github.com/patrick-gogo/kaze-terminal/internal/sessionstate"
 	"github.com/patrick-gogo/kaze-terminal/internal/skills"
 	"github.com/patrick-gogo/kaze-terminal/internal/sound"
 	"github.com/patrick-gogo/kaze-terminal/internal/subagents"
@@ -170,8 +171,20 @@ type window struct {
 	names    map[tabs.TabID]string     // row names the owner gave; UI goroutine only
 	lc       lineCounter               // git lines added and removed per tab; UI goroutine only
 
-	set     settingsState // the Settings page; UI goroutine only
-	cfgPath string        // where the page saves; "" applies changes without saving
+	restore            *sessionstate.Store
+	restoreSaved       sessionstate.Snapshot
+	restorePlans       []restorePlan
+	restorePath        string
+	restoreWait        bool
+	restoreWaitFor     time.Duration // the updater handoff bound; 0 is restoreWaitDefault
+	restoreStarted     bool
+	restartBusy        bool
+	restoreCaptureMu   sync.Mutex
+	restoreFatal       error
+	restoreLastWarning string
+	resumeLookPath     func(string) (string, error)
+	set                settingsState // the Settings page; UI goroutine only
+	cfgPath            string        // where the page saves; "" applies changes without saving
 
 	claudePath string // Claude Code's settings.json; "" checks nothing
 	exePath    string // this kaze, which a Claude setup fix points the entries at
@@ -226,6 +239,15 @@ func Run(w *app.Window, opt Options) error {
 	}
 	if exe, err := os.Executable(); err == nil {
 		win.exePath = exe
+	}
+	for _, arg := range os.Args[1:] {
+		if arg == "--restore-wait" {
+			win.restoreWait = true
+		}
+	}
+	win.initRestore()
+	if win.restoreFatal != nil {
+		return win.restoreFatal
 	}
 	win.initUpdates()
 	if !win.custom {
@@ -356,15 +378,21 @@ func (win *window) frameOrShutdown(gtx layout.Context) error {
 // shutdown closes the alert listener and every shell, together within shutdownWait.
 func (win *window) shutdown() {
 	start := time.Now()
+	if win.restore != nil {
+		win.freezeRestore()
+		win.restore.Flush()
+	}
 	win.cancelRuns()
 	var done chan struct{}
 	if win.srv != nil {
 		done = make(chan struct{})
 		go func() { win.srv.Close(); close(done) }()
 	}
+	released := true
 	if win.mgr != nil {
-		win.mgr.CloseAll()
+		released = win.mgr.CloseAllReleased()
 	}
+	win.finishRestore(released)
 	if done != nil {
 		select {
 		case <-done:
@@ -519,6 +547,20 @@ func (win *window) setCursorHidden(h bool) {
 const echoWait = 3 * time.Millisecond
 
 func (win *window) frame(gtx layout.Context) error {
+	if win.restartBusy {
+		win.drainUpdates()
+		return nil
+	}
+	if win.restore != nil {
+		if err := win.restore.Err(); err != nil {
+			if err.Error() != win.restoreLastWarning {
+				win.restoreLastWarning = err.Error()
+				win.note("Could not save sessions: " + err.Error())
+			}
+		} else {
+			win.restoreLastWarning = ""
+		}
+	}
 	barH, statusH, pad := gtx.Dp(42), gtx.Dp(32), gtx.Dp(8)
 	px := gtx.Metric.PxPerSp * win.opt.Config.FontSize
 	if win.rend == nil || win.rendStale || px != win.rendPx {
@@ -622,11 +664,13 @@ func (win *window) frame(gtx layout.Context) error {
 	if at, ok := win.updTick(gtx.Now); ok {
 		gtx.Execute(op.InvalidateCmd{At: at}) // one wake per update check, a day apart
 	}
-	if at, ok := win.wsTick(win.wsNow()); ok {
-		gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
-	}
-	if at, ok := win.launchTick(win.wsNow()); ok {
-		gtx.Execute(op.InvalidateCmd{At: at}) // one wake to ask about a new session's prompt
+	if !win.restartBusy {
+		if at, ok := win.wsTick(win.wsNow()); ok {
+			gtx.Execute(op.InvalidateCmd{At: at}) // one wake for the next prompt timeout
+		}
+		if at, ok := win.launchTick(win.wsNow()); ok {
+			gtx.Execute(op.InvalidateCmd{At: at}) // one wake to ask about a new session's prompt
+		}
 	}
 	sel := win.checkSel(active)
 	// After input, so a key typed this frame shows the cursor in it.
