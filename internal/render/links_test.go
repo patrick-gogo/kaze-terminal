@@ -125,3 +125,19 @@ func BenchmarkVisibleLinks240x80(b *testing.B) {
 		l.Visible(s, 0, 80)
 	}
 }
+
+// A full row ended by a real newline is not a wrap: the next line is not part of the link.
+func TestLinkDoesNotRunIntoTheNextLine(t *testing.T) {
+	s := screen.New(20, 3)
+	printAll(s, "https://example.com/")
+	s.CarriageReturn()
+	s.LineFeed()
+	printAll(s, "Next log entry")
+	var l Links
+	if u, ok := l.At(s, Point{Col: 3, Row: 0}); !ok || u != "https://example.com/" {
+		t.Fatalf("got %q %v", u, ok)
+	}
+	if _, ok := l.At(s, Point{Col: 1, Row: 1}); ok {
+		t.Fatal("the next line became part of the link")
+	}
+}

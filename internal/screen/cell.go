@@ -27,6 +27,9 @@ const (
 	AttrInverse
 	AttrDim
 	AttrStrike
+	// AttrWrapped is set only on a row's last cell, when printing ran on into
+	// the next row. It is not drawn; it tells a wrap from a full row and a newline.
+	AttrWrapped
 )
 
 // Cell is one grid position. Width is 1, 2 (lead half of a wide char) or 0 (continuation half).

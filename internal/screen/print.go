@@ -41,6 +41,7 @@ func (s *Screen) Print(r rune) {
 		return
 	}
 	if s.wrapPending && s.autoWrap {
+		s.markWrapped()
 		s.CarriageReturn()
 		s.LineFeed()
 	}
@@ -50,6 +51,7 @@ func (s *Screen) Print(r rune) {
 		}
 		s.clearWideHalves(s.curCol, 1) // blanking a continuation half must not orphan its lead
 		s.SetCell(s.curCol, s.curRow, blankCell)
+		s.markWrapped()
 		s.CarriageReturn()
 		s.LineFeed()
 	}
@@ -63,6 +65,13 @@ func (s *Screen) Print(r rune) {
 		s.curCol = s.cols - 1
 		s.wrapPending = s.autoWrap
 	}
+}
+
+// markWrapped flags the cursor row as running on into the next row.
+func (s *Screen) markWrapped() {
+	c := s.Cell(s.cols-1, s.curRow)
+	c.Attrs |= AttrWrapped
+	s.SetCell(s.cols-1, s.curRow, c)
 }
 
 // clearWideHalves blanks the partner of any wide char that a write over [col, col+w) would split.

@@ -15,9 +15,8 @@ const maxWrapRows = 16
 // first), From and To are inclusive columns. A wrapped link has one per row.
 type LinkSpan struct{ Row, From, To int }
 
-// Links finds http and https links in the grid text. Wrap is not tracked, so a
-// link that fills a row to its last column continues on the next row when that
-// row starts with a link character. The zero value is ready; its buffers are
+// Links finds http and https links in the grid text. A link that auto-wrapped
+// onto the next row is found whole; a full row ended by a newline is not joined. The zero value is ready; its buffers are
 // reused, so a frame with no links allocates nothing. Not safe for concurrent use.
 type Links struct {
 	rs    []rune
@@ -116,8 +115,8 @@ func (l *Links) line(scr *screen.Screen, start, end int) {
 	}
 }
 
-// continues reports whether row's text runs on into the next row: it is filled
-// to the last column with a link character and the next row starts with one.
+// continues reports whether row's text runs on into the next row: the screen
+// marked it as auto-wrapped, and the next row starts with a link character.
 func continues(scr *screen.Screen, row int) bool {
 	if row+1 >= totalRows(scr) {
 		return false
@@ -126,7 +125,7 @@ func continues(scr *screen.Screen, row int) bool {
 	if w == 0 {
 		return false
 	}
-	return urlRune(cellAt(scr, w-1, row).Rune) && urlRune(cellAt(scr, 0, row+1).Rune)
+	return cellAt(scr, w-1, row).Attrs&screen.AttrWrapped != 0 && urlRune(cellAt(scr, 0, row+1).Rune)
 }
 
 // findURLs is appendURLs into a new slice.
