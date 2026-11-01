@@ -103,7 +103,18 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>The latest releases.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.16</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.17</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-body">
+          <h3>Agent logos and colored links</h3>
+          <ul>
+            <li><b>Agent logos in the sidebar:</b> a session running Claude Code shows the Claude logo, and one running Codex shows the OpenAI logo, next to the agent's name.</li>
+            <li><b>Named as soon as it opens:</b> the logo and name appear the moment Claude Code or Codex starts, before your first prompt. Settings, Agents offers the new SessionStart hook for each; in Codex, run <code>/hooks</code> to trust it.</li>
+            <li><b>Links stand out:</b> web links in the terminal are drawn in blue with an underline. Text a program already colored keeps its color and gets the underline.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
+        <div class="release-meta"><span class="version">0.16</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Clickable links and Codex helpers</h3>
           <ul>
@@ -127,19 +138,6 @@
             <li><b>Faster busy terminals:</b> scrolling reuses rows, and unchanged title-bar and status-bar layouts are reused instead of measured again each frame.</li>
             <li><b>Less memory churn:</b> subagent history and rendering buffers reuse storage, and forgotten subagent pane IDs are cleaned up.</li>
             <li><b>More efficient agent updates:</b> bursts of tool activity are compacted in batches, protecting completion reports and the newest actions.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.15</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
-        <div class="release-body">
-          <h3>A new title bar and status bar</h3>
-          <ul>
-            <li><b>One title bar on Mac and Windows:</b> the sidebar toggle, a new-session button, the session you're in with its command and state, a search field that opens the palette, and the scratch shell, Agents and Settings buttons, laid out the same on both.</li>
-            <li><b>Real Mac window buttons:</b> the native traffic lights sit inside Kaze's own bar. Drag the bar to move the window; double-click it to zoom, as your Mac is set.</li>
-            <li><b>A clearer status bar:</b> folder and branch with icons, pills for updates and subagents, server dots, and Claude usage as small meters with a card that shows when each limit resets.</li>
-            <li><b>Fits narrow windows:</b> the least important parts give way first, so nothing overlaps.</li>
-            <li><b>Fixed:</b> the agents board now names sessions the same way as the sidebar.</li>
           </ul>
         </div>
       </li>
