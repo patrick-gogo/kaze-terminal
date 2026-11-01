@@ -93,10 +93,10 @@ func (win *window) codexRows() []settingRow {
 		return []settingRow{{icon: "alert", label: "Codex not found", hint: "Install Codex, then open this page again."}}
 	}
 	labels := []string{"Alerts when Codex needs you", "Alerts when Codex is done", "Command each session runs", "Interrupts",
-		"Helpers start", "Helper reports", "Helper steps"}
+		"Helpers start", "Helper reports", "Helper steps", "Shows Codex as soon as it opens"}
 	hints := []string{"PermissionRequest hook", "Stop hook", "UserPromptSubmit hook", "Interrupt hook",
-		"SubagentStart hook", "SubagentStop hook", "PreToolUse hook"}
-	icons := []string{"alert", "check", "prompt", "prompt", "claude", "check", "prompt"}
+		"SubagentStart hook", "SubagentStop hook", "PreToolUse hook", "SessionStart hook"}
+	icons := []string{"alert", "check", "prompt", "prompt", "claude", "check", "prompt", "check"}
 	var rows []settingRow
 	offered := false
 	for i, e := range cs.report.Entries() {

@@ -487,3 +487,18 @@ func TestFitReportSurvivesEscaping(t *testing.T) {
 		t.Fatalf("encoded %d bytes", len(b))
 	}
 }
+
+func TestSessionKindCarriesOnlyIdentity(t *testing.T) {
+	s, ch := start(t)
+	m := Msg{Tab: 2, Kind: KindSession, Agent: "codex", Session: "s1", Reason: "x", Command: "/c", Args: "a", Usage: &Usage{}, AgentID: "id"}
+	if err := Send(s.Addr(), s.Token(), m, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	got := recv(t, ch)
+	if got.Kind != KindSession || got.Agent != "codex" || got.Session != "s1" {
+		t.Fatalf("got %+v", got)
+	}
+	if got.Reason != "" || got.Command != "" || got.Args != "" || got.Usage != nil || got.AgentID != "" {
+		t.Fatalf("extra fields kept: %+v", got)
+	}
+}

@@ -168,7 +168,7 @@ func (win *window) onNotify(m notify.Msg) {
 		}
 		return
 	}
-	if m.Kind == notify.KindPrompt || m.Kind == notify.KindInterrupt {
+	if m.Kind == notify.KindPrompt || m.Kind == notify.KindInterrupt || m.Kind == notify.KindSession {
 		win.inbox.put(m, shell) // state only: never a chime, flash or toast
 		if win.w != nil {
 			win.w.Invalidate()

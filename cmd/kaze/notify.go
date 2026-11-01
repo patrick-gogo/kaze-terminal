@@ -50,7 +50,7 @@ func notifyArgs(args []string) (notify.Kind, string, bool) {
 	}
 	kind := notify.Kind(args[0])
 	switch kind {
-	case notify.KindDone, notify.KindNeeds, notify.KindPrompt:
+	case notify.KindDone, notify.KindNeeds, notify.KindPrompt, notify.KindSession:
 		return kind, agent, true
 	case notify.KindInterrupt:
 		return kind, agent, agent == "codex"

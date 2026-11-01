@@ -240,3 +240,44 @@ func TestCommandThenPlainPromptThenDoneInOneFrame(t *testing.T) {
 		t.Fatalf("state %+v", a)
 	}
 }
+
+// A session start names the agent at once, without running or a mark.
+func TestSessionNamesTheAgentWithoutRunning(t *testing.T) {
+	win, _ := alertWindow(t, 2)
+	id := win.mgr.Tabs()[1].ID
+	deliverNow(win, notify.Msg{Tab: int(id), Kind: notify.KindSession, Agent: "codex"}, t0)
+	a := win.agentOf(id)
+	if a.agentName() != "codex" || a.running || a.claude {
+		t.Fatalf("state %+v", a)
+	}
+	if win.alerts.markOf(id) != markNone {
+		t.Fatal("session start marked the tab")
+	}
+}
+
+// Claude's SessionStart after /clear keeps the name and drops the old command.
+func TestSessionClearsTheOldCommand(t *testing.T) {
+	win, _ := alertWindow(t, 2)
+	id := win.mgr.Tabs()[1].ID
+	deliverNow(win, promptMsg(int(id), "/ship-ticket", "V3"), t0)
+	deliverNow(win, notify.Msg{Tab: int(id), Kind: notify.KindDone}, t0)
+	deliverNow(win, notify.Msg{Tab: int(id), Kind: notify.KindSession}, t0)
+	a := win.agentOf(id)
+	if a.agentName() != "claude" || !a.claude || a.running || a.command != "" {
+		t.Fatalf("state %+v", a)
+	}
+}
+
+func TestSessionDoesNotChime(t *testing.T) {
+	win, played, flashes := liveWindow(t, 2)
+	id := win.mgr.Tabs()[1].ID
+	win.publish(win.mgr.Active(), false)
+	win.opt.Config.ChimeDone, win.opt.Config.ChimeNeeds = true, true
+	win.onNotify(notify.Msg{Tab: int(id), Kind: notify.KindSession, Agent: "codex"})
+	if len(*played) != 0 || *flashes != 0 {
+		t.Fatalf("%d chimes %d flashes", len(*played), *flashes)
+	}
+	if win.inbox.size() != 1 {
+		t.Fatal("session start was not queued")
+	}
+}

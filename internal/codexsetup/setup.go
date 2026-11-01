@@ -25,16 +25,18 @@ type Entry struct {
 	Exe, Command, Source, Detail string
 	Fixable                      bool
 }
-type Report struct{ Needs, Stop, Prompt, Interrupt, AgentStart, AgentStop, Tools Entry }
+type Report struct{ Needs, Stop, Prompt, Interrupt, AgentStart, AgentStop, Tools, Session Entry }
 
 func (r Report) Entries() []Entry {
-	return []Entry{r.Needs, r.Stop, r.Prompt, r.Interrupt, r.AgentStart, r.AgentStop, r.Tools}
+	return []Entry{r.Needs, r.Stop, r.Prompt, r.Interrupt, r.AgentStart, r.AgentStop, r.Tools, r.Session}
 }
 
-// events is in Report field order. The last three show Codex helpers (#63).
+// events is in Report field order. SubagentStart, SubagentStop and PreToolUse
+// show Codex helpers (#63); SessionStart names Codex as soon as it opens.
 var events = []struct{ event, kind string }{
 	{"PermissionRequest", "needs"}, {"Stop", "done"}, {"UserPromptSubmit", "prompt"}, {"Interrupt", "interrupt"},
 	{"SubagentStart", "agent-start"}, {"SubagentStop", "agent-stop"}, {"PreToolUse", "tool"},
+	{"SessionStart", "session"},
 }
 
 func load(data []byte) (*j.Node, error) {
@@ -239,7 +241,7 @@ func Inspect(data, config []byte, exists func(string) bool) (Report, error) {
 	for i, ev := range events {
 		entries[i] = inspectEntry(root, cfg, ev.event, ev.kind, exists)
 	}
-	return Report{entries[0], entries[1], entries[2], entries[3], entries[4], entries[5], entries[6]}, nil
+	return Report{entries[0], entries[1], entries[2], entries[3], entries[4], entries[5], entries[6], entries[7]}, nil
 }
 
 // Fix adds missing handlers and replaces broken Kaze handlers. Other commands

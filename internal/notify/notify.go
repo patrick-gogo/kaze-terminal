@@ -28,6 +28,9 @@ const (
 	KindPrompt Kind = "prompt"
 	// KindInterrupt ends running without raising an alert.
 	KindInterrupt Kind = "interrupt"
+	// KindSession says an agent session started (or restarted after /clear) in the
+	// tab: it names the agent before the first prompt. Never an alert.
+	KindSession Kind = "session"
 	// The subagent kinds are Claude only and never alerts.
 	KindAgentStart Kind = "agent-start"
 	KindAgentStop  Kind = "agent-stop"
@@ -234,6 +237,8 @@ func (s *Server) handle(c net.Conn) {
 		if m.Kind != KindNeeds {
 			m.AgentID, m.AgentType = "", ""
 		}
+	case KindSession:
+		m.Usage, m.Reason, m.Command, m.Args, m.AgentID, m.AgentType = nil, "", "", "", "", ""
 	case KindUsage:
 		if m.Usage == nil {
 			return

@@ -297,3 +297,22 @@ func TestNotifyPromptCleansArgsUnder64KB(t *testing.T) {
 		}
 	}
 }
+
+// SessionStart names the agent in the tab before the first prompt.
+func TestNotifySessionSends(t *testing.T) {
+	srv, got := startServer(t)
+	in := strings.NewReader(`{"hook_event_name":"SessionStart","session_id":"s1","cwd":"/w","source":"startup"}`)
+	if code := runNotify([]string{"session", "--agent", "codex"}, in, envOf(srv, "4")); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	m := wait(t, got)
+	if m.Tab != 4 || m.Kind != notify.KindSession || m.Agent != "codex" || m.Session != "s1" || m.Cwd != "/w" {
+		t.Fatalf("got %+v", m)
+	}
+	if code := runNotify([]string{"session"}, strings.NewReader(""), envOf(srv, "5")); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if m := wait(t, got); m.Tab != 5 || m.Kind != notify.KindSession || m.Agent != "" {
+		t.Fatalf("claude: got %+v", m)
+	}
+}

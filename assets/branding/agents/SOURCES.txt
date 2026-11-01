@@ -1,0 +1,11 @@
+Agent logos shown next to a session in the sidebar.
+
+claude.svg  The Claude logo (Anthropic). Path from simple-icons 13.21.0.
+openai.svg  The OpenAI logo, shown for Codex. Path from simple-icons 13.21.0.
+
+Both are trademarks of their owners and are used only to say which agent runs in a tab.
+
+The *-96.png files are white on transparent, made with:
+  magick -background none -density 1200 <name>.svg -resize 96x96 \
+    -alpha extract -background white -alpha shape PNG32:<name>-96.png
+kaze tints them when it draws them.
