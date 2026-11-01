@@ -166,7 +166,8 @@ config. Settings, Shortcuts lists every shortcut as this machine has it.
   extend by words or lines.
 - **Apps that use the mouse** (vim, htop and the like) get the clicks and the wheel. Hold
   **Shift** while dragging to select text in them anyway.
-- **Links:** `http` and `https` links show a hand cursor. Cmd+click (Ctrl+click on Windows) opens
+- **Links:** `http` and `https` links are drawn in blue with an underline (a link a program
+  colored keeps its color) and show a hand cursor. Cmd+click (Ctrl+click on Windows) opens
   one in your browser, even while Claude Code or vim has the mouse. A link that wraps onto the
   next row opens whole.
 - **Wheel:** scrolls back through history. Typing jumps back to the bottom. Full-screen apps
@@ -182,8 +183,11 @@ Sessions are listed down the left side, in place of a tab strip.
 - **Rows:** each row shows the title, a shortened folder, the branch (without a `feature/` style
   prefix) and the word `needs you` or `done` when Claude Code has something to say. Hover a row
   to get a ×, or middle click it to close it. The `+` button opens a new session.
-  - **Command:** when you start a prompt with a slash command, the row shows ` · /command` in
-    magenta after the title. This needs the prompt hook (see Alerts below).
+  - **Agent:** a session running Claude Code shows the Claude logo and `claude` after the title;
+    one running Codex shows the OpenAI logo and `codex`. They appear as soon as the agent opens,
+    through its SessionStart hook (`kaze notify session`), or with the first prompt without it.
+  - **Command:** when you start a prompt with a slash command, the row shows `/command` in
+    magenta after the agent. This needs the prompt hook (see Alerts below).
   - **Running:** a still ring and the word `running` show that Claude is working on a prompt.
     `needs you` and `done` take priority over it. The ring does not animate, so an idle kaze
     still uses no CPU. A session counts as running from the prompt until Claude says it is done
@@ -338,8 +342,9 @@ still win over the theme's terminal palette.
 
 The Agents section reads `~/.claude/settings.json` and shows the state of the entries kaze
 needs: the Stop hook (`notify done`), the Notification hook (`notify needs`), the prompt hook
-(`notify prompt`, shown as "Command each session runs"), the status line (`statusline`) and the
-three subagent hooks (`notify agent-start`, `notify agent-stop` and `notify tool`, see Subagents):
+(`notify prompt`, shown as "Command each session runs"), the status line (`statusline`), the
+three subagent hooks (`notify agent-start`, `notify agent-stop` and `notify tool`, see Subagents)
+and the SessionStart hook (`notify session`, which names the agent in the sidebar as soon as it opens):
 
 | State | Meaning |
 |---|---|
@@ -368,8 +373,9 @@ not found**. It checks these handlers:
 | SubagentStart | `kaze notify agent-start --agent codex` |
 | SubagentStop | `kaze notify agent-stop --agent codex` |
 | PreToolUse | `kaze notify tool --agent codex` |
+| SessionStart | `kaze notify session --agent codex` |
 
-The last three show Codex helpers in the sidebar, live panes and board, like Claude Code
+SessionStart shows Codex on its sidebar row as soon as it opens. SubagentStart, SubagentStop and PreToolUse show Codex helpers in the sidebar, live panes and board, like Claude Code
 subagents (see Subagents). A helper is named after its `spawn_agent` task, and a helper that
 gets a follow-up turn shows as running again.
 
@@ -779,6 +785,7 @@ Done:
 - Plan 6b: agent awareness on the rows (slash command, running mark, titles you can rename, `+N -M` line counts) and a Next waiting button and key.
 - Subagents: each session's subagents in the sidebar, a live pane per subagent and the agents board (replaces Plan 2's child tabs).
 - 0.16: clickable links, Codex helpers alongside Claude Code subagents, and screenshot paste with Cmd+V.
+- 0.17: Claude and Codex logos on the sidebar rows as soon as an agent opens, and links drawn in blue.
 
 Next:
 
