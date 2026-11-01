@@ -90,6 +90,10 @@ type Renderer struct {
 	snapSel       []bool // per cell: selected in the snapshot
 	drawnSel      []bool // per cell: drawn selected
 	lastSel       Selection
+	links         Links  // finds the web links to style, reused every frame
+	linkWas       []bool // per visible row: had a styled link last snapshot
+	linkNow       []bool // per visible row: has one now
+	linkQueued    []bool // per visible row: already in snapRows
 	rowsPerStrip  int
 	strips        []strip
 
@@ -148,6 +152,7 @@ func (r *Renderer) Release() {
 	r.strips, r.drawn, r.snap, r.snapRows = nil, nil, nil, nil
 	r.snapSel, r.drawnSel, r.lastSel = nil, nil, Selection{}
 	r.selectionRows = nil
+	r.links, r.linkWas, r.linkNow, r.linkQueued = Links{}, nil, nil, nil
 	r.curImg, r.curDrawn = nil, cursorState{}
 }
 
@@ -226,6 +231,7 @@ func (r *Renderer) snapshot(s *term.Session, sel *Selection) (held bool) {
 		r.addSelectionRows(r.lastSel, cur, base)
 		r.lastSel = cur
 	}
+	spans := r.queueLinkRows(scr, base)
 	for _, row := range r.snapRows {
 		line := r.snap[row*cols : (row+1)*cols]
 		sline := r.snapSel[row*cols : (row+1)*cols]
@@ -241,6 +247,7 @@ func (r *Renderer) snapshot(s *term.Session, sel *Selection) (held bool) {
 			}
 		}
 	}
+	r.styleLinks(spans, base)
 
 	col, row := scr.Cursor()
 	cell := scr.VisibleCell(col, row)
@@ -284,6 +291,7 @@ func (r *Renderer) resize(cols, rows int) {
 	r.full, r.needStrips = true, true
 	r.snap = make([]screen.Cell, cols*rows)
 	r.snapSel = make([]bool, cols*rows)
+	r.linkWas, r.linkNow, r.linkQueued = make([]bool, rows), make([]bool, rows), make([]bool, rows)
 }
 
 func (r *Renderer) buildStrips() {
