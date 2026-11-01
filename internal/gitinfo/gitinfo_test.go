@@ -18,6 +18,14 @@ func write(t *testing.T, path, content string) {
 	}
 }
 
+// Canonical keys may expand Windows 8.3 aliases in the test runner's temp path.
+// Compare directory identity here; path-casing behavior has its own regression.
+func sameDirectory(a, b string) bool {
+	fa, ea := os.Stat(a)
+	fb, eb := os.Stat(b)
+	return ea == nil && eb == nil && os.SameFile(fa, fb)
+}
+
 func TestBranchFromHead(t *testing.T) {
 	root := t.TempDir()
 	write(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/feature/x\n")
@@ -140,7 +148,7 @@ func TestRepoOfAPlainCheckout(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "proj")
 	write(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
 	key, name := Repo(root)
-	if key != filepath.Join(root, ".git") || name != "proj" {
+	if !sameDirectory(key, filepath.Join(root, ".git")) || name != "proj" {
 		t.Fatalf("got %q, %q", key, name)
 	}
 }
@@ -167,7 +175,7 @@ func TestRepoOfAWorktreeIsTheMainRepo(t *testing.T) {
 	wt := filepath.Join(base, "wt")
 	write(t, filepath.Join(wt, ".git"), "gitdir: "+filepath.ToSlash(wtGit)+"\n")
 	key, name := Repo(wt)
-	if key != filepath.Join(main, ".git") || name != "main" {
+	if !sameDirectory(key, filepath.Join(main, ".git")) || name != "main" {
 		t.Fatalf("got %q, %q", key, name)
 	}
 }
@@ -179,7 +187,7 @@ func TestRepoOfASubmodule(t *testing.T) {
 	sub := filepath.Join(base, "super", "sub")
 	write(t, filepath.Join(sub, ".git"), "gitdir: ../.git/modules/sub\n")
 	key, name := Repo(sub)
-	if key != modGit || name != "sub" {
+	if !sameDirectory(key, modGit) || name != "sub" {
 		t.Fatalf("got %q, %q", key, name)
 	}
 }
@@ -248,5 +256,10 @@ func TestRepoIgnoresPathCasing(t *testing.T) {
 	key, name := Repo(other)
 	if key != wantK || name != wantN {
 		t.Fatalf("got %q, %q; want %q, %q", key, name, wantK, wantN)
+	}
+	var c Cache
+	first, second := c.Lookup(root), c.Lookup(other)
+	if first.Repo != second.Repo || first.Name != second.Name {
+		t.Fatalf("cached path casing: %+v versus %+v", first, second)
 	}
 }

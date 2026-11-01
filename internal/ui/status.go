@@ -19,16 +19,18 @@ type serverDot struct{ Down, Up bool }
 
 // locEntry is the branch and repo found for one tab at one folder report.
 type locEntry struct {
-	cwd      string
-	seq      uint64
-	branch   string
-	repo     string // common git folder, "" outside a repo
-	repoName string
+	pending, stale bool
+	ticket         uint64
+	cwd            string
+	seq            uint64
+	branch         string
+	repo           string // common git folder, "" outside a repo
+	repoName       string
 }
 
-// locOf returns t's folder, branch and repo. A new report (even for the same
-// folder) or a new folder re-reads them; every other call reuses the cache, so
-// no file I/O per frame. A tab with no reported folder yields a zero entry.
+// locOf returns the folder immediately and queues background Git discovery on
+// a new report or invalidation. Known same-folder metadata stays visible until
+// refreshed. Tests may inject synchronous lookups. Unchanged frames do no I/O.
 func (win *window) locOf(t *tabs.Tab) locEntry {
 	s := t.Session
 	s.Lock()
@@ -38,8 +40,11 @@ func (win *window) locOf(t *tabs.Tab) locEntry {
 		return locEntry{}
 	}
 	e, ok := win.locs[t.ID]
-	if ok && e.cwd == cwd && e.seq == seq {
+	if ok && e.cwd == cwd && e.seq == seq && !e.stale {
 		return e
+	}
+	if win.branchFn == nil && win.repoFn == nil {
+		return win.requestLocation(t, cwd, seq)
 	}
 	branch := win.branchFn
 	if branch == nil {
@@ -61,7 +66,14 @@ func (win *window) locOf(t *tabs.Tab) locEntry {
 // staleBranch makes the next frame re-read t's branch. Claude Code can switch
 // branches with no prompt redraw, so tab switch and focus gain (both rare) re-check.
 func (win *window) staleBranch(t *tabs.Tab) {
-	delete(win.locs, t.ID)
+	if win.branchFn != nil || win.repoFn != nil {
+		delete(win.locs, t.ID)
+		return
+	}
+	if e, ok := win.locs[t.ID]; ok {
+		e.stale = true
+		win.locs[t.ID] = e
+	}
 }
 
 // pruneLocs forgets closed tabs.

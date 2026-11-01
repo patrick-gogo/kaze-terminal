@@ -147,7 +147,7 @@ func (t *Tracker) Apply(e Event) bool {
 			return false
 		}
 		if a := t.agents[k]; a != nil {
-			if t.reopen(a, e.Prompt) {
+			if t.reopen(a, e) {
 				return true
 			}
 			if a.Prompt == "" && e.Prompt != "" {
@@ -236,13 +236,16 @@ func (t *Tracker) Apply(e Event) bool {
 // leaves the done column and its next stop gives the new report. The turn's
 // message replaces the first prompt ("" when kaze didn't get it, so an old
 // prompt never sits above a new answer) and its steps are counted afresh.
-func (t *Tracker) reopen(a *Agent, prompt string) bool {
+func (t *Tracker) reopen(a *Agent, e Event) bool {
 	if a.State != Done {
 		return false
 	}
 	t.done = slices.DeleteFunc(t.done, func(old *Agent) bool { return old == a })
 	a.State, a.stopped, a.Ended, a.InTree = Running, false, time.Time{}, true
-	a.Prompt, a.Activity = prompt, Activity{}
+	a.Prompt, a.Activity = e.Prompt, Activity{}
+	a.Started, a.Report, a.Dropped = e.At, "", 0
+	clear(a.Steps[:cap(a.Steps)])
+	a.Steps = a.Steps[:0]
 	return true
 }
 

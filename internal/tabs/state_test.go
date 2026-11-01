@@ -1,6 +1,10 @@
 package tabs_test
 
 import (
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -29,10 +33,12 @@ func TestStateObserverTracksStructureSelectionAndBackgroundCwd(t *testing.T) {
 		t.Fatalf("%+v %v", st, active)
 	}
 	// The background shell changes folder without any UI frame.
-	go starter.fakes[1].outW.Write([]byte("\x1b]7;file://localhost/tmp/background\x07"))
+	dir := filepath.Join(os.TempDir(), "background")
+	u := url.URL{Path: "/" + strings.TrimPrefix(filepath.ToSlash(dir), "/")}
+	go starter.fakes[1].outW.Write([]byte("\x1b]7;file://localhost" + u.EscapedPath() + "\x07"))
 	waitFor(t, "background cwd", func() bool {
 		st, _ := m.State()
-		return len(st) == 2 && st[1].Dir == "/tmp/background" && st[1].Seq > 0
+		return len(st) == 2 && st[1].Dir == dir && st[1].Seq > 0
 	})
 
 	m.Close(b.ID)

@@ -1,8 +1,27 @@
 # kaze handoff
 
-Last updated: 2026-10-31, after Agents settings and Codex hooks were built on `feat/agents-settings`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-11-01, during the main-audit follow-up on `perf/audit-followup`. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
+
+**Audit follow-up is implemented** on `perf/audit-followup`, with the owner's
+authorization to commit/push and open a PR, explicitly without merging. Subagent
+text wrapping shapes once without paint recording; pane caches track content and
+layout; reopened helpers reset their turn's steps/report/time. Git discovery runs
+on at most two background workers with stale-result checks and a bounded path
+spelling cache. Input reserves chunks and bytes before copying, includes the active
+write, and reports overload to the user. The queue budget is 64 MiB + 4 KiB so one
+maximum paste fits. PR test/vet/build CI is added, and the concurrent notification
+test uses race-safe callbacks. See `docs/audits/2026-11-01-main-followup.md` and the
+matching audit-followup design/plan. No install, version bump or release.
+
+**macOS session shortcuts:** a native hidden-window probe reproduced AppKit
+consuming Ctrl+Tab and Ctrl+Shift+Tab before Gio received them. The Mac view's
+existing attachment now owns a window-scoped local key monitor that forwards only
+those combinations to Gio's normal key path, once, retaining configured actions.
+It detaches with the view/window. The native regression uses hidden, unfocused
+windows and no global input; router tests cover both directions, wraparound,
+workspace/scratch exclusion, Settings/board and overrides. Native CI runs the probe.
 
 **Agent browser feasibility (issue #30) has macOS results**, with the report at
 `docs/audits/2026-11-01-agent-browser-feasibility.md` and reproducible scripts plus
@@ -54,6 +73,11 @@ microbenchmarks, not native latency results. Full tests, vet, focused races and
 macOS/Windows amd64/arm64 builds pass; Windows runtime behavior is not manually
 verified. See `docs/audits/2026-11-01-performance.md` and the performance-fixes plan.
 No version bump until the release workflow after merge.
+
+## Implementation history
+
+The entries below describe the state at each milestone. Their branch/version and
+setup notes are historical; use the current status above and Next below for work.
 
 **Plan 1 (terminal core with tabs) is done**, reviewed task by task plus a whole-branch review, and on `main`.
 
@@ -196,22 +220,24 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 
 ## Next
 
-1. **Merge Plan 5a and Plan 5b** (the owner merges the PRs from `feature/settings-page` and `feature/workspaces`; each branch must merge `main` first). Then rebuild `kaze-app\kaze.exe` from `main`, run `kaze.exe notify done` once, and regenerate the `.syso` files for 0.8.
-2. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
-3. **Notification card redesign** (GitHub issue #9).
-4. **Real panes** (Zellij-like tiles; would replace the sidebar's workspaces section).
-5. ~~Plan 2: subagent child tabs~~: replaced by the subagents feature (tree, live pane, board), spec `docs/superpowers/specs/2026-10-31-kaze-subagents-design.md`, built on `feat/subagents`. It also does issue #23 Part 1 (the Claude session id, transcript path and folder ride on every `kaze notify` message). Open: whether a subagent's permission prompt carries its `agent_id` (needs one interactive run; both paths are built). **Live pane reworked (#78, PR #79, 2026-11-01):** it now shows the subagent's prompt, one summary line ("Searched for 13 patterns, ran 15 shell commands") and its report, not every tool call. The Agent call's prompt rides on the hook message as `task_prompt` (16 KB cap); a Codex helper's next turn replaces it. Not done: the subagent's in-between messages (hooks don't carry them; needs the transcript reader).
-6. **Mac milestone** (checklist below): build and use kaze on macOS for the first time.
-7. Speed task: tighten kaze's own keypress p99 and first-frame time.
-8. Later (spec 7 and owner ideas): browser button, notes-vault graph, smart Ctrl+C (copy when text is selected, else interrupt), kaze-native autocomplete.
+1. Review the audit follow-up branch. The owner's existing release hold in
+   `CLAUDE.md` remains in force; do not publish from this task.
+2. Verify installed-app update/relaunch and current window chrome, hooks and native
+   folder pickers on Windows. A cross-build does not verify runtime behavior.
+3. Follow up the existing combining-mark/NFD and Option-as-Alt gaps separately.
+4. Re-run native keypress/first-frame benchmarks before claiming end-to-end gains.
+   Incremental link scanning is lower priority than these measured fixes.
+5. Subagent in-between messages require a transcript reader; hooks only provide
+   the prompt, tool activity and final report. Other future ideas remain in specs.
 
 ## Mac milestone checklist
 
-kaze has **never been built on macOS**. Expect small fixes.
+Native macOS builds, tests and owner chrome checks are complete. This original
+setup/checklist is historical; unresolved platform checks are listed above.
 
 1. Install Go (version in `go.mod`) and the Xcode Command Line Tools: `xcode-select --install`.
 2. Clone and build: `git clone https://github.com/patrick-gogo/kaze-terminal && cd kaze-terminal && go build -o kaze ./cmd/kaze && ./kaze`.
-3. Run the tests: `go test ./...` (several packages could only be type-checked for darwin from Windows: `internal/ui`, `internal/render`, `internal/bench`, `cmd/kaze`).
+3. Run the tests: `go test ./...` and `go vet ./...`. Native macOS tests now run locally; PR CI adds macOS and Windows checks.
 4. Check by hand, in a kaze tab:
    - zsh starts; `echo $TERM $COLORTERM $TERM_PROGRAM` prints `xterm-256color truecolor kaze`.
    - `claude` renders with colors, its input box borders join, symbols show.
@@ -220,12 +246,12 @@ kaze has **never been built on macOS**. Expect small fixes.
    - Cmd+T / Cmd+W / Cmd+C / Cmd+V work.
    - **Option key:** kaze treats Option as Alt unconditionally. On layouts that type `@ { | [ ]` with Option this breaks; add a config toggle.
    - Trackpad/mouse wheel: scroll speed may be off (unit not verified on macOS).
-   - Status bar memory on macOS uses Go's runtime numbers, not process RSS; consider `task_info`.
+   - macOS status memory now uses `proc_pid_rusage` physical footprint, including native allocations.
 5. Plan 3 on macOS:
    - **Hooks setup:** add the two Claude Code hooks from the README ("Alerts") to `~/.claude/settings.json` on the Mac, with the Mac path to `kaze` (`"/path/to/kaze" notify needs` / `notify done`, timeout 3). Check that a permission prompt in a kaze tab marks it and chimes (`afplay`).
    - **zsh snippet:** add the OSC 7 snippet from the README to `~/.zshrc` and check folder and branch show, including a folder with spaces, `#`, `%` and Japanese. Unlike the pwsh one, the zsh snippet only escapes `%`, `#` and space and sends other characters as raw UTF-8 (kaze accepts that); it could not be run on Windows, so verify it here.
    - **Dock bounce:** alerts while kaze is in the background should bounce the Dock icon (the Windows taskbar flash has no macOS twin yet; `flashTaskbar` is a no-op off Windows).
-   - **Title bar:** macOS still uses the native decorated title bar. The spec's inset traffic lights in kaze's tab bar need a way to keep them on an undecorated Gio window.
+   - **Title bar:** the native traffic lights are restored on the custom frame; owner checked the Mac behavior on 2026-10-31.
 6. Benchmarks: `bench/run.sh` (it uses a history-free shell and kaze drops real input in bench mode, so it can't type into your sessions). Add a "macOS" column to the milestone doc.
 
 ## Decisions so far (why the code looks the way it does)
@@ -236,7 +262,7 @@ kaze has **never been built on macOS**. Expect small fixes.
 - **Parser** treats `:` like `;` but records which params were colon-separated, so SGR `4:3` (curly underline) and `38:2::r:g:b` work.
 - **Live processes stop when Kaze closes.** Shells live in the Kaze process behind `ptyx.Session`. Issue #75 supersedes the earlier no-restoration decision: folders and exact supported agent conversations now reopen automatically from saved metadata; this does not keep PTYs alive.
 - **Shell env:** each tab gets `KAZE_TAB_ID`, `TERM=xterm-256color`, `COLORTERM=truecolor`, `TERM_PROGRAM=kaze`; inherited `TERM_PROGRAM`/`WT_*` from the launching terminal are dropped.
-- **Title bar:** Plan 1 kept the native one; Plan 3 replaced it on Windows (spec 6.8). macOS keeps the native one for now.
+- **Title bar:** custom chrome on both platforms, with restored native traffic lights on macOS (owner checked 2026-10-31).
 - **Alert transport:** TCP 127.0.0.1 + random token (spec 6.4 note), not named pipes.
 - **No pulsing dot, no idle reminders** (spec 6.8 note): a static dot keeps idle CPU at zero; `idle_prompt` and `auth_success` notifications are dropped.
 - **Copy is Ctrl+Shift+C** (Ctrl+C must stay "interrupt"). Smart Ctrl+C is a later idea, not wanted yet.
@@ -249,8 +275,8 @@ kaze has **never been built on macOS**. Expect small fixes.
 ## Known gaps (deferred, not blocking)
 
 - Combining marks dropped (NFD on macOS, see checklist).
-- macOS: Option-as-Alt toggle, wheel units, RSS reading, Hiragino paths unverified.
-- Scrollback stores 20 bytes per cell; a full 10,000-line history costs ~30MB per tab ("stored compactly" from spec 6.1 not done yet).
+- macOS: Option-as-Alt toggle, wheel units and rare-kanji fallback verification. Memory reporting uses physical footprint.
+- Scrollback uses packed 16-byte cells, trims default blank tails and reuses evicted lines; retained memory still depends on line widths and contents.
 - Ctrl+Alt+letter is dropped on a US Windows layout.
 - Status bar lacks CPU and the per-tab process tree (spec 6.5; left out of Plan 4 by the owner).
 - `font_family` is accepted but not supported yet (kaze warns).
@@ -294,20 +320,20 @@ He also considered Zellij; the answer was: it runs inside kaze, but kaze's own t
 
 ## Later-fix backlog (from the final whole-branch review)
 
-Fix before or during the Mac milestone: Option-as-Alt toggle; NFD combining marks; Hiragino paths; wheel units; macOS memory reading.
+Remaining Mac checks: Option-as-Alt toggle; NFD combining marks; rare-kanji fallback paths; wheel units. Physical-footprint memory reporting is implemented.
 
 Later:
-- TakeDirty allocates per call (render hot path); a few missing screen/vt tests (combining-mark escape, wide char while wrap pending, CAN/SUB inside OSC/DCS, split ST, truncated colon groups, colon-mask reset).
+- A few remaining screen/vt test gaps (combining-mark escape, wide char while wrap pending, CAN/SUB inside OSC/DCS, split ST, truncated colon groups, colon-mask reset).
 - UTF-8 second-byte ranges (E0/ED/F0/F4) not validated (harmless: renders a replacement glyph).
 - ptyx: 3s wait-test limit could flake on slow CI; small Resize-vs-Close race window; Read/Write after Close reach the closed pty.
 - Multi-param `CSI ... T` treated as scroll-down.
 - Cmd+nav/Enter still encode on macOS.
 - Ctrl+Alt+letter dropped on US Windows layout.
-- Hidden tabs resized every frame during a window drag.
-- Input silently dropped if the write queue (1024 chunks) fills behind a stuck shell.
-- Glyph cache unguarded across goroutines (fine with one window); double-line box junction overlap; per-size font caches never dropped.
-- Selection: addSelectionRows allocates per change; no test for returning to view offset 0; ideographic space U+3000 isn't a word stop (matters for Japanese double-click).
-- Scrollback ~30MB per tab when full (20-byte cells).
+- Hidden tabs resize when the grid size actually changes; the unchanged-size guard is implemented.
+- Input overload is rejected whole with a status notice; the queue is bounded by chunks and bytes, including the active write.
+- Glyph cache unguarded across UI goroutines (fine with one window); double-line box junction overlap. Shared font-size caches retain only the two most recent sizes.
+- Selection uses retained dirty-row scratch. Ideographic space U+3000 is not a word stop (matters for Japanese double-click).
+- Full-history memory varies with retained line widths; cells are packed to 16 bytes and blank tails are trimmed.
 - Shift+Enter submits in Claude Code (needs the kitty keyboard protocol); Alt+Enter works.
 - A ConPTY close timeout keeps that tab's screen alive until ConPTY releases.
 - kaze's own keypress p99 (~24ms) and first frame (~0.45s).

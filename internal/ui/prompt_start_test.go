@@ -2,6 +2,8 @@ package ui
 
 import (
 	"image"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -53,7 +55,8 @@ func (f *promptFixture) needs(id tabs.TabID) {
 // cwd makes the shell of pty i report folder dir and waits for it to apply.
 func (f *promptFixture) cwd(i int, t *tabs.Tab, dir string) {
 	f.t.Helper()
-	go f.st.pty(i).w.Write([]byte("\x1b]7;file://host" + dir + "\x07"))
+	u := url.URL{Path: "/" + strings.TrimPrefix(filepath.ToSlash(dir), "/")}
+	go f.st.pty(i).w.Write([]byte("\x1b]7;file://host" + u.EscapedPath() + "\x07"))
 	f.until("the folder report", func() bool {
 		t.Session.Lock()
 		defer t.Session.Unlock()

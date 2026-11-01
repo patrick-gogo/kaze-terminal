@@ -102,10 +102,11 @@ type window struct {
 	gridMin   image.Point     // top-left of the grid in window pixels
 	gridRect  image.Rectangle // the main grid in window pixels
 
-	home     string                              // for "~" in the status bar
-	branchFn func(dir string) string             // gitinfo.Branch unless a test replaces it
-	repoFn   func(dir string) (key, name string) // gitinfo.Repo unless a test replaces it
-	locs     map[tabs.TabID]locEntry
+	home      string                              // for "~" in the status bar
+	branchFn  func(dir string) string             // gitinfo.Branch unless a test replaces it
+	repoFn    func(dir string) (key, name string) // gitinfo.Repo unless a test replaces it
+	locs      map[tabs.TabID]locEntry
+	locations locationWork
 
 	memMB   float64
 	memRead time.Time
@@ -637,6 +638,7 @@ func (win *window) frame(gtx layout.Context) error {
 	list := win.mgr.Tabs()
 	win.pruneSels(list)
 	win.pruneLocs(list)
+	win.drainLocations()
 	win.pruneAgents(list)
 	win.pruneCounts(list)
 	win.checkCounts(list)
@@ -1125,7 +1127,7 @@ func (win *window) routeView(gtx layout.Context, v termView, batch []event.Event
 			if win.gate.allow() && editCommits(batch, i, win.composing) && e.Text != "" {
 				win.takeOver(t)
 				win.benchKey(t)
-				t.Session.Write(input.EncodeText(e.Text))
+				win.writeInput(t, input.EncodeText(e.Text))
 				win.snapToBottom(t.Session)
 			}
 		case transfer.DataEvent:
@@ -1154,7 +1156,7 @@ func (win *window) onKey(gtx layout.Context, t *tabs.Tab, e key.Event, m term.Mo
 	case out.data != nil:
 		win.takeOver(t)
 		win.benchKey(t)
-		t.Session.Write(out.data)
+		win.writeInput(t, out.data)
 		win.snapToBottom(t.Session)
 	}
 }
@@ -1231,13 +1233,13 @@ func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 		// Ctrl+V). Only then: in a plain zsh, Ctrl+V makes the next key literal.
 		if k := emptyPasteKey(runtime.GOOS); k != "" && win.terms.in(t) != "" && win.hasClipImage() {
 			win.takeOver(t)
-			t.Session.Write([]byte(k))
+			win.writeInput(t, []byte(k))
 			win.snapToBottom(t.Session)
 		}
 		return
 	}
 	win.takeOver(t)
-	t.Session.Write(input.EncodePaste(string(b), m))
+	win.writeInput(t, input.EncodePaste(string(b), m))
 	win.snapToBottom(t.Session)
 }
 
@@ -1276,7 +1278,7 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 		win.gestureCol, win.gestureRow = col, row
 		if win.toApp {
 			win.takeOver(t) // the app sees the click: the owner is using this shell
-			t.Session.Write(input.EncodeMouse(btn, true, e.Modifiers, col, row, false, m))
+			win.writeInput(t, input.EncodeMouse(btn, true, e.Modifiers, col, row, false, m))
 			return
 		}
 		if btn == 0 {
@@ -1295,7 +1297,7 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 		if win.toApp {
 			if mouseOn(m) {
 				win.takeOver(t)
-				t.Session.Write(input.EncodeMouse(btn, false, e.Modifiers, col, row, false, m))
+				win.writeInput(t, input.EncodeMouse(btn, false, e.Modifiers, col, row, false, m))
 			}
 			return
 		}
@@ -1317,7 +1319,7 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 				if e.Buttons != 0 {
 					win.takeOver(t) // a drag the app sees is the owner using it; a hover is not
 				}
-				t.Session.Write(b)
+				win.writeInput(t, b)
 			}
 			return
 		}
@@ -1333,7 +1335,7 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 		}
 		if b := input.EncodeWheel(n, col, row, m); b != nil {
 			win.takeOver(t) // the app is reading the wheel, so the owner is using it
-			t.Session.Write(b)
+			win.writeInput(t, b)
 			return
 		}
 		if m.AltScreen {

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gioui.org/font"
 	"gioui.org/io/clipboard"
@@ -14,7 +15,9 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/text"
 	"gioui.org/unit"
+	"golang.org/x/image/math/fixed"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/subagents"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
@@ -241,14 +244,18 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 }
 
 // agentWrapped is a's lines wrapped to w px. The whole result is cached on p
-// until a, its step count or w changes, so a still pane shapes nothing new;
+// until contents, activity or layout changes, so a still pane shapes nothing new;
 // the prompt and report have caches of their own, so a new step lays out
 // only the one-line summary again (PR 79 review).
 func (win *window) agentWrapped(gtx layout.Context, p *pane, a *subagents.Agent, w int) []agentLine {
-	key := [5]int{w, len(a.Steps) + a.Dropped, int(a.State), len(a.Report), len(a.Prompt)}
+	key := paneWrapKey{width: w, prompt: a.Prompt, report: a.Report, activity: a.Activity, state: a.State, metric: gtx.Metric, locale: gtx.Locale, shaper: win.ui.shaper}
 	if p.wrapKey == key && p.wrapped != nil {
 		return p.wrapped
 	}
+	// Only a changed pane needs fallback discovery. Do it before consulting
+	// the block caches, since adding a fallback changes the font collection.
+	win.ui.fit(a.Prompt)
+	win.ui.fit(a.Report)
 	out := p.wrapped[:0]
 	for _, l := range agentPaneLines(a) {
 		switch l.kind {
@@ -264,13 +271,14 @@ func (win *window) agentWrapped(gtx layout.Context, p *pane, a *subagents.Agent,
 			out = append(out, l)
 		}
 	}
+	key.shaper = win.ui.shaper
 	p.wrapKey, p.wrapped = key, out
 	return out
 }
 
 // wrapCached is block l wrapped to w, from c unless its text or w changed.
 func (win *window) wrapCached(gtx layout.Context, c *wrapCache, l agentLine, w int) []agentLine {
-	if c.lines != nil && c.w == w && c.src == l.text {
+	if c.lines != nil && c.w == w && c.src == l.text && c.metric == gtx.Metric && c.locale == gtx.Locale && c.shaper == win.ui.shaper {
 		return c.lines
 	}
 	lines := make([]agentLine, 0, strings.Count(l.text, "\n")+1)
@@ -278,6 +286,7 @@ func (win *window) wrapCached(gtx layout.Context, c *wrapCache, l agentLine, w i
 		lines = append(lines, agentLine{kind: l.kind, text: s})
 	}
 	c.src, c.w, c.lines = l.text, w, lines
+	c.metric, c.locale, c.shaper = gtx.Metric, gtx.Locale, win.ui.shaper
 	return lines
 }
 
@@ -295,8 +304,8 @@ func (win *window) wrapBlock(gtx layout.Context, s string, size unit.Sp, w int) 
 		indent := strings.ReplaceAll(lead, "\t", "    ")
 		iw := 0
 		if indent != "" {
-			_, sz := win.ui.sans(gtx, indent, size, win.ui.th.Muted, font.Normal)
-			if iw = sz.X; iw > w/2 {
+			iw = win.ui.textWidth(gtx, indent, size, font.Font{Typeface: sansFace})
+			if iw > w/2 {
 				indent, iw = "", 0 // deep nesting in a narrow pane: the words matter more
 			}
 		}
@@ -311,57 +320,31 @@ func (win *window) wrapBlock(gtx layout.Context, s string, size unit.Sp, w int) 
 // than w on its own, such as a long path or URL, is broken where it fills
 // the line, so nothing runs off the edge.
 func (win *window) wrapSans(gtx layout.Context, s string, size unit.Sp, w int) []string {
-	width := func(s string) int {
-		_, sz := win.ui.sans(gtx, s, size, win.ui.th.Muted, font.Normal)
-		return sz.X
+	// Shape once at the actual width. Gio breaks oversized words at grapheme
+	// boundaries and emits line rune counts; no temporary paint ops are needed.
+	s = win.ui.fit(strings.Join(strings.Fields(s), " "))
+	if s == "" {
+		return nil
 	}
+	win.ui.shaper.LayoutString(text.Parameters{Font: font.Font{Typeface: sansFace},
+		PxPerEm: fixed.I(gtx.Sp(size)), MaxWidth: max(w-1, 1), Locale: gtx.Locale}, s)
 	var lines []string
-	cur := ""
-	for _, word := range strings.Fields(s) {
-		try := word
-		if cur != "" {
-			try = cur + " " + word
-		}
-		if width(try) <= w {
-			cur = try
+	start, end, runes := 0, 0, 0
+	for g, ok := win.ui.shaper.NextGlyph(); ok; g, ok = win.ui.shaper.NextGlyph() {
+		runes += int(g.Runes)
+		if g.Flags&text.FlagLineBreak == 0 {
 			continue
 		}
-		if cur != "" {
-			lines = append(lines, cur)
+		for ; runes > 0 && end < len(s); runes-- {
+			_, n := utf8.DecodeRuneInString(s[end:])
+			end += n
 		}
-		for width(word) > w {
-			n := fitPrefix(word, w, width)
-			lines = append(lines, word[:n])
-			word = word[n:]
+		if line := strings.TrimSpace(s[start:end]); line != "" {
+			lines = append(lines, line)
 		}
-		cur = word
-	}
-	if cur != "" {
-		lines = append(lines, cur)
+		start = end
 	}
 	return lines
-}
-
-// fitPrefix is the byte length of the longest prefix of word, at least one
-// rune, that fits in w px. It measures O(log n) prefixes, not every one.
-func fitPrefix(word string, w int, width func(string) int) int {
-	var cuts []int // rune boundaries after the first rune
-	for i := range word {
-		if i > 0 {
-			cuts = append(cuts, i)
-		}
-	}
-	cuts = append(cuts, len(word))
-	lo, hi := 0, len(cuts)-1 // cuts[lo] always kept: one rune even if it alone is too wide
-	for lo < hi {
-		mid := (lo + hi + 1) / 2
-		if width(word[:cuts[mid]]) <= w {
-			lo = mid
-		} else {
-			hi = mid - 1
-		}
-	}
-	return cuts[lo]
 }
 
 // agentPaneEvents scrolls live panes and raises one on a click.
