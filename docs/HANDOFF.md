@@ -17,8 +17,8 @@ workspace recipes. Explicit --workspace wins; otherwise restoration precedes the
 startup workspace. Ordinary extra instances neither restore nor write the owner snapshot.
 Updater relaunch waits for the old owner to release its lock after shell teardown;
 failed relaunch keeps ownership and restores input. Bench and ordinary test windows
-never touch the owner's state. Prepared for PR review at the owner's request; no install
-or version bump yet. See
+never touch the owner's state. Merged in PR #76; the required 0.18 release updates the version, changelog,
+lander and download notes. Installed-app update and Windows runtime checks remain open. See
 `docs/audits/2026-11-01-session-restore.md` for verification and remaining platform checks.
 
 

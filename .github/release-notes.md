@@ -1,10 +1,10 @@
-## What’s new in Kaze 0.13
+## What’s new in Kaze 0.18
 
-- **Agents settings:** Claude Code and Codex have separate setup checks, with shared alert controls and Claude-only usage.
-- **Codex session awareness:** hooks report needs you, running, done and interrupts. Rows and the palette identify the agent and support Codex slash commands and `$skill` names.
-- **Codex setup with a preview:** Fix preserves other hooks, backs up existing hooks.json, and checks for edits made while the preview is open. Inline hooks are read to avoid duplicate handlers. Codex’s config.toml and notify command are left unchanged.
-- **After Codex Fix:** open Codex and run `/hooks` to review and trust Kaze’s hooks. Kaze does not grant hook trust or make approval decisions. Windows builds are included; Windows hook execution still needs a manual check.
-- **Site refresh:** native Kaze 0.12 captures, an Appearance gallery option, and a mobile layout fix.
+- **Your sessions return:** automatically reopen folders, names, order, colors and the selected session after restarting Kaze, including Update and restart.
+- **The same Claude/Codex conversations:** configured agent hooks provide exact conversation IDs. Idle resumption does not submit another prompt or pick another chat in the same repo.
+- **A startup choice:** disable restoration under Settings > Workspaces > Startup to start fresh. Explicit workspace launches retain their precedence.
+- **No command replay:** plain terminals start fresh shells and workspace recipes are not rerun. Running commands, servers, scratch shells and floating layout still stop at exit.
+- **Verification:** full tests/vet, focused race checks and macOS/Windows builds pass. Real isolated CLI round trips used local stub responses. Windows runtime and a real installed-app updater restart remain manual checks.
 
 ## Download
 

@@ -818,7 +818,7 @@ Done:
 - Subagents: each session's subagents in the sidebar, a live pane per subagent and the agents board (replaces Plan 2's child tabs).
 - 0.16: clickable links, Codex helpers alongside Claude Code subagents, and screenshot paste with Cmd+V.
 - 0.17: Claude and Codex logos on the sidebar rows as soon as an agent opens, and links drawn in blue.
-- Session restoration (#75): automatically reopen folders and exact agent conversations after restart.
+- 0.18: automatically reopen folders and exact Claude/Codex conversations after restart, including updates.
 - 0.17.1: kaze names Claude and Codex from the program running in the tab, so the Codex logo needs no setup.
 
 Next:

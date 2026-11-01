@@ -44,3 +44,10 @@ How they were made:
 - Captured directly with macOS `screencapture`, without desktop shadows or surrounding
   applications. No global keyboard or mouse input was injected. The demo app, server and sleep
   processes were stopped after each take.
+
+## 0.18 session restoration
+
+Settings > Workspaces gains the Restore sessions on launch control in Startup, and
+Updates confirmation explains that conversations/folders return while commands stop.
+Retake captures showing those sections when needed. Existing terminal/board captures
+are not replaced with generated UI; no screenshot was retouched for this release.
