@@ -73,7 +73,7 @@ func (win *window) sideIn() sideInput {
 		Folded:   win.side.folded,
 		Home:     win.home,
 		DefTitle: win.defTitle,
-		Agent:    win.agentOf,
+		Agent:    win.rowAgent,
 		Name:     func(id tabs.TabID) string { return win.names[id] },
 		Lines:    win.linesOf,
 		Agents:   win.sideAgents,
