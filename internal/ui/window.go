@@ -114,10 +114,13 @@ type window struct {
 
 	sels       map[tabs.TabID]*tabSel
 	clicks     clicks
-	held       pointer.Buttons // buttons down, to tell which one a press or release changed
-	toApp      bool            // the current mouse gesture is reported to the app, not selecting
-	gestureTab *tabs.Tab       // the tab the held gesture started in
-	gestureCol int             // last cell reported to the app, for a release sent by endGesture
+	held       pointer.Buttons    // buttons down, to tell which one a press or release changed
+	toApp      bool               // the current mouse gesture is reported to the app, not selecting
+	gestureTab *tabs.Tab          // the tab the held gesture started in
+	linkClick  bool               // the held gesture opened a link: the rest of it is ignored
+	links      render.Links       // link finder, reused every frame
+	openLink   func(string) error // opens a clicked link; nil uses the system browser
+	gestureCol int                // last cell reported to the app, for a release sent by endGesture
 	gestureRow int
 	dragPos    image.Point // last drag position relative to the grid, for auto-scroll
 	scrolledAt time.Time
@@ -720,6 +723,10 @@ func (win *window) drawTerminal(gtx layout.Context, active *tabs.Tab, termRect, 
 	paint.FillShape(ops, win.pal.BG, clip.Rect(termRect).Op())
 	area := clip.Rect(termRect).Push(ops)
 	event.Op(ops, win.termTag)
+	if win.rend != nil {
+		cw, ch := win.rend.CellSize()
+		win.linkCursors(ops, active.Session, grid, cw, ch)
+	}
 	area.Pop()
 	g := clip.Rect(grid).Push(ops)
 	off := op.Offset(grid.Min).Push(ops)
@@ -1172,6 +1179,14 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 		win.w.Invalidate()
 		btn := pressedButton(win.held, e.Buttons)
 		first := win.held == 0
+		if first && e.Buttons == pointer.ButtonPrimary && e.Modifiers.Contain(key.ModShortcut) {
+			// Cmd+click (Ctrl+click on Windows) opens a link, even when the app has the mouse.
+			if u, ok := win.linkUnder(t, p, cw, ch); ok {
+				win.held, win.linkClick, win.toApp, win.gestureTab = e.Buttons, true, false, t
+				win.open(u)
+				return
+			}
+		}
 		win.held = e.Buttons
 		if first {
 			// Shift lets the user select even when the app has the mouse.
@@ -1193,6 +1208,10 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 		if win.held == 0 {
 			win.gestureTab = nil
 		}
+		if win.linkClick {
+			win.linkClick = win.held != 0
+			return
+		}
 		if win.toApp {
 			if mouseOn(m) {
 				win.takeOver(t)
@@ -1204,11 +1223,14 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 			win.selectRelease(gtx, t)
 		}
 	case pointer.Cancel:
-		win.held, win.toApp, win.gestureTab = 0, false, nil
+		win.held, win.toApp, win.gestureTab, win.linkClick = 0, false, nil, false
 		if ts := win.sels[t.ID]; ts != nil {
 			ts.end()
 		}
 	case pointer.Drag, pointer.Move:
+		if win.linkClick {
+			return
+		}
 		if win.toApp || e.Kind == pointer.Move {
 			win.gestureCol, win.gestureRow = col, row
 			if b := input.EncodeMouse(xtermButton(e.Buttons), true, e.Modifiers, col, row, true, m); b != nil {
@@ -1434,5 +1456,5 @@ func (win *window) endGesture() {
 			ts.end()
 		}
 	}
-	win.held, win.toApp, win.gestureTab = 0, false, nil
+	win.held, win.toApp, win.gestureTab, win.linkClick = 0, false, nil, false
 }

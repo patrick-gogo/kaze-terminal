@@ -274,6 +274,8 @@ func (win *window) drawPanes(gtx layout.Context, views []paneView) {
 		g.Pop()
 		area := clip.Rect(p.hits.body).Push(ops)
 		event.Op(ops, &p.body)
+		cw, ch := rend.CellSize()
+		win.linkCursors(ops, v.tab.Session, v.grid, cw, ch) // the body clip above trims it
 		area.Pop()
 		win.paneFrameOps(gtx, p)
 	}
