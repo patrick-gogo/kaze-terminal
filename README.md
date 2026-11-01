@@ -150,6 +150,9 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 | Open settings | Ctrl+, | Cmd+, |
 | New line in Claude Code (without sending) | Alt+Enter | Option+Enter |
 
+On macOS, Cmd+V with an image on the clipboard (a screenshot, say) pastes it into Claude Code or
+Codex: kaze sends them Ctrl+V, the key they read images with. A plain shell never gets it.
+
 Plain Ctrl+C always goes to the shell as an interrupt. In Claude Code, Shift+Enter currently
 submits like Enter, so use Alt+Enter (Option+Enter on macOS) for a new line. The session, copy,
 paste, sidebar, next-waiting, palette, scratch shell, agents board and settings shortcuts can be changed under `[keys]` in the
@@ -163,6 +166,9 @@ config. Settings, Shortcuts lists every shortcut as this machine has it.
   extend by words or lines.
 - **Apps that use the mouse** (vim, htop and the like) get the clicks and the wheel. Hold
   **Shift** while dragging to select text in them anyway.
+- **Links:** `http` and `https` links show a hand cursor. Cmd+click (Ctrl+click on Windows) opens
+  one in your browser, even while Claude Code or vim has the mouse. A link that wraps onto the
+  next row opens whole.
 - **Wheel:** scrolls back through history. Typing jumps back to the bottom. Full-screen apps
   that don't use the mouse have no history to scroll.
 
@@ -250,9 +256,9 @@ Claude Code alerts from a scratch shell count on its session's row.
 
 ## Subagents
 
-When Claude Code hands work to subagents (Explore, Plan, general-purpose or your own agents), kaze
-shows what each one is doing. It learns this only from Claude Code's hooks; it never reads
-transcript files.
+When Claude Code hands work to subagents (Explore, Plan, general-purpose or your own agents), or
+Codex starts helpers, kaze shows what each one is doing. It learns this only from their hooks; it
+never reads transcript files.
 
 - **In the sidebar:** each session lists its subagents under its row: the type, the task, how long
   it has run and the step it is on now (for example `Grep authMiddleware in src`). A ring means
@@ -263,7 +269,8 @@ transcript files.
 - **The board:** every subagent in every session in three columns: running, waiting on you, and
   done. Open it with the Agents button in the sidebar, the "N agents running" text in the status
   bar, "Show agents" in the palette, or Ctrl+Shift+A (Cmd+Shift+A on macOS). Click a card to go to
-  that session with the subagent's pane open; Esc or "Back to ..." returns you.
+  that session with the subagent's pane open; Esc or "Back to ..." returns you. A done card's ×
+  removes it, and **Clear** empties the Done column (only the shown session's while filtered).
 - **Setup:** it needs three more Claude Code hooks (SubagentStart, SubagentStop and a PreToolUse
   hook). Settings > Agents lists them in the setup check, and **Fix** adds them. In the main
   conversation the tool hook exits at once unless Claude starts a subagent.
@@ -358,6 +365,13 @@ not found**. It checks these handlers:
 | Stop | `kaze notify done --agent codex` |
 | UserPromptSubmit | `kaze notify prompt --agent codex` |
 | Interrupt | `kaze notify interrupt --agent codex` |
+| SubagentStart | `kaze notify agent-start --agent codex` |
+| SubagentStop | `kaze notify agent-stop --agent codex` |
+| PreToolUse | `kaze notify tool --agent codex` |
+
+The last three show Codex helpers in the sidebar, live panes and board, like Claude Code
+subagents (see Subagents). A helper is named after its `spawn_agent` task, and a helper that
+gets a follow-up turn shows as running again.
 
 **Fix** previews the changes and asks before writing. It adds missing handlers
 beside other programs' hooks and repairs broken Kaze handlers. An existing file
@@ -377,9 +391,10 @@ Codex commands can start with `/` or `$` (for skills). Codex's Interrupt hook cl
 still applies. The shared usage switch shows **Claude** usage only. The palette's
 skill catalog and skill launcher remain for Claude Code.
 
-Codex Stop prints `{}` and always exits successfully, including outside Kaze.
+Codex Stop and SubagentStop print `{}` and always exit successfully, including outside Kaze.
 Other hook commands are silent. The hook transport, prompt, Stop and Interrupt lifecycles were checked
-with Codex CLI 0.166.0 on macOS; Windows hook execution still needs a manual check.
+with Codex CLI 0.166.0 on macOS; the helper hooks follow that version's source. Windows hook
+execution still needs a manual check.
 
 ## About
 
@@ -763,6 +778,7 @@ Done:
 - Plan 6a: the session sidebar, replacing the tab strip, with repo groups, a filter and the running workspaces.
 - Plan 6b: agent awareness on the rows (slash command, running mark, titles you can rename, `+N -M` line counts) and a Next waiting button and key.
 - Subagents: each session's subagents in the sidebar, a live pane per subagent and the agents board (replaces Plan 2's child tabs).
+- 0.16: clickable links, Codex helpers alongside Claude Code subagents, and screenshot paste with Cmd+V.
 
 Next:
 

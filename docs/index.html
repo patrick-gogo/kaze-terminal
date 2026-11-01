@@ -64,7 +64,7 @@
       <article>
         <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4m-6 4v-4h12v4"/></svg>
         <h3>See every subagent.</h3>
-        <p>When Claude hands work to subagents, each one shows under its session with its task and current step. Click one to watch its steps live and read its report, or press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> for a board of every subagent: running, waiting on you and done.</p>
+        <p>When Claude Code or Codex hands work to subagents, each one shows under its session with its task and current step. Click one to watch its steps live and read its report, or press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> for a board of every subagent: running, waiting on you and done.</p>
         <button type="button" class="show-shot" data-show="agents">See the subagents <span aria-hidden="true">↑</span></button>
       </article>
       <article>
@@ -103,7 +103,22 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>The latest releases.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.15.1</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.16</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-body">
+          <h3>Clickable links and Codex helpers</h3>
+          <ul>
+            <li><b>Clickable links:</b> web links in the terminal show a hand cursor. <kbd>⌘</kbd>-click them (<kbd>Ctrl</kbd>-click on Windows) to open them in your browser, even while Claude Code is running. A plain click still selects text.</li>
+            <li><b>Codex helpers:</b> the helpers Codex starts now show in the sidebar, the live panes and the agents board, just like Claude Code subagents. Settings, Agents, Codex offers the three new hooks; then run <code>/hooks</code> in Codex to trust them.</li>
+            <li><b>Clear finished subagents:</b> each done card on the agents board has a × to remove it, and Clear empties the Done column.</li>
+            <li><b>Paste screenshots with <kbd>⌘</kbd> <kbd>V</kbd>:</b> with an image on the clipboard, <kbd>⌘</kbd> <kbd>V</kbd> pastes it into Claude Code or Codex. A plain shell is left alone.</li>
+            <li><b>Fixed:</b> subagents started without a type show their task again, and Claude Code's own background helpers no longer appear as "subagent" cards.</li>
+            <li><b>Fixed:</b> sessions in the same repo stay in one sidebar group, even when the folder was typed with different capitals.</li>
+            <li><b>Fixed:</b> the running ring in the title bar is no longer cut in half.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
+        <div class="release-meta"><span class="version">0.15.1</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Smoother sessions, less overhead</h3>
           <ul>
@@ -125,19 +140,6 @@
             <li><b>A clearer status bar:</b> folder and branch with icons, pills for updates and subagents, server dots, and Claude usage as small meters with a card that shows when each limit resets.</li>
             <li><b>Fits narrow windows:</b> the least important parts give way first, so nothing overlaps.</li>
             <li><b>Fixed:</b> the agents board now names sessions the same way as the sidebar.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.14</span><time datetime="2026-10-31">Oct 31, 2026</time></div>
-        <div class="release-body">
-          <h3>See what your subagents are doing</h3>
-          <ul>
-            <li><b>Subagents in the sidebar:</b> each session lists its subagents with their task, how long they’ve run and the step they’re on.</li>
-            <li><b>A live pane per subagent:</b> click one to follow its steps as they happen and read its report when it finishes, with a Copy report button.</li>
-            <li><b>The agents board:</b> every subagent in every session, in running, waiting on you and done. Open it with the Agents button, the status bar, the palette or <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> (<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>A</kbd> on Windows).</li>
-            <li><b>Setup in one click:</b> Settings, Agents checks the three new Claude Code hooks and Fix adds them, showing the change first.</li>
-            <li><b>Fixed:</b> pressing Command on its own no longer types a <code>⌘</code> into the terminal.</li>
           </ul>
         </div>
       </li>
