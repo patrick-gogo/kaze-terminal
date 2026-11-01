@@ -25,11 +25,17 @@ type Entry struct {
 	Exe, Command, Source, Detail string
 	Fixable                      bool
 }
-type Report struct{ Needs, Stop, Prompt, Interrupt Entry }
+type Report struct{ Needs, Stop, Prompt, Interrupt, AgentStart, AgentStop, Tools Entry }
 
-func (r Report) Entries() []Entry { return []Entry{r.Needs, r.Stop, r.Prompt, r.Interrupt} }
+func (r Report) Entries() []Entry {
+	return []Entry{r.Needs, r.Stop, r.Prompt, r.Interrupt, r.AgentStart, r.AgentStop, r.Tools}
+}
 
-var events = []struct{ event, kind string }{{"PermissionRequest", "needs"}, {"Stop", "done"}, {"UserPromptSubmit", "prompt"}, {"Interrupt", "interrupt"}}
+// events is in Report field order. The last three show Codex helpers (#63).
+var events = []struct{ event, kind string }{
+	{"PermissionRequest", "needs"}, {"Stop", "done"}, {"UserPromptSubmit", "prompt"}, {"Interrupt", "interrupt"},
+	{"SubagentStart", "agent-start"}, {"SubagentStop", "agent-stop"}, {"PreToolUse", "tool"},
+}
 
 func load(data []byte) (*j.Node, error) {
 	if data == nil {
@@ -178,7 +184,8 @@ func candidates(root *j.Node, event, kind, source string, exists func(string) bo
 			}
 			typ, _ := h.Get("type").Str()
 			matcher, _ := g.Get("matcher").Str()
-			matches := event != "PermissionRequest" || matcher == "" || matcher == "*" || matcher == ".*"
+			// Kaze needs every permission prompt, helper and tool step, so a narrowed matcher is broken.
+			matches := matcher == "" || matcher == "*" || matcher == ".*"
 			state := Broken
 			if correct && typ == "command" && matches && !disabled(root.Get("hooks")) && !disabled(g) && !disabled(h) && (h.Get("async") == nil || h.Get("async").Raw != "true") && exists(exe) {
 				state = OK
@@ -232,7 +239,7 @@ func Inspect(data, config []byte, exists func(string) bool) (Report, error) {
 	for i, ev := range events {
 		entries[i] = inspectEntry(root, cfg, ev.event, ev.kind, exists)
 	}
-	return Report{entries[0], entries[1], entries[2], entries[3]}, nil
+	return Report{entries[0], entries[1], entries[2], entries[3], entries[4], entries[5], entries[6]}, nil
 }
 
 // Fix adds missing handlers and replaces broken Kaze handlers. Other commands

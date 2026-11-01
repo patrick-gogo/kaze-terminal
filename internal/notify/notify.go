@@ -227,9 +227,6 @@ func (s *Server) handle(c net.Conn) {
 	}
 	switch m.Kind {
 	case KindAgentStart, KindAgentStop, KindTool:
-		if m.Agent == "codex" {
-			return
-		}
 		m.Usage, m.Reason, m.Command, m.Args = nil, "", "", ""
 		m.Report = CleanReport(m.Report, MaxReport)
 	case KindDone, KindNeeds, KindInterrupt:

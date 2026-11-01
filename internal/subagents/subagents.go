@@ -1,4 +1,4 @@
-// Package subagents folds Claude Code's subagent hook messages into what the
+// Package subagents folds Claude Code subagent and Codex helper hook messages into what the
 // sidebar tree, the live pane and the board show. It has no UI and reads no
 // clock: every event carries its time.
 package subagents
