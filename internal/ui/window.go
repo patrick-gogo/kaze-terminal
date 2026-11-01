@@ -1149,11 +1149,31 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 	}
 }
 
+// emptyPasteKey is what the paste shortcut sends when the clipboard has no
+// text. On macOS that is Ctrl+V, since Cmd+V is kaze's paste and Ctrl+V is how
+// Claude Code and Codex paste an image. Elsewhere Ctrl+V already reaches the app.
+func emptyPasteKey(goos string) string {
+	if goos == "darwin" {
+		return "\x16"
+	}
+	return ""
+}
+
 func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 	r := e.Open()
 	b, err := io.ReadAll(io.LimitReader(r, maxPaste))
 	r.Close()
-	if err != nil || len(b) == 0 {
+	if err != nil {
+		return
+	}
+	if len(b) == 0 {
+		// No text: the clipboard may hold an image, such as a screenshot. Let
+		// the app read it the way it pastes images (Claude Code and Codex: Ctrl+V).
+		if k := emptyPasteKey(runtime.GOOS); k != "" {
+			win.takeOver(t)
+			t.Session.Write([]byte(k))
+			win.snapToBottom(t.Session)
+		}
 		return
 	}
 	win.takeOver(t)

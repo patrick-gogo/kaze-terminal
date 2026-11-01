@@ -2,6 +2,9 @@ package ui
 
 import (
 	"image"
+	"io"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +13,7 @@ import (
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/io/transfer"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 
@@ -134,4 +138,27 @@ func TestLinkCursorAreasPassPressesToTheTerminal(t *testing.T) {
 	if !got {
 		t.Fatal("the terminal never got the press on the link")
 	}
+}
+
+// A screenshot on the clipboard reaches kaze as an empty text paste. On macOS,
+// Cmd+V then sends Ctrl+V, the key Claude Code and Codex use to paste an image.
+func TestEmptyPasteSendsCtrlVOnMac(t *testing.T) {
+	if got := emptyPasteKey("darwin"); got != "\x16" {
+		t.Fatalf("darwin: %q", got)
+	}
+	if got := emptyPasteKey("windows"); got != "" {
+		t.Fatalf("windows: %q", got)
+	}
+	if runtime.GOOS != "darwin" {
+		t.Skip("the window path uses the running OS")
+	}
+	st := &recStarter{}
+	win := testWindow(t, st)
+	tab, p := shellTab(t, win, st, "x", func() bool {
+		a := win.mgr.Active()
+		return a != nil && textShown(a, 0, 'x')()
+	})
+	empty := transfer.DataEvent{Type: "application/text", Open: func() io.ReadCloser { return io.NopCloser(strings.NewReader("")) }}
+	win.paste(tab, empty, modes(tab.Session))
+	waitSent(t, p, "\x16")
 }
