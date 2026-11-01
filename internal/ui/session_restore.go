@@ -208,13 +208,10 @@ func (win *window) resumeLine(e sessionstate.Entry) (string, error) {
 	// The ready interactive shell owns command resolution. Finder and updater
 	// launches can have a minimal PATH that omits agents installed by the user.
 	// If the command is missing, the shell displays its error in this tab.
-	q, err := workspaces.QuoteArg(kind, e.Agent)
-	if err != nil {
-		return "", err
-	}
-	if kind == workspaces.ShellPowerShell {
-		q = "& " + q
-	}
+	// Only the two allowlisted names above reach this point. Keep the command
+	// word bare so interactive POSIX shells expand local-installer aliases.
+	q := e.Agent
+
 	id, _ := workspaces.QuoteArg(kind, e.Session)
 	if e.Agent == "claude" {
 		return q + " --resume " + id, nil

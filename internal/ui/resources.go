@@ -2,7 +2,6 @@ package ui
 
 import (
 	"os"
-	"slices"
 	"sync/atomic"
 	"time"
 
@@ -51,12 +50,11 @@ func (w *resourceWork) tick(now time.Time, roots []resources.Root) {
 	select {
 	case r := <-w.in:
 		w.busy = false
-		if r.generation == w.generation && slices.Equal(r.roots, roots) && !w.paused.Load() {
-			w.snapshot = r.snapshot
+		if r.generation == w.generation && sameResourceProcesses(r.roots, roots) && !w.paused.Load() {
+			w.snapshot = relabelResources(r.snapshot, roots)
 			completed = true
 		} else {
 			w.last = time.Time{}
-			w.reset = true
 		}
 	default:
 	}
@@ -69,7 +67,7 @@ func (w *resourceWork) tick(now time.Time, roots []resources.Root) {
 	generation, reset := w.generation, w.reset
 	w.reset = false
 	go func() {
-		s := w.sample(now, roots, reset)
+		s := w.sample(time.Now(), roots, reset)
 		if w.stopped.Load() {
 			return
 		}
@@ -78,6 +76,40 @@ func (w *resourceWork) tick(now time.Time, roots []resources.Root) {
 			w.wake()
 		}
 	}()
+}
+
+// Labels and slice order are presentation, not process identity.
+func sameResourceProcesses(a, b []resources.Root) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	counts := make(map[[2]int]int, len(a))
+	for _, r := range a {
+		counts[[2]int{r.PID, r.Owner}]++
+	}
+	for _, r := range b {
+		key := [2]int{r.PID, r.Owner}
+		if counts[key] == 0 {
+			return false
+		}
+		counts[key]--
+	}
+	return true
+}
+func relabelResources(s resources.Snapshot, roots []resources.Root) resources.Snapshot {
+	names := make(map[int]string, len(roots))
+	for _, r := range roots {
+		names[r.Owner] = r.Name
+	}
+	s.Rows = append([]resources.Row(nil), s.Rows...)
+	for i := range s.Rows {
+		r := &s.Rows[i]
+		if name, ok := names[r.ID]; ok {
+			r.Name = name
+			r.Closed = false
+		}
+	}
+	return s
 }
 
 // needRoots avoids walking/labeling every terminal on every streaming frame.

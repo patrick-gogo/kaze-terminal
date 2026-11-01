@@ -62,3 +62,38 @@ func TestResumeResolvesAgentFromZshStartup(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewResumeExpandsZshAliases(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ZDOTDIR", dir)
+	t.Setenv("PATH", "/usr/bin:/bin")
+	// There is no bare command on PATH. Both aliases resolve to a temporary stub.
+	stub := filepath.Join(dir, "local agent")
+	if err := os.WriteFile(stub, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	quoted := "'" + strings.ReplaceAll(stub, "'", "'\\''") + "'"
+	rc := "alias claude=\"" + quoted + "\"\nalias codex=\"" + quoted + "\"\n"
+	if err := os.WriteFile(filepath.Join(dir, ".zshrc"), []byte(rc), 0600); err != nil {
+		t.Fatal(err)
+	}
+	id := "01234567-89ab-cdef-0123-456789abcdef"
+	for _, agent := range []string{"claude", "codex"} {
+		win := &window{}
+		win.opt.Shell = []string{"/bin/zsh"}
+		line, err := win.resumeLine(sessionstate.Entry{Agent: agent, Session: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		out, err := exec.CommandContext(ctx, "/bin/zsh", "-d", "-i", "-c", line).CombinedOutput()
+		cancel()
+		verb := "resume"
+		if agent == "claude" {
+			verb = "--resume"
+		}
+		if err != nil || string(out) != verb+"\n"+id+"\n" {
+			t.Fatalf("alias %s: %v, %q", agent, err, out)
+		}
+	}
+}

@@ -262,3 +262,92 @@ func TestResourceCardTextContrast(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewSpinnerRenameDoesNotDiscardScan(t *testing.T) {
+	var resets atomic.Int32
+	w := newResourceWork(func(now time.Time, roots []resources.Root, reset bool) resources.Snapshot {
+		if reset {
+			resets.Add(1)
+		}
+		return resources.Snapshot{At: now, Rows: []resources.Row{{ID: roots[0].Owner, Name: roots[0].Name}}, Total: resources.Value{CPU: 12, CPUValid: true}}
+	}, nil)
+	defer w.close()
+	now := time.Unix(100, 0)
+	old := []resources.Root{{PID: 1, Owner: 10, Name: "thinking"}}
+	changed := []resources.Root{{PID: 1, Owner: 10, Name: "thinking ⠹"}}
+	w.tick(now, old)
+	deadline := time.Now().Add(time.Second)
+	for len(w.in) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	w.tick(now, changed)
+	if !w.snapshot.Total.CPUValid || w.snapshot.Rows[0].Name != changed[0].Name {
+		t.Fatalf("rename discarded CPU or kept stale label: %+v", w.snapshot)
+	}
+	if w.reset || resets.Load() != 1 {
+		t.Fatal("rename reset baselines")
+	}
+}
+
+func TestReviewTopologyChangeDoesNotResetUnchangedProcesses(t *testing.T) {
+	var calls, resets atomic.Int32
+	w := newResourceWork(func(now time.Time, _ []resources.Root, reset bool) resources.Snapshot {
+		calls.Add(1)
+		if reset {
+			resets.Add(1)
+		}
+		return resources.Snapshot{At: now}
+	}, nil)
+	defer w.close()
+	now := time.Unix(100, 0)
+	roots := []resources.Root{{PID: 1, Owner: 10}}
+	w.tick(now, roots)
+	deadline := time.Now().Add(time.Second)
+	for len(w.in) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	roots = append(roots, resources.Root{PID: 2, Owner: 20})
+	w.tick(now, roots)
+	deadline = time.Now().Add(time.Second)
+	for len(w.in) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	w.tick(now, roots)
+	if calls.Load() != 2 || resets.Load() != 1 {
+		t.Fatalf("topology reset all baselines: calls=%d resets=%d", calls.Load(), resets.Load())
+	}
+}
+
+func TestReviewUndrawableCardClearsHoverGeometry(t *testing.T) {
+	for _, size := range [][2]int{{160, 500}, {800, 50}} {
+		win := busyWindow(t)
+		win.stat.hover = grpMem
+		win.stat.card.hovered = true
+		win.stat.card.box = image.Rect(20, 20, 200, 200)
+		win.stat.card.bridge = image.Rect(20, 200, 200, 568)
+		win.stat.card.viewport = win.stat.card.box
+		win.stat.y = size[1] - 32
+		win.drawResourceCard(pageContext(size[0], size[1]))
+		cs := win.stat.card
+		if cs.hovered || !cs.box.Empty() || !cs.bridge.Empty() || !cs.viewport.Empty() || win.stat.hover == grpMem {
+			t.Fatalf("undrawable card kept hover: %+v", cs)
+		}
+	}
+}
+
+func TestReviewProcessIdentityIgnoresLabelAndOrder(t *testing.T) {
+	a := []resources.Root{{PID: 1, Owner: 10, Name: "first"}, {PID: 2, Owner: 20, Name: "second"}}
+	b := []resources.Root{{PID: 2, Owner: 20, Name: "changed"}, {PID: 1, Owner: 10, Name: "spinner"}}
+	if !sameResourceProcesses(a, b) {
+		t.Fatal("presentation changed process identity")
+	}
+	b[0].Owner = 30
+	if sameResourceProcesses(a, b) {
+		t.Fatal("owner change went unnoticed")
+	}
+	b[0].Owner = 20
+	b[0].PID = 3
+	if sameResourceProcesses(a, b) {
+		t.Fatal("PID change went unnoticed")
+	}
+}

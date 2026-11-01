@@ -235,7 +235,7 @@ func statusPlace(m statusModel, width int, measure func(s string, mono bool) int
 	p.UsageKeys = keys
 
 	if !f.noTabs {
-		right = append(right, item{grpTabs, 2*ip + d.Icon + gap + measure(strconv.Itoa(m.Tabs)+" tabs", true), f.noMem})
+		right = append(right, item{grpTabs, 2*ip + d.Icon + gap + measure(strconv.Itoa(m.Tabs)+" tabs", true), f.noMem || len(keys) > 0})
 	}
 	// Separators only between visible neighbours, and none when tight.
 	if len(right) > 0 {

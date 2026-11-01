@@ -33,10 +33,7 @@ func TestResumeUsesShellPathWithMinimalAppPath(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s via %s: %v", agent, shell, err)
 			}
-			want := "'" + agent + "' "
-			if shell == "pwsh.exe" {
-				want = "& " + want
-			}
+			want := agent + " "
 			if agent == "claude" {
 				want += "--resume "
 			} else {

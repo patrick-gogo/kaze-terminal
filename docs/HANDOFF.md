@@ -4,6 +4,16 @@ Last updated: 2026-11-02, after local implementation of resource usage (#92). Re
 
 ## Where things stand
 
+**PR #93 review follow-up addresses all nine findings.** CPU baselines survive
+title changes, tab churn and ordinary idle gaps. New processes warm up without
+marking totals partial. Each native CPU read has its own timestamp; the hover card
+shows the averaging interval. Alias-based Claude/Codex installs resume through a
+bare allowlisted command word. Status separators and undersized-card hover cleanup
+are corrected. Windows enumerates parent IDs before opening only candidate process
+handles; unknown/reused PIDs cannot retain a closed session's row. Native Windows
+1/4/16-root cost probes now run in CI. See the review section in
+`docs/audits/2026-11-02-resource-usage.md`. No release or merge is part of this work.
+
 **Resource usage (#92) is implemented locally** after owner approval of the
 mockup and plan. The status group shows whole-machine CPU share and summed
 process memory for Kaze plus observed descendants. Hover shows Kaze and session

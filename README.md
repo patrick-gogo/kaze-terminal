@@ -255,11 +255,15 @@ three intervals. RAM has no meter or warning threshold. It is summed physical
 footprint on macOS, including compressed memory; on Windows it is private
 committed bytes, which can include paged-out memory. MB means 1,048,576 bytes and
 GB means 1,024 MB. GPU is not measured. Unknown readings show **n/a**, and partial
-totals have an asterisk with unavailable counts in the card.
+totals have an asterisk with unavailable counts in the card. New processes warm
+up for one CPU reading without making healthy totals partial.
 
 Collection runs in the background on existing window activity, at most every two
 seconds. There is no new polling timer. The card shows sample age; a completely
-idle window does not wake just to refresh resources. Sampling pauses while
+idle window does not wake just to refresh resources. CPU averages the time since
+the preceding native counter read, even across idle gaps; the card shows that
+interval. Title changes and other tabs opening or closing keep unaffected
+process baselines. Sampling pauses while
 minimized and resets CPU baselines on return. The card scrolls for many sessions;
 in very short windows its whole content scrolls so the details remain reachable.
 
@@ -578,7 +582,8 @@ resubmits the previous prompt or replays commands. Missing folders, tools or con
 files leave a shell and an explanation. A failed resume does not select a different chat.
 The ready shell finds Claude or Codex using its own PATH, including paths set in shell startup
 files when Kaze opens from Finder or restarts after an update. Missing commands and resume
-errors appear in that tab as shell or agent output.
+errors appear in that tab as shell or agent output. The allowlisted agent command
+is unquoted so shell aliases, functions and PATH installs all resolve normally.
 
 Running commands, servers, shell variables, scrollback, scratch shells, floating layout and
 live helpers do not survive exit. Workspace members reopen without replaying their recipe

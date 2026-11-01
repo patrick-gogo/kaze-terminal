@@ -19,6 +19,8 @@ type Process struct {
 	Birth       uint64
 }
 type Reading struct {
+	// At is captured next to the native CPU counter read, with a monotonic clock.
+	At                 time.Time
 	CPU                time.Duration
 	Bytes              uint64
 	CPUValid, RAMValid bool
@@ -33,10 +35,10 @@ type Root struct {
 	Name       string
 }
 type Value struct {
-	CPU                    float64
-	Bytes                  uint64
-	CPUValid, RAMValid     bool
-	MissingCPU, MissingRAM int
+	CPU                                float64
+	Bytes                              uint64
+	CPUValid, RAMValid                 bool
+	MissingCPU, MissingRAM, WarmingCPU int
 }
 type Row struct {
 	ID     int
@@ -45,13 +47,14 @@ type Row struct {
 	Value
 }
 type Snapshot struct {
-	At      time.Time
-	Cores   int
-	Rows    []Row
-	Total   Value
-	Partial bool
-	Error   string
-	Level   int
+	At       time.Time
+	Interval time.Duration
+	Cores    int
+	Rows     []Row
+	Total    Value
+	Partial  bool
+	Error    string
+	Level    int
 }
 type identity struct {
 	pid   int
@@ -94,24 +97,24 @@ func Size(n uint64) string {
 }
 func clamp(v float64) float64 { return math.Max(0, math.Min(v, 100)) }
 func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
-	elapsed := now.Sub(c.last)
 	s := Snapshot{At: now, Cores: c.provider.Cores()}
 	if s.Cores < 1 {
 		s.Cores = 0
 		s.Partial = true
 		s.Error = "CPU core count unavailable"
 	}
-	if reset || (!c.last.IsZero() && (now.Sub(c.last) > 10*time.Second || !now.After(c.last))) {
+	// Idle intervals still have useful cumulative counters. Only an explicit
+	// suspend/resume reset invalidates every baseline; per-process identity and
+	// counter discontinuities are handled independently below.
+	if reset {
 		c.previous = nil
 		c.history = nil
+		c.last = time.Time{}
 	}
-	c.last = now
 	ps, partial, err := c.provider.List()
 	if err != nil {
 		s.Error = err.Error()
 		s.Partial = true
-		c.previous = nil
-		c.history = nil
 		return s
 	}
 	s.Partial = s.Partial || partial
@@ -119,6 +122,11 @@ func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
 		ps = ps[:MaxProcesses]
 		s.Partial = true
 	}
+	if len(roots) > MaxProcesses {
+		roots = roots[:MaxProcesses]
+		s.Partial = true
+	}
+	ps = c.inspectCandidates(ps, roots)
 	byPID := make(map[int]Process, len(ps))
 	for _, p := range ps {
 		byPID[p.PID] = p
@@ -133,12 +141,7 @@ func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
 	direct := map[int]int{c.self: 0}
 	requested := map[int]int{c.self: 0}
 	nextRoots := map[[2]int]uint64{}
-	if len(roots) > MaxProcesses {
-		roots = roots[:MaxProcesses]
-		s.Partial = true
-	}
 	for _, r := range roots {
-		requested[r.PID] = r.Owner
 		liveNames[r.Owner] = r.Name
 		c.names[r.Owner] = r.Name
 		p, ok := byPID[r.PID]
@@ -147,14 +150,15 @@ func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
 		}
 		key := [2]int{r.PID, r.Owner}
 		birth, seen := c.roots[key]
-		if !seen {
+		if !seen || birth == 0 {
 			birth = p.Birth
 		}
 		nextRoots[key] = birth
 		if p.Birth != 0 && birth == p.Birth {
 			direct[r.PID] = r.Owner
-		} else {
-			s.Partial = true
+			requested[r.PID] = r.Owner
+		} else if p.Birth == 0 {
+			requested[r.PID] = r.Owner
 		}
 	}
 	c.roots = nextRoots
@@ -191,31 +195,47 @@ func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
 		}
 		return o, ok
 	}
+	// A denied identity can only be reported under a current root/tree. Matching
+	// an old PID alone must not retain a closed row or contaminate its totals.
+	unknownOwner := func(p Process) (int, bool) {
+		seen := map[int]bool{}
+		for p.PID != 0 && !seen[p.PID] {
+			seen[p.PID] = true
+			if o, ok := requested[p.PID]; ok {
+				return o, true
+			}
+			parent, ok := byPID[p.Parent]
+			if !ok || parent.Birth == 0 {
+				break
+			}
+			if parent.PID == c.self {
+				return -1, true
+			}
+			p = parent
+		}
+		return 0, false
+	}
 	nextOwned := map[identity]int{}
 	nextPrevious := map[identity]baseline{}
 	rows := map[int]*Row{0: {ID: 0, Name: "Kaze itself"}}
+	rowFor := func(owner int) *Row {
+		if r := rows[owner]; r != nil {
+			return r
+		}
+		name, live := liveNames[owner]
+		if !live {
+			name = c.names[owner]
+		}
+		r := &Row{ID: owner, Name: name, Closed: !live}
+		rows[owner] = r
+		return r
+	}
 	for _, p := range ps {
 		if p.Birth == 0 {
-			owner, known := requested[p.PID]
-			for key, o := range c.owned {
-				if key.pid == p.PID {
-					owner, known = o, true
-					nextOwned[key] = o
-					break
-				}
-			}
-			if known {
-				row := rows[owner]
-				if row == nil {
-					name, live := liveNames[owner]
-					if !live {
-						name = c.names[owner]
-					}
-					row = &Row{ID: owner, Name: name, Closed: !live}
-					rows[owner] = row
-				}
-				row.MissingCPU++
-				row.MissingRAM++
+			if owner, known := unknownOwner(p); known {
+				r := rowFor(owner)
+				r.MissingCPU++
+				r.MissingRAM++
 				s.Partial = true
 			}
 			continue
@@ -225,24 +245,21 @@ func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
 			continue
 		}
 		key := identity{p.PID, p.Birth}
-		nextOwned[key] = owner
-		row := rows[owner]
-		if row == nil {
-			name, live := liveNames[owner]
-			if !live {
-				name = c.names[owner]
-			}
-			row = &Row{ID: owner, Name: name, Closed: !live}
-			rows[owner] = row
-		}
 		r, err := c.provider.Read(p)
 		if errors.Is(err, ErrGone) {
-			delete(nextOwned, key)
 			continue
 		}
+		nextOwned[key] = owner
+		row := rowFor(owner)
 		if err != nil {
 			r = Reading{}
 			s.Partial = true
+		}
+		if r.At.IsZero() && r.CPUValid {
+			r.At = time.Now()
+		} // timestamp at this read, never the frame request
+		if r.At.After(s.At) {
+			s.At = r.At
 		}
 		if r.RAMValid {
 			row.Bytes += r.Bytes
@@ -252,22 +269,25 @@ func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
 			s.Partial = true
 		}
 		prev, has := c.previous[key]
-		dt := now.Sub(prev.at)
+		if previousOwner, ok := c.owned[key]; ok && previousOwner != owner {
+			has = false
+		}
+		dt := r.At.Sub(prev.at)
 		if r.CPUValid {
-			nextPrevious[key] = baseline{r.CPU, now}
+			nextPrevious[key] = baseline{r.CPU, r.At}
 		}
-		if !r.CPUValid {
+		switch {
+		case !r.CPUValid || s.Cores == 0:
+			row.MissingCPU++
 			s.Partial = true
-		}
-		if s.Cores > 0 && r.CPUValid && has && dt > 0 && r.CPU >= prev.cpu {
+		case has && dt > 0 && r.CPU >= prev.cpu:
 			row.CPU += float64(r.CPU-prev.cpu) / float64(dt) / float64(s.Cores) * 100
 			row.CPUValid = true
-		} else {
-			row.MissingCPU++
+		default:
+			row.WarmingCPU++
 		}
 	}
 	c.owned, c.previous = nextOwned, nextPrevious
-	// Forget labels and root identities when no live observed process uses them.
 	nextNames := map[int]string{}
 	for id, row := range rows {
 		if id > 0 {
@@ -293,17 +313,17 @@ func (c *Collector) Sample(now time.Time, roots []Root, reset bool) Snapshot {
 		s.Total.RAMValid = s.Total.RAMValid || row.RAMValid
 		s.Total.MissingCPU += row.MissingCPU
 		s.Total.MissingRAM += row.MissingRAM
+		s.Total.WarmingCPU += row.WarmingCPU
 	}
 	s.Total.CPU = clamp(s.Total.CPU)
-	if s.Total.CPUValid && s.Total.MissingCPU > 0 {
-		s.Partial = true
+	if !c.last.IsZero() && s.At.After(c.last) {
+		s.Interval = s.At.Sub(c.last)
 	}
-	return c.smooth(s, elapsed)
+	c.last = s.At
+	return c.smooth(s, s.Interval)
 }
 func (c *Collector) smooth(s Snapshot, dt time.Duration) Snapshot {
-	// All process readings in one scan share one timestamp. Keep interval weights
-	// independently of per-process baselines, which are replaced after every scan.
-	if s.Total.CPUValid {
+	if s.Total.CPUValid && dt > 0 {
 		c.history = append(c.history, interval{s.Total.CPU, dt})
 		if len(c.history) > 3 {
 			c.history = c.history[len(c.history)-3:]

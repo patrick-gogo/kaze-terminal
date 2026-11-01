@@ -72,6 +72,7 @@ func (n nativeProvider) Read(p Process) (Reading, error) {
 	if C.kaze_usage(C.int(p.PID), &r) != 0 {
 		return Reading{}, errors.New("process usage unavailable")
 	}
+	at := time.Now() // timestamp the CPU counter before identity revalidation
 	// Recheck creation identity after the usage call to reject PID reuse.
 	if C.kaze_process(C.int(p.PID), &b) != C.int(unsafe.Sizeof(b)) || uint64(b.pbi_start_tvsec)*1000000+uint64(b.pbi_start_tvusec) != p.Birth {
 		return Reading{}, ErrGone
@@ -82,6 +83,6 @@ func (n nativeProvider) Read(p Process) (Reading, error) {
 	if n.denom != 0 {
 		nanos = ticks/n.denom*n.numer + (ticks%n.denom)*n.numer/n.denom
 	}
-	return Reading{CPU: time.Duration(nanos), Bytes: uint64(r.ri_phys_footprint), CPUValid: n.denom != 0, RAMValid: true}, nil
+	return Reading{At: at, CPU: time.Duration(nanos), Bytes: uint64(r.ri_phys_footprint), CPUValid: n.denom != 0, RAMValid: true}, nil
 }
 func MemoryMeaning() string { return "RAM: physical footprint, including compressed memory." }

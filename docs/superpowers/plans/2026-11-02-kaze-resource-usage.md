@@ -15,6 +15,13 @@ implementation, the owner authorized committing, pushing and opening a review PR
 on 2026-11-02. No installed copy is replaced. The release hold in CLAUDE.md
 remains active. No version bump, release PR or publishing is included.
 
+PR #93 review follow-up (owner, 2026-11-02): ordinary idle gaps retain per-process
+baselines and show the elapsed averaging interval. New processes warm up without
+marking totals partial. Native reads carry individual monotonic timestamps.
+Windows builds the parent tree first and opens identity/usage handles only for
+candidate Kaze processes. The requested nine corrections are recorded in
+`docs/audits/2026-11-02-resource-usage.md`.
+
 ## Scope and implementation decisions
 
 - Count this Kaze process and its observable descendants, including shells,
@@ -43,7 +50,7 @@ remains active. No version bump, release PR or publishing is included.
   not a fabricated zero. Normalize each process before summing rows and totals.
 - Display interval CPU values; determine amber at >=50% and red at >=80% from
   the time-weighted average of the last three valid intervals. Reset baselines
-  and smoothing after minimize/resume or discontinuities, so a long hidden gap
+  and smoothing after minimize/resume or per-process discontinuities, so a hidden gap
   is not shown as current usage.
 - RAM remains an absolute size with no percentage or warning thresholds. Match
   existing binary units, rounded MB below 1 GB and one decimal GB above it;

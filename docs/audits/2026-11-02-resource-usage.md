@@ -138,3 +138,60 @@ on macOS. No installed copy was replaced by this work.
 README and handoff describe the resource readout and its limits. Existing lander
 captures show the old memory-only group and will need recapture when this ships.
 Release version/changelog/publishing remain with the combined-release coordinator.
+
+
+## PR #93 review corrections, 2026-11-02
+
+All nine review findings have regression coverage:
+
+1. Completed scans compare only PID/owner pairs, independent of titles and root
+   order. Current labels are applied on the UI goroutine. Topology changes can
+   reject a stale result but do not clear the collector's unchanged baselines.
+2. Ordinary idle gaps no longer reset CPU counters. Each identity keeps its
+   baseline until an explicit suspend/reset, a counter discontinuity or exit.
+   The card shows the CPU averaging interval, so a 30-second idle sample remains
+   available without being presented as a new two-second sample. No timer added.
+3. New process baselines increment a distinct warming-up count. They do not
+   increment missing counts, mark totals partial, or append an asterisk. Actual
+   failed reads remain missing/partial. A completely cold CPU set still says n/a
+   until its first delta can be measured.
+4. The strict claude/codex allowlist permits a bare command word; the UUID stays
+   quoted. Native isolated-zsh tests now cover aliases pointing to a stub whose
+   path contains spaces, as well as normal PATH installs and missing commands.
+5. Usage and tab-count groups have their own separator when both are visible,
+   independent of whether the resource group is visible.
+6. Windows Toolhelp enumeration opens no process handles. A testable candidate
+   selection phase resolves identity only along the current Kaze tree and for
+   previously observed identity hints. A 500-process fixture needs three identity
+   lookups for Kaze, its shell and a grandchild. No unrelated tree is expanded.
+   The Windows CI job also runs a native 1/4/16-root timing probe, logs wall-time
+   mean/p95/max and CPU cost when above native accounting resolution, and checks
+   that identity opens per scan are bounded by Kaze plus those roots. Temporary
+   helper processes use private stdin pipes; no owner shells are involved.
+7. Every undrawable-card exit clears its box, bridge, viewport, scroll state and
+   hover/highlight state. It requests one cleanup frame if needed. Narrow/short
+   regressions cover both size limits.
+8. A historical PID is a lookup hint only. It must resolve to its old creation
+   identity before retaining an owner or expanding descendants. A protected or
+   replaced PID cannot keep a closed session row or mark its totals partial.
+   Verified living reparented children still retain their original owner.
+9. Native providers timestamp each CPU counter read beside the native call.
+   CPU deltas use those individual times, not the requesting frame time. The
+   worker's scan timestamp also starts when its goroutine actually runs. A fake
+   four-second read interval with a two-second frame interval must report 25%,
+   rather than 50%, for four CPU seconds on four cores.
+
+Review verification: full tests and vet, resource/UI race checks, native macOS
+build, Windows amd64/arm64 builds and Windows test-binary compilation. The new
+warming/interval text was rendered in Midnight/Washi at wide and short/narrow
+sizes, with the short card inspected at both scroll extremes. Temporary capture
+code was removed; the illustrative local render is
+`/tmp/kaze-review-resource-preview.png`.
+
+The opt-in idle/minimized observation still found no recurring scans or redraws.
+A fresh Mac probe while local test checks were also running measured 4 roots at
+1.181 ms wall mean / 1.916 ms p95, with 0.943 ms native CPU per scan, projecting to
+0.0471% of one core at a two-second cadence. This is still below the 0.5% target;
+it is a local microbenchmark, not a Windows or installed-app performance claim.
+Windows timing results belong to the native CI probe logs, rather than being
+inferred from these Mac figures. Installed-app UI checks remain manual.

@@ -58,7 +58,7 @@ func TestStatusOrderAndSeparators(t *testing.T) {
 			}
 		}
 	}
-	if len(l.Seps) != 4 { // update, agents, servers, usage, then memory and tabs together
+	if len(l.Seps) != 5 { // update, agents, workspace, resources, usage, and tabs
 		t.Fatalf("%d separators", len(l.Seps))
 	}
 }
@@ -280,5 +280,19 @@ func TestStatusTextReadableInEveryTheme(t *testing.T) {
 		if r := contrast(c.statusValueColor(), th.UI.Chrome); r < 4.5 {
 			t.Errorf("%s: values %.2f:1 on the bar", th.Key, r)
 		}
+	}
+}
+
+func TestReviewUsageAndTabsHaveSeparator(t *testing.T) {
+	l := statusAt(busyModel(), 1800)
+	a, b := l.Groups[grpUsage], l.Groups[grpTabs]
+	found := false
+	for _, x := range l.Seps {
+		if x >= a.Max.X && x <= b.Min.X {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no separator between usage %v and tabs %v: %+v", a, b, l.Seps)
 	}
 }

@@ -89,18 +89,31 @@ func (win *window) resourceCardEvents(gtx layout.Context) {
 		}
 	}
 }
+func (win *window) clearResourceCard() {
+	cs := &win.stat.card
+	wasHovered := cs.hovered || win.stat.hover == grpMem
+	cs.box = image.Rectangle{}
+	cs.viewport = image.Rectangle{}
+	cs.bridge = image.Rectangle{}
+	cs.hovered = false
+	cs.scroll = 0
+	cs.maxScroll = 0
+	if win.stat.hover == grpMem {
+		win.stat.hover = grpNone
+	}
+	if wasHovered && win.w != nil {
+		win.w.Invalidate()
+	}
+}
 func (win *window) drawResourceCard(gtx layout.Context) {
 	cs := &win.stat.card
 	if win.stat.hover != grpMem && !cs.hovered {
-		cs.box = image.Rectangle{}
-		cs.bridge = image.Rectangle{}
+		win.clearResourceCard()
 		return
 	}
 	anchor := win.statusRect(grpMem)
 	if anchor.Empty() {
-		cs.hovered = false
-		cs.box = image.Rectangle{}
-		cs.bridge = image.Rectangle{}
+		win.clearResourceCard()
 		return
 	}
 	s := win.stat.m.Resources
@@ -109,11 +122,15 @@ func (win *window) drawResourceCard(gtx layout.Context) {
 	pad, gap := gtx.Dp(14), gtx.Dp(8)
 	w := min(gtx.Dp(360), gtx.Constraints.Max.X-2*gap)
 	if w < gtx.Dp(180) {
+		win.clearResourceCard()
 		return
 	}
 	inner := w - 2*pad
 	p := &page{gtx: gtx, c: c, st: &settingsState{}, col: c.pageColors()}
 	footer := "Includes Kaze and observed shells, agents and local servers. " + resources.MemoryMeaning() + " MB = 1,048,576 bytes; GB = 1,024 MB. Refreshes on activity, at most every 2 s; paused while minimized. GPU not measured. Processes detached before observation may be missed."
+	if s.Total.WarmingCPU > 0 {
+		footer = fmt.Sprintf("CPU warming up for %d new processes. ", s.Total.WarmingCPU) + footer
+	}
 	if s.Total.MissingCPU > 0 || s.Total.MissingRAM > 0 {
 		footer = fmt.Sprintf("Unavailable: CPU for %d, RAM for %d processes. ", s.Total.MissingCPU, s.Total.MissingRAM) + footer
 	}
@@ -127,10 +144,23 @@ func (win *window) drawResourceCard(gtx layout.Context) {
 	_, fs := c.sans(gtx, "Ag", 10.5, muted, font.Normal)
 	lineH := max(fs.Y, gtx.Dp(14))
 	rowH := gtx.Dp(22)
-	headerH := gtx.Dp(144)
+	cores := "CPU core count unavailable"
+	if s.Cores > 0 {
+		cores = fmt.Sprintf("100%% = all %d logical cores busy", s.Cores)
+	}
+	age := "Waiting for a reading"
+	if !s.At.IsZero() {
+		age = "Sampled " + ago(max(time.Since(s.At), 0))
+		if s.Interval > 0 {
+			age += " · CPU over " + s.Interval.Round(time.Second).String()
+		}
+	}
+	coreLines, ageLines := p.wrap(cores, 10.5, inner), p.wrap(age, 10.5, inner)
+	headerH := gtx.Dp(144) + (len(coreLines)+len(ageLines)-2)*(fs.Y+gtx.Dp(6))
 	footerH := len(lines)*lineH + gtx.Dp(12)
 	available := anchor.Min.Y - 2*gap
 	if available < gtx.Dp(40) {
+		win.clearResourceCard()
 		return
 	}
 	whole := available < headerH+footerH+2*pad+rowH
@@ -177,17 +207,13 @@ func (win *window) drawResourceCard(gtx layout.Context) {
 		y += max(sz.Y, vs.Y) + gtx.Dp(6)
 	}
 	value("CPU", cpu, true)
-	cores := "CPU core count unavailable"
-	if s.Cores > 0 {
-		cores = fmt.Sprintf("100%% = all %d logical cores busy", s.Cores)
+	for _, line := range coreLines {
+		text(line, 10.5, muted, font.Normal)
 	}
-	text(cores, 10.5, muted, font.Normal)
 	value("RAM", ram, false)
-	age := "Waiting for a reading"
-	if !s.At.IsZero() {
-		age = "Sampled " + ago(max(time.Since(s.At), 0))
+	for _, line := range ageLines {
+		text(line, 10.5, muted, font.Normal)
 	}
-	text(age, 10.5, muted, font.Normal)
 	y = top + headerH - rowH
 	text("BY SESSION", 9.5, muted, font.Bold)
 	// Column headers and values use the same anchors.
