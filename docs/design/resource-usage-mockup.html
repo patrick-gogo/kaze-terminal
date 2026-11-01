@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resource Usage Mockup</title>
+<style>
+@font-face{font-family:Manrope;src:url(../site-assets/Manrope.ttf) format('truetype');font-weight:200 800}
+@font-face{font-family:JetBrains;src:url(../site-assets/JetBrainsMono-Regular.ttf) format('truetype')}
+:root{
+  --chrome:#0b0d12;--page:#0f1117;--card:#13161e;--raised:#1a1e29;--line:#1d2230;--line2:#2a3142;
+  --fg:#e8eaf1;--muted:#8a90a2;--dim:#5d6476;--accent:#8b7bff;--accent2:#b9a6ff;
+  --needs:#f2b84b;--done:#62d39a;--red:#ff6b6b;--branch:#62d39a;--folder:#b7bccb;--bg:#05060a;--term:#0f1117;
+  --track:#232838;--pop:#161a24;--popline:#2a3142;--shadow:0 18px 50px rgba(0,0,0,.55);
+  --sans:Manrope,system-ui,sans-serif;--mono:JetBrains,ui-monospace,monospace
+}
+:root[data-theme=light]{
+  --chrome:#ece6da;--page:#f5f0e6;--card:#efe9de;--raised:#e5dece;--line:#dcd4c4;--line2:#cfc6b3;
+  --fg:#2b2620;--muted:#6f675b;--dim:#9b9283;--accent:#4c55c7;--accent2:#3b43a8;
+  --needs:#a96a00;--done:#2f7a4c;--red:#b8423a;--branch:#2f7a4c;--folder:#4f483e;--bg:#d9d2c4;--term:#f5f0e6;
+  --track:#d8d0bf;--pop:#f7f2e9;--popline:#cfc6b3;--shadow:0 18px 40px rgba(60,45,20,.18)
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+.top{max-width:1180px;margin:0 auto;padding:28px 16px 14px;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end;justify-content:space-between}
+.top h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.4px}
+.top p{margin:4px 0 0;color:var(--muted);font-size:12.5px;max-width:600px}
+.controls{display:flex;flex-wrap:wrap;gap:14px}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:650}
+.seg{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{padding:5px 11px;border-radius:6px;font-size:12px;color:var(--muted);font-weight:550}
+.seg button[aria-pressed=true]{background:var(--raised);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+
+.stage{max-width:1180px;margin:0 auto;padding:4px 16px 18px}
+.win{border:1px solid var(--line2);border-radius:11px;overflow:hidden;background:var(--term);box-shadow:var(--shadow);margin:0 auto;transition:max-width .25s}
+.win.narrow{max-width:640px}
+.title{height:30px;background:var(--chrome);display:flex;align-items:center;justify-content:center;position:relative;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.lights{position:absolute;left:12px;display:flex;gap:7px}.lights i{width:11px;height:11px;border-radius:50%;background:#ff5f57}.lights i+i{background:#febc2e}.lights i+i+i{background:#28c840}
+.body{display:flex;height:400px;position:relative}
+.side{width:220px;background:var(--chrome);border-right:1px solid var(--line);padding:14px 12px;display:flex;flex-direction:column;gap:9px;flex:none}
+.narrow .side{display:none}
+.side .r{height:46px;border-radius:7px;background:var(--card);opacity:.8}
+.side .r.on{background:var(--raised);box-shadow:inset 2px 0 0 var(--accent)}
+.term{flex:1;padding:12px 16px;font:12.5px/1.75 var(--mono);color:var(--fg);overflow:hidden;min-width:0}
+.term .p{color:var(--accent2)}.term .d{color:var(--muted)}
+
+.bar{height:26px;display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--chrome);border-top:1px solid var(--line);font:11px var(--mono);color:var(--muted);position:relative;user-select:none;white-space:nowrap}
+.bar .sp{flex:1}
+.bar .folder{color:var(--folder);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.bar .branch{color:var(--branch)}
+.lbl{font:650 9.5px var(--sans);letter-spacing:.08em;color:var(--muted)}
+.v{color:var(--fg)}
+.grp{display:flex;align-items:center;gap:5px;padding:2px 6px;border-radius:6px}
+.meter{width:38px;height:4px;border-radius:2px;background:var(--track);overflow:hidden;flex:none}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.meter.hot i{background:var(--needs)}.meter.crit i{background:var(--red)}
+.res{cursor:default}
+.res.on,.res:hover{background:var(--raised)}
+.res .sep{color:var(--dim)}
+.narrow .wideonly{display:none}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--done)}
+
+/* The hover card */
+.card{position:absolute;bottom:34px;width:330px;background:var(--pop);border:1px solid var(--popline);border-radius:11px;box-shadow:var(--shadow);padding:14px;font-family:var(--sans);color:var(--fg);white-space:normal;z-index:5}
+.card h4{margin:0 0 10px;font-size:12.5px;font-weight:650}
+.card .tot{display:grid;grid-template-columns:48px 1fr 54px;align-items:center;gap:6px 10px;margin-bottom:4px}
+.card .tot .n{font-size:11.5px;color:var(--muted);font-weight:550}
+.card .tot .meter{width:100%}
+.card .tot .num{font:11px var(--mono);text-align:right}
+.card .hint{font-size:10.5px;color:var(--dim);grid-column:2/4;margin-top:-4px}
+.card .hd{display:grid;grid-template-columns:1fr 48px 62px;gap:8px;font:650 9.5px var(--sans);letter-spacing:.08em;color:var(--dim);margin:12px 0 4px}
+.card .hd span+span{text-align:right}
+.row{display:grid;grid-template-columns:1fr 48px 62px;gap:8px;align-items:center;padding:3px 0;font-size:11.5px}
+.row .nm{display:flex;align-items:center;gap:7px;min-width:0}
+.row .nm b{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .nm small{color:var(--dim);font-size:10.5px;white-space:nowrap}
+.row .num{font:11px var(--mono);text-align:right;color:var(--fg)}
+.row .num.m{color:var(--muted)}
+.sw{width:3px;height:14px;border-radius:2px;flex:none;background:var(--accent)}
+.row.self .sw{background:var(--dim)}
+.rule{height:1px;background:var(--popline);margin:10px 0}
+.foot{font-size:10.5px;color:var(--muted);line-height:1.55}
+
+.notes{max-width:1180px;margin:0 auto;padding:6px 16px 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px 16px;font-size:12.5px;color:var(--muted)}
+.note h3{margin:0 0 6px;font-size:13px;color:var(--fg);font-weight:650}
+.note ul{margin:6px 0 0;padding-left:18px}
+@media (max-width:700px){.side{display:none}.card{width:calc(100% - 24px);left:12px!important}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div>
+    <h1>Resource usage in the status bar</h1>
+    <p>Issue #92, narrowed: CPU and RAM for Kaze plus everything running inside it. No GPU. The card is pinned open here; in Kaze it shows while the pointer is over the group, like Claude usage.</p>
+  </div>
+  <div class="controls">
+    <div class="ctl"><span>Theme</span><div class="seg" id="theme"><button aria-pressed="true" data-v="dark">Midnight</button><button aria-pressed="false" data-v="light">Light</button></div></div>
+    <div class="ctl"><span>Window</span><div class="seg" id="width"><button aria-pressed="true" data-v="wide">Wide</button><button aria-pressed="false" data-v="narrow">Narrow</button></div></div>
+    <div class="ctl"><span>Load</span><div class="seg" id="load"><button aria-pressed="true" data-v="calm">Calm</button><button aria-pressed="false" data-v="busy">Busy</button></div></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="win" id="win">
+    <div class="title"><div class="lights"><i></i><i></i><i></i></div>kaze</div>
+    <div class="body">
+      <div class="side"><div class="r on"></div><div class="r"></div><div class="r"></div></div>
+      <div class="term">
+        <div><span class="p">~/Doc/c/kaze-terminal</span> <span class="d">on main</span></div>
+        <div>&gt; claude</div>
+        <div class="d">✻ Cogitating…</div>
+      </div>
+    </div>
+    <div class="bar">
+      <span class="folder">~/Documents/coding/kaze-terminal</span>
+      <span class="branch wideonly">main +6</span>
+      <span class="sp"></span>
+      <span class="grp wideonly"><span class="dot"></span><span class="v">1/2</span><span class="lbl">UP</span></span>
+      <span class="grp res on" id="res">
+        <span class="lbl wideonly">CPU</span><span class="meter" id="barMeter"><i style="width:4%"></i></span><span class="v" id="barCpu">4%</span>
+        <span class="sep">·</span><span class="v" id="barRam">1.8 GB</span>
+      </span>
+      <span class="grp"><span class="lbl wideonly">5H</span><span class="meter"><i style="width:73%"></i></span><span class="v">73%</span></span>
+      <div class="card" id="card" style="right:110px">
+        <h4>Kaze resource usage</h4>
+        <div class="tot">
+          <span class="n">CPU</span><span class="meter" id="cMeter"><i style="width:4%"></i></span><span class="num" id="cCpu">4%</span>
+          <span></span><span class="hint">of the whole Mac (10 cores)</span>
+          <span class="n">RAM</span><span class="hint" style="margin:0;grid-column:2">in use</span><span class="num" id="cRam">1.8 GB</span>
+        </div>
+        <div class="hd"><span>BY SESSION</span><span>CPU</span><span>RAM</span></div>
+        <div id="rows"></div>
+        <div class="rule"></div>
+        <div class="foot">Includes Kaze and every shell, agent and server it started. CPU 100% means all cores busy. RAM is memory in use (physical footprint). Updates every 2 s, paused while minimized.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <div class="note"><h3>What it measures</h3>Kaze plus everything it started (shells, Claude, Codex, dev servers). The card splits it: Kaze itself first, then one row per session, with workspace tabs and scratch shells counted in the session they belong to.</div>
+  <div class="note"><h3>CPU meaning</h3>A share of the <b>whole machine</b>: 100% means every core is busy. Same rule on macOS and Windows (Windows Task Manager style), so the meter never goes past full. The card names the core count.</div>
+  <div class="note"><h3>Colours</h3>Meter is accent while normal, amber at 50% or more, red at 80% or more, judged on the average of the last few readings so one spike doesn't flash. RAM has no meter, just the size.</div>
+  <div class="note"><h3>Narrow windows</h3>The CPU label drops first, then the meter, leaving <span class="v">4% · 1.8 GB</span>. The card stays the same. No new timer: it shares the 2 s memory reading.</div>
+</div>
+
+<script>
+const data={
+  calm:{cpu:4,ram:'1.8 GB',rows:[
+    ['Kaze','itself','0.6%','152 MB',1],
+    ['kaze-terminal','claude','2.1%','612 MB'],
+    ['Rallyhub','WEB + API','1.2%','840 MB'],
+    ['notes','zsh','0.1%','18 MB']]},
+  busy:{cpu:63,ram:'6.4 GB',rows:[
+    ['Kaze','itself','1.4%','168 MB',1],
+    ['kaze-terminal','go test ./...','48%','2.9 GB'],
+    ['Rallyhub','WEB + API','12%','2.6 GB'],
+    ['kaze-terminal','claude','1.6%','690 MB']]}
+};
+function seg(id,fn){const el=document.getElementById(id);el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));fn(b.dataset.v)})}
+function level(p){return p>=80?'crit':p>=50?'hot':''}
+function load(k){
+  const d=data[k];
+  for(const [m,t] of [['barMeter','barCpu'],['cMeter','cCpu']]){
+    const me=document.getElementById(m);me.className='meter '+level(d.cpu);me.firstElementChild.style.width=d.cpu+'%';
+    const te=document.getElementById(t);te.textContent=d.cpu+'%';te.style.color=level(d.cpu)?`var(--${level(d.cpu)==='crit'?'red':'needs'})`:'';
+  }
+  document.getElementById('barRam').textContent=d.ram;document.getElementById('cRam').textContent=d.ram;
+  document.getElementById('rows').innerHTML=d.rows.map(r=>`<div class="row${r[4]?' self':''}"><span class="nm"><span class="sw"></span><b>${r[0]}</b><small>${r[1]}</small></span><span class="num${r[4]?' m':''}">${r[2]}</span><span class="num${r[4]?' m':''}">${r[3]}</span></div>`).join('');
+}
+seg('theme',v=>document.documentElement.dataset.theme=v);
+seg('width',v=>{document.getElementById('win').classList.toggle('narrow',v==='narrow');document.getElementById('card').style.right=v==='narrow'?'60px':'110px'});
+seg('load',load);
+load('calm');
+</script>
+</body>
+</html>
