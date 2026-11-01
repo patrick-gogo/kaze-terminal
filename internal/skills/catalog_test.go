@@ -210,7 +210,11 @@ func snapshot(t *testing.T, root string) []string {
 		if err != nil {
 			return err
 		}
-		out = append(out, fmt.Sprintf("%s %d %d %v", p, fi.Size(), fi.ModTime().UnixNano(), fi.Mode()))
+		mtime := fi.ModTime().UnixNano()
+		if fi.IsDir() {
+			mtime = 0
+		} // NTFS directory timestamps may settle after child creation.
+		out = append(out, fmt.Sprintf("%s %d %d %v", p, fi.Size(), mtime, fi.Mode()))
 		return nil
 	})
 	sort.Strings(out)

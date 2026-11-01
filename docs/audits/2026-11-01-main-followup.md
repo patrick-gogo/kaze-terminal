@@ -271,3 +271,16 @@ config overrides. Existing Settings-in-cycle behavior is retained.
 
 The owner authorized committing/pushing the scoped follow-up and opening the PR.
 Do not merge, install, bump versions or publish a release from this work.
+
+### Release validation follow-up
+
+The owner subsequently authorized merging and releasing. The new Windows CI
+exposed a real path canonicalization gap for 8.3 aliases such as `RUNNER~1`, plus
+test assumptions about POSIX OSC paths, MSYS `pwd` spelling, asynchronously settled
+directory timestamps and an intentionally retained lock handle. Canonicalization
+now resolves short aliases when directory names do not match; fixtures encode
+native paths properly and compare each shell's own path spelling. Snapshot tests
+continue checking files, entries and permissions without unstable directory
+timestamps. The lifetime-lock test now proves retention and release in a bounded
+subprocess so its handle actually closes before Windows temporary-file cleanup.
+No failing Windows checks are bypassed or removed from CI.

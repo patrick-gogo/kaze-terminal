@@ -249,4 +249,9 @@ func TestRepoIgnoresPathCasing(t *testing.T) {
 	if key != wantK || name != wantN {
 		t.Fatalf("got %q, %q; want %q, %q", key, name, wantK, wantN)
 	}
+	var c Cache
+	first, second := c.Lookup(root), c.Lookup(other)
+	if first.Repo != second.Repo || first.Name != second.Name {
+		t.Fatalf("cached path casing: %+v versus %+v", first, second)
+	}
 }

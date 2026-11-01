@@ -141,7 +141,10 @@ func storedName(dir, part string) (string, bool) {
 			found = n
 		}
 	}
-	return found, found != ""
+	if found != "" {
+		return found, true
+	}
+	return storedAlias(dir, part)
 }
 
 func readSmall(path string) (string, bool) {

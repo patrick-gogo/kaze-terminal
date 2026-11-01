@@ -52,8 +52,14 @@ func TestJoinedPOSIXFieldsKeepCurrentShellContext(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+			baseline := exec.CommandContext(ctx, path, "-c", "pwd")
+			baseline.Dir = dir
+			pwd, err := baseline.Output()
+			if err != nil {
+				t.Fatal(err)
+			}
 			out, err := exec.CommandContext(ctx, path, "-c", line+"; printf '%s' \"$KAZE_JOIN_TEST\"").CombinedOutput()
-			if err != nil || string(out) != "ready:"+dir+"\nready" {
+			if err != nil || string(out) != "ready:"+strings.TrimSpace(string(pwd))+"\nready" {
 				t.Fatalf("line %q: output %q, err %v", line, out, err)
 			}
 		})

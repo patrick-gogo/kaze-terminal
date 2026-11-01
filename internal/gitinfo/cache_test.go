@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -13,7 +14,14 @@ func TestCachedLookupRefreshesHeadWithoutDirectoryScan(t *testing.T) {
 	write(t, head, "ref: refs/heads/main\n")
 	var c Cache
 	calls := 0
-	c.names = func(dir, part string) (string, bool) { calls++; return storedName(dir, part) }
+	c.names = func(dir, part string) (string, bool) {
+		// Shared temporary ancestors may change while other packages run.
+		// Assert reuse of this checkout's own stable components.
+		if part == ".git" || strings.EqualFold(part, filepath.Base(root)) {
+			calls++
+		}
+		return storedName(dir, part)
+	}
 	first := c.Lookup(root)
 	if first.Branch != "main" || first.Repo == "" {
 		t.Fatalf("lookup %+v", first)

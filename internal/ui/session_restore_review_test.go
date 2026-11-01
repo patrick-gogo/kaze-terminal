@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -91,10 +93,32 @@ func TestRestoreWarningsStayInTheirOwnTab(t *testing.T) {
 }
 
 func TestShutdownWithHungShellsKeepsOwnershipUntilExit(t *testing.T) {
-	f, p := restoreFixture(t)
-	f.win.initRestore()
-	f.win.openStartup(nil)
-	f.win.finishRestore(false)
+	const env = "KAZE_TEST_OWNERSHIP_PATH"
+	p := os.Getenv(env)
+	if p == "" {
+		p = filepath.Join(t.TempDir(), "sessions.json")
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestShutdownWithHungShellsKeepsOwnershipUntilExit$")
+		cmd.Env = append(os.Environ(), env+"="+p)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("ownership subprocess: %v\n%s", err, out)
+		}
+		// Process exit must release the deliberately retained OS handle.
+		s, err := sessionstate.Open(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Close()
+		return
+	}
+	s, err := sessionstate.Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetTabs([]sessionstate.Live{{ID: 1, Cwd: filepath.Dir(p)}}, 1)
+	win := &window{restore: s}
+	win.finishRestore(false)
 	if other, err := sessionstate.Open(p); !errors.Is(err, sessionstate.ErrOwned) {
 		if other != nil {
 			other.Close()
@@ -104,6 +128,7 @@ func TestShutdownWithHungShellsKeepsOwnershipUntilExit(t *testing.T) {
 	if _, err := sessionstate.Load(p); err != nil {
 		t.Fatalf("not saved: %v", err)
 	}
+	os.Exit(0) // the lock intentionally lasts until this subprocess exits
 }
 
 func holdLock(t *testing.T, p string) *sessionstate.Store {
