@@ -141,8 +141,10 @@ func TestLinkCursorAreasPassPressesToTheTerminal(t *testing.T) {
 }
 
 // A screenshot on the clipboard reaches kaze as an empty text paste. On macOS,
-// Cmd+V then sends Ctrl+V, the key Claude Code and Codex use to paste an image.
-func TestEmptyPasteSendsCtrlVOnMac(t *testing.T) {
+// Cmd+V then sends Ctrl+V, the key Claude Code and Codex use to paste an image,
+// but only to an agent and only when the clipboard really holds an image: in a
+// plain zsh, Ctrl+V would make the next key literal.
+func TestEmptyPasteSendsCtrlVOnlyForAnAgentImage(t *testing.T) {
 	if got := emptyPasteKey("darwin"); got != "\x16" {
 		t.Fatalf("darwin: %q", got)
 	}
@@ -152,13 +154,36 @@ func TestEmptyPasteSendsCtrlVOnMac(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("the window path uses the running OS")
 	}
-	st := &recStarter{}
-	win := testWindow(t, st)
-	tab, p := shellTab(t, win, st, "x", func() bool {
-		a := win.mgr.Active()
-		return a != nil && textShown(a, 0, 'x')()
-	})
 	empty := transfer.DataEvent{Type: "application/text", Open: func() io.ReadCloser { return io.NopCloser(strings.NewReader("")) }}
-	win.paste(tab, empty, modes(tab.Session))
-	waitSent(t, p, "\x16")
+	for _, c := range []struct {
+		name         string
+		agent, image bool
+		want         string
+	}{
+		{"shell with an image", false, true, ""},
+		{"agent with an empty clipboard", true, false, ""},
+		{"agent with an image", true, true, "\x16"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := &recStarter{}
+			win := testWindow(t, st)
+			win.clipImage = func() bool { return c.image }
+			tab, p := shellTab(t, win, st, "x", func() bool {
+				a := win.mgr.Active()
+				return a != nil && textShown(a, 0, 'x')()
+			})
+			if c.agent {
+				win.agents = map[tabs.TabID]agentState{tab.ID: {agent: "claude", claude: true, running: true}}
+			}
+			win.paste(tab, empty, modes(tab.Session))
+			if c.want != "" {
+				waitSent(t, p, c.want)
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+			if got := p.sent(); got != "" {
+				t.Fatalf("sent %q", got)
+			}
+		})
+	}
 }

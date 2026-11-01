@@ -120,6 +120,7 @@ type window struct {
 	linkClick  bool               // the held gesture opened a link: the rest of it is ignored
 	links      render.Links       // link finder, reused every frame
 	openLink   func(string) error // opens a clicked link; nil uses the system browser
+	clipImage  func() bool        // reports an image on the clipboard; nil asks the system
 	gestureCol int                // last cell reported to the app, for a release sent by endGesture
 	gestureRow int
 	dragPos    image.Point // last drag position relative to the grid, for auto-scroll
@@ -1149,6 +1150,14 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 	}
 }
 
+// hasClipImage reports whether the clipboard holds an image.
+func (win *window) hasClipImage() bool {
+	if win.clipImage != nil {
+		return win.clipImage()
+	}
+	return systemClipImage()
+}
+
 // emptyPasteKey is what the paste shortcut sends when the clipboard has no
 // text. On macOS that is Ctrl+V, since Cmd+V is kaze's paste and Ctrl+V is how
 // Claude Code and Codex paste an image. Elsewhere Ctrl+V already reaches the app.
@@ -1168,8 +1177,9 @@ func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 	}
 	if len(b) == 0 {
 		// No text: the clipboard may hold an image, such as a screenshot. Let
-		// the app read it the way it pastes images (Claude Code and Codex: Ctrl+V).
-		if k := emptyPasteKey(runtime.GOOS); k != "" {
+		// an agent read it the way it pastes images (Claude Code and Codex:
+		// Ctrl+V). Only then: in a plain zsh, Ctrl+V makes the next key literal.
+		if k := emptyPasteKey(runtime.GOOS); k != "" && win.agentOf(t.ID).agentName() != "" && win.hasClipImage() {
 			win.takeOver(t)
 			t.Session.Write([]byte(k))
 			win.snapToBottom(t.Session)
