@@ -42,7 +42,7 @@ func newClaudeFixture(t *testing.T, statusCmd string, dropStop bool) claudeFixtu
 	m := map[string]any{
 		"permissions": map[string]any{"allow": []any{"Bash(git status:*)"}},
 		"hooks": map[string]any{
-			"SessionStart":     []any{map[string]any{"hooks": []any{node}}},
+			"SessionStart":     []any{map[string]any{"hooks": []any{node}}, map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify session"}}}},
 			"Stop":             stop,
 			"UserPromptSubmit": []any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": q + "notify prompt", "timeout": 3}}}},
 			"Notification":     []any{map[string]any{"matcher": claudesetup.NeedsMatcher, "hooks": []any{map[string]any{"type": "command", "command": q + "notify needs", "timeout": 3}}}},

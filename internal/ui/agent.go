@@ -79,6 +79,9 @@ func (win *window) noteAgent(m notify.Msg, id tabs.TabID, seq uint64) {
 		win.alerts.visited(id) // a new prompt answers whatever the tab was waiting on
 	case notify.KindDone, notify.KindNeeds, notify.KindInterrupt:
 		a.claude, a.running = agent == "claude", false
+	case notify.KindSession:
+		// A new session (or /clear): the agent is here, idle, with no command yet.
+		a.claude, a.running, a.command, a.arg = agent == "claude", false, "", ""
 	case notify.KindUsage:
 		a.claude = true
 	default:

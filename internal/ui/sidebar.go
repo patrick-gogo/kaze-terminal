@@ -446,20 +446,38 @@ func (c *chrome) rowTitle(gtx layout.Context, r sideRow, st sideState, h *sideHi
 	room := band.Dx()
 	command := agentCommand(r.Agent, r.Command)
 	cmd, mag := " · "+command, c.memberColor("magenta")
+	// A known agent's logo takes the place of the dot: "title [logo] claude".
+	logoPx, gap := gtx.Dp(12), gtx.Dp(5)
+	logo, logoImg := agentLogo(r.Agent, logoPx, agentLogoColor(r.Agent, fg))
+	logoW := 0
+	if logoImg != nil && command != "" {
+		cmd, logoW = command, logoPx+2*gap
+	}
 	var cCall op.CallOp
 	var cSize image.Point
 	if command != "" {
-		cCall, cSize = c.fitSide(gtx, cmd, 12, room, mag)
+		cCall, cSize = c.fitSide(gtx, cmd, 12, max(room-logoW, 0), mag)
+		cSize.X += logoW
 	}
 	// The command keeps at most half the line while the title needs the rest.
 	tCall, tSize := c.fitSide(gtx, r.Title, 12, room-min(cSize.X, room/2), fg)
 	place(ops, tCall, image.Pt(band.Min.X, mid-tSize.Y/2))
-	if command != "" {
-		if cSize.X > room-tSize.X {
-			cCall, cSize = c.fitSide(gtx, cmd, 12, room-tSize.X, mag)
-		}
-		place(ops, cCall, image.Pt(band.Min.X+tSize.X, mid-cSize.Y/2))
+	if command == "" {
+		return
 	}
+	if cSize.X > room-tSize.X {
+		cCall, cSize = c.fitSide(gtx, cmd, 12, max(room-tSize.X-logoW, 0), mag)
+		cSize.X += logoW
+	}
+	x := band.Min.X + tSize.X
+	if logoW > 0 && room-tSize.X >= logoW {
+		off := op.Offset(image.Pt(x+gap, mid-logoPx/2)).Push(ops)
+		logo.Add(ops)
+		paint.PaintOp{}.Add(ops)
+		off.Pop()
+		x += logoW
+	}
+	place(ops, cCall, image.Pt(x, mid-cSize.Y/2))
 }
 
 // sideGroupHeader draws one repo header: a row of dots, the name and the count, or the

@@ -83,6 +83,7 @@ func (win *window) setupRows() []settingRow {
 		{"claude", "Subagents start", "SubagentStart hook", r.AgentStart},
 		{"check", "Subagent reports", "SubagentStop hook", r.AgentStop},
 		{"prompt", "Subagent steps", "PreToolUse hook", r.Tools},
+		{"check", "Shows Claude as soon as it opens", "SessionStart hook", r.Session},
 	}
 	fixable := func(e claudesetup.Entry) bool {
 		return e.State == claudesetup.Missing || e.State == claudesetup.Broken

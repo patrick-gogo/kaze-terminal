@@ -49,7 +49,7 @@ func ownerWithPrompt(stop, needs, status string, noPrompt bool) string {
   "env": {"MAX_THINKING_TOKENS": "31999", "A&B": "<x>"},
   "enabledPlugins": {"superpowers@claude-plugins-official": true, "devbox@devbox": true},
   "hooks": {
-    "SessionStart": [` + group(node) + `],
+    "SessionStart": [` + group(node) + sessionHook + `],
     "SessionEnd": [` + group(node) + `],
     "Stop": [` + stopGroups + `],
     "Notification": [` + notif + `],
@@ -69,6 +69,9 @@ var (
     "SubagentStart": [{"hooks": [{"type": "command", "command": ` + jsonString(q(kazeExe)+" notify agent-start") + `}]}],
     "SubagentStop": [{"hooks": [{"type": "command", "command": ` + jsonString(q(kazeExe)+" notify agent-stop") + `}]}]`
 )
+
+// sessionHook is kaze's SessionStart group in the owner's shape.
+var sessionHook = `, {"hooks": [{"type": "command", "command": ` + jsonString(q(kazeExe)+" notify session") + `}]}`
 
 func noSubagentHooks(s string) string {
 	return strings.Replace(strings.Replace(s, subagentTool, "", 1), subagentStartStop, "", 1)
@@ -283,7 +286,7 @@ func TestEmptyObjectGetsEverything(t *testing.T) {
 		t.Fatalf("report %+v", r)
 	}
 	out, summary, err := Fix([]byte("{}"), r, newExe)
-	if err != nil || len(summary) != 7 {
+	if err != nil || len(summary) != 8 {
 		t.Fatalf("summary %q err %v", summary, err)
 	}
 	if r2 := Inspect(out, onlyKaze); r2.Stop.State != OK || r2.Needs.State != OK || r2.StatusLine.State != OK {
@@ -524,7 +527,7 @@ func TestInspectSubagentHooks(t *testing.T) {
 func TestFixAddsSubagentHooks(t *testing.T) {
 	r := Inspect([]byte("{}"), onlyKaze)
 	out, summary, err := Fix([]byte("{}"), r, newExe)
-	if err != nil || len(summary) != 7 {
+	if err != nil || len(summary) != 8 {
 		t.Fatalf("summary %q err %v", summary, err)
 	}
 	for _, want := range []string{"Add the subagent start hook (shows subagents)", "Add the subagent stop hook (subagent reports)", "Add the tool hook (each subagent's steps)"} {
@@ -554,5 +557,30 @@ func TestFixKeepsOtherPreToolUse(t *testing.T) {
 	first, _ := json.Marshal(pre[0])
 	if !strings.Contains(string(first), "agent-flow") || strings.Contains(string(first), "notify tool") {
 		t.Fatalf("the owner's group changed: %s", first)
+	}
+}
+
+func TestSessionHook(t *testing.T) {
+	if r := Inspect([]byte(ownerSettings(stopCmd, needsCmd, statusCmd)), onlyKaze); r.Session.State != OK {
+		t.Fatalf("owner shape: %+v", r.Session)
+	}
+	s := strings.Replace(ownerSettings(stopCmd, needsCmd, statusCmd), sessionHook, "", 1)
+	if r := Inspect([]byte(s), onlyKaze); r.Session.State != Missing {
+		t.Fatalf("owner shape without it: %+v", r.Session)
+	}
+	out, summary, err := Fix([]byte(s), Inspect([]byte(s), onlyKaze), newExe)
+	if err != nil || !strings.Contains(strings.Join(summary, "\n"), "Add the session hook (names the agent as soon as it opens)") {
+		t.Fatalf("summary %q err %v", summary, err)
+	}
+	starts := hooksOf(t, out, "SessionStart")
+	if len(starts) != 2 {
+		t.Fatalf("SessionStart groups %d: the owner's must stay", len(starts))
+	}
+	r := Inspect(out, onlyKaze)
+	if r.Session.State != OK || r.Session.Command != q(newExe)+" notify session" {
+		t.Fatalf("after Fix %+v", r.Session)
+	}
+	if u := Inspect([]byte("nope"), onlyKaze); u.Session.State != Unreadable {
+		t.Fatalf("unreadable: %+v", u.Session)
 	}
 }

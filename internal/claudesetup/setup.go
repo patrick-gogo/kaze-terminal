@@ -1,5 +1,5 @@
 // Package claudesetup checks and repairs kaze's entries in Claude Code's
-// settings.json: the Stop, Notification and UserPromptSubmit hooks that run `kaze notify` and
+// settings.json: the Stop, Notification, UserPromptSubmit and SessionStart hooks that run `kaze notify` and
 // the status line that runs `kaze statusline`. It never touches other entries.
 package claudesetup
 
@@ -31,20 +31,22 @@ type Entry struct {
 	Exe, Command string
 }
 
-// Report is the check of all seven entries.
+// Report is the check of all eight entries.
 type Report struct {
 	Stop, Needs, Prompt, StatusLine Entry
 	AgentStart, AgentStop, Tools    Entry // the subagent hooks
+	Session                         Entry // names the agent as soon as it opens
 }
 
 // NeedsMatcher is the Notification matcher for the alerts that mean "Claude needs you".
 const NeedsMatcher = "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input"
 
 const (
-	argsDone   = "notify done"
-	argsNeeds  = "notify needs"
-	argsPrompt = "notify prompt"
-	argsStatus = "statusline"
+	argsDone    = "notify done"
+	argsNeeds   = "notify needs"
+	argsPrompt  = "notify prompt"
+	argsStatus  = "statusline"
+	argsSession = "notify session"
 
 	argsAgentStart = "notify agent-start"
 	argsAgentStop  = "notify agent-stop"
@@ -56,7 +58,7 @@ func Inspect(settings []byte, exists func(string) bool) Report {
 	root, err := load(settings)
 	if err != nil {
 		u := Entry{State: Unreadable}
-		return Report{Stop: u, Needs: u, Prompt: u, StatusLine: u, AgentStart: u, AgentStop: u, Tools: u}
+		return Report{Stop: u, Needs: u, Prompt: u, StatusLine: u, AgentStart: u, AgentStop: u, Tools: u, Session: u}
 	}
 	hooks := root.Get("hooks")
 	r := Report{
@@ -67,6 +69,7 @@ func Inspect(settings []byte, exists func(string) bool) Report {
 		AgentStart: findHook(hooks.Get("SubagentStart"), argsAgentStart, exists),
 		AgentStop:  findHook(hooks.Get("SubagentStop"), argsAgentStop, exists),
 		Tools:      findHook(hooks.Get("PreToolUse"), argsTool, exists),
+		Session:    findHook(hooks.Get("SessionStart"), argsSession, exists),
 	}
 	r.StatusLine = Entry{State: Missing}
 	if s := root.Get("statusLine"); s != nil {
@@ -93,7 +96,7 @@ func load(settings []byte) (*node, error) {
 		if h.Kind != '{' {
 			return nil, errors.New(`"hooks" is not an object`)
 		}
-		for _, ev := range []string{"Stop", "Notification", "UserPromptSubmit", "SubagentStart", "SubagentStop", "PreToolUse"} {
+		for _, ev := range []string{"Stop", "Notification", "UserPromptSubmit", "SubagentStart", "SubagentStop", "PreToolUse", "SessionStart"} {
 			if g := h.Get(ev); g != nil && g.Kind != '[' {
 				return nil, fmt.Errorf("hooks %q is not a list", ev)
 			}
@@ -215,6 +218,7 @@ func Fix(settings []byte, r Report, exe string) (out []byte, summary []string, e
 		{r.AgentStart, "SubagentStart", argsAgentStart, "", "the subagent start hook (shows subagents)"},
 		{r.AgentStop, "SubagentStop", argsAgentStop, "", "the subagent stop hook (subagent reports)"},
 		{r.Tools, "PreToolUse", argsTool, "*", "the tool hook (each subagent's steps)"},
+		{r.Session, "SessionStart", argsSession, "", "the session hook (names the agent as soon as it opens)"},
 	} {
 		switch h.e.State {
 		case Missing:
