@@ -31,6 +31,7 @@ type boardState struct {
 	back    image.Rectangle
 	all     image.Rectangle // "Show all" while filtered
 	setup   image.Rectangle // the hooks hint's button
+	clear   image.Rectangle // "Clear" on the Done column; empty when nothing is done
 	cards   []boardHit
 	texts   []string // drawn text, for tests
 	scroll  int
@@ -47,8 +48,9 @@ type boardCard struct {
 }
 
 type boardHit struct {
-	card boardCard
-	rect image.Rectangle
+	card  boardCard
+	rect  image.Rectangle
+	close image.Rectangle // the × on a done card; empty on the others
 }
 
 // agentsRunning is the status bar's text for n running and waiting subagents.
@@ -155,7 +157,7 @@ func (win *window) boardColumns() [3][]boardCard {
 func (win *window) drawBoard(gtx layout.Context, r image.Rectangle) {
 	b := &win.board
 	b.cards, b.texts = b.cards[:0], b.texts[:0]
-	b.back, b.all, b.setup = image.Rectangle{}, image.Rectangle{}, image.Rectangle{}
+	b.back, b.all, b.setup, b.clear = image.Rectangle{}, image.Rectangle{}, image.Rectangle{}, image.Rectangle{}
 	c, ops := win.ui, gtx.Ops
 	col := c.pageColors()
 	text := func(s string, size unit.Sp, cl color.NRGBA, w font.Weight) (op.CallOp, image.Point) {
@@ -230,6 +232,15 @@ func (win *window) drawBoard(gtx layout.Context, r image.Rectangle) {
 		}
 		hc, hs := text(names[i]+"  "+strconv.Itoa(len(cols[i])), 11, col.dim, font.SemiBold)
 		place(ops, hc, image.Pt(cx, cy))
+		if i == 2 && len(cols[i]) > 0 {
+			// Clear removes every finished card (only this session's while filtered).
+			cc, cs := text("Clear", 11, col.accent, font.Medium)
+			place(ops, cc, image.Pt(cx+colW-cs.X, cy))
+			pd := gtx.Dp(6)
+			if r := image.Rect(cx+colW-cs.X-pd, cy-pd, cx+colW+pd, cy+cs.Y+pd); r.Overlaps(body) {
+				b.clear = r.Intersect(body)
+			}
+		}
 		cy += hs.Y + gtx.Dp(8)
 		if len(cols[i]) == 0 {
 			ec, es := text("Nothing here.", 12, col.muted, font.Normal)
@@ -238,9 +249,13 @@ func (win *window) drawBoard(gtx layout.Context, r image.Rectangle) {
 		}
 		for _, card := range cols[i] {
 			rect := image.Rect(cx, cy, cx+colW, cy+cardH)
-			win.drawBoardCard(gtx, rect, card, text)
+			x := win.drawBoardCard(gtx, rect, card, text)
 			if rect.Overlaps(body) {
-				b.cards = append(b.cards, boardHit{card: card, rect: rect.Intersect(body)})
+				h := boardHit{card: card, rect: rect.Intersect(body)}
+				if x.Overlaps(body) {
+					h.close = x.Intersect(body)
+				}
+				b.cards = append(b.cards, h)
 			}
 			cy += cardH + gtx.Dp(10)
 		}
@@ -251,8 +266,9 @@ func (win *window) drawBoard(gtx layout.Context, r image.Rectangle) {
 	b.scroll = min(max(b.scroll, 0), max(0, maxY+b.scroll-r.Max.Y))
 }
 
-// drawBoardCard draws one card: type and task, where, time and its line.
-func (win *window) drawBoardCard(gtx layout.Context, r image.Rectangle, card boardCard, text func(string, unit.Sp, color.NRGBA, font.Weight) (op.CallOp, image.Point)) {
+// drawBoardCard draws one card: type and task, where, time and its line. A done
+// card gets a × in its top right corner; drawBoardCard returns where it is.
+func (win *window) drawBoardCard(gtx layout.Context, r image.Rectangle, card boardCard, text func(string, unit.Sp, color.NRGBA, font.Weight) (op.CallOp, image.Point)) (close image.Rectangle) {
 	c, ops := win.ui, gtx.Ops
 	col := c.pageColors()
 	paint.FillShape(ops, col.card, clip.UniformRRect(r, gtx.Dp(10)).Op(ops))
@@ -264,6 +280,13 @@ func (win *window) drawBoardCard(gtx layout.Context, r image.Rectangle, card boa
 	pad := gtx.Dp(14)
 	x, w := r.Min.X+pad, r.Dx()-2*pad
 	y := r.Min.Y + gtx.Dp(10)
+	if card.state == subagents.Done && !card.session {
+		xc, xs := text("×", 14, col.dim, font.Normal)
+		place(ops, xc, image.Pt(r.Max.X-pad-xs.X, y-gtx.Dp(2)))
+		hit := gtx.Dp(8)
+		close = image.Rect(r.Max.X-pad-xs.X-hit, r.Min.Y, r.Max.X, y+xs.Y+hit)
+		w -= xs.X + gtx.Dp(8) // keep the text clear of the ×
+	}
 	tc, ts := c.fitSide(gtx, card.typ, 12, w/2, c.memberColor("magenta"))
 	place(ops, tc, image.Pt(x, y))
 	win.board.texts = append(win.board.texts, card.typ, card.task)
@@ -279,6 +302,7 @@ func (win *window) drawBoardCard(gtx layout.Context, r image.Rectangle, card boa
 	}
 	lc, _ := c.fitSide(gtx, strings.TrimSpace(line), 11, w, col.dim)
 	place(ops, lc, image.Pt(x, y))
+	return close
 }
 
 // boardBack is the session the board returns to.
@@ -338,6 +362,11 @@ func (win *window) boardPress(p image.Point) {
 	case p.In(b.back):
 		win.closeBoard()
 		return
+	case p.In(b.clear):
+		win.subs.ClearDone(int(b.tab))
+		win.dropGoneAgents()
+		win.w.Invalidate()
+		return
 	case p.In(b.all):
 		b.tab = 0
 		win.w.Invalidate()
@@ -351,6 +380,14 @@ func (win *window) boardPress(p image.Point) {
 			}
 		}
 		return
+	}
+	for _, h := range b.cards {
+		if p.In(h.close) {
+			win.subs.Dismiss(h.card.key)
+			win.dropGoneAgents()
+			win.w.Invalidate()
+			return
+		}
 	}
 	for _, h := range b.cards {
 		if !p.In(h.rect) {
