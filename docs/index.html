@@ -103,7 +103,19 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>The latest releases.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.19</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.19.1</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-body">
+          <h3>Session shortcuts and smoother subagent panes</h3>
+          <ul>
+            <li><b>macOS session switching:</b> Ctrl+Tab and Ctrl+Shift+Tab now reach Kaze and switch sessions again, including while a scratch pane is focused. Custom bindings still work.</li>
+            <li><b>Smoother subagent panes:</b> long prompts and reports wrap with much less work. Reopened helpers start a fresh turn, and panes show the latest report even when it is the same length as the previous one.</li>
+            <li><b>Responsive sessions:</b> Git folder and branch lookups run in the background. Input queues have a byte limit and show a notice if a busy terminal cannot accept more input.</li>
+          </ul>
+        </div>
+      </li>
+
+      <li class="release">
+        <div class="release-meta"><span class="version">0.19</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Subagent conversations and a start folder</h3>
           <ul>
@@ -120,15 +132,6 @@
             <li><b>Automatic restoration:</b> reopen Kaze and your sessions return with their folders, names, order and selected session, including after an update.</li>
             <li><b>Resume the same conversation:</b> configured Claude Code and Codex hooks identify each chat, so conversations in the same project stay separate. Resuming waits for shell readiness and never resubmits your prompt.</li>
             <li><b>Your choice:</b> turn restoration off in Settings, Workspaces, Startup. Workspace recipes are not replayed; running commands and servers still stop when Kaze closes.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.17.1</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
-        <div class="release-body">
-          <h3>Codex logo, no setup</h3>
-          <ul>
-            <li><b>Fixed:</b> the Codex logo now shows for interactive Codex. Kaze sees Claude Code or Codex running in a tab by itself and shows its logo within about a second, before your first prompt, with no hooks needed (macOS).</li>
           </ul>
         </div>
       </li>
