@@ -184,8 +184,11 @@ Sessions are listed down the left side, in place of a tab strip.
   prefix) and the word `needs you` or `done` when Claude Code has something to say. Hover a row
   to get a ×, or middle click it to close it. The `+` button opens a new session.
   - **Agent:** a session running Claude Code shows the Claude logo and `claude` after the title;
-    one running Codex shows the OpenAI logo and `codex`. They appear as soon as the agent opens,
-    through its SessionStart hook (`kaze notify session`), or with the first prompt without it.
+    one running Codex shows the OpenAI logo and `codex`. On macOS and Linux kaze sees the program
+    running in the tab, so they appear within about a second of starting, with no setup. Elsewhere
+    they come from the hooks: SessionStart (`kaze notify session`) or the first prompt. Interactive
+    Codex runs its hooks in a shared background server outside the tab, so its alerts need
+    `codex --no-daemon` for now.
   - **Command:** when you start a prompt with a slash command, the row shows `/command` in
     magenta after the agent. This needs the prompt hook (see Alerts below).
   - **Running:** a still ring and the word `running` show that Claude is working on a prompt.
@@ -786,6 +789,7 @@ Done:
 - Subagents: each session's subagents in the sidebar, a live pane per subagent and the agents board (replaces Plan 2's child tabs).
 - 0.16: clickable links, Codex helpers alongside Claude Code subagents, and screenshot paste with Cmd+V.
 - 0.17: Claude and Codex logos on the sidebar rows as soon as an agent opens, and links drawn in blue.
+- 0.17.1: kaze names Claude and Codex from the program running in the tab, so the Codex logo needs no setup.
 
 Next:
 
