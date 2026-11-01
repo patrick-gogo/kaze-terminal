@@ -1,7 +1,9 @@
-## What’s new in Kaze 0.19
+## What’s new in Kaze 0.19.1
 
-- **Subagents read like a conversation:** the subagent pane shows the prompt it was given, one line on what it has done so far, and its report when it finishes. Individual tool calls are no longer listed. Works for Claude Code subagents and Codex helpers.
-- **Start folder:** choose where new tabs open under Settings > Workspaces > Startup (Choose… or Use home), or set `start_dir` in `config.toml`. Workspaces and restored sessions keep their own folders; a missing folder falls back to home with a warning.
+- **macOS session switching:** Ctrl+Tab and Ctrl+Shift+Tab now switch sessions again, including from a focused scratch pane. Custom bindings still work.
+- **Smoother subagent panes:** long prompts and reports wrap with much less work. Reopened helpers start a fresh turn, and panes show the newest report even when its length matches the previous report.
+- **Responsive sessions:** Git folder and branch discovery runs in the background. Input queues have a byte limit and show a notice when a busy terminal cannot accept more input.
+- **Windows path handling:** repository grouping recognizes short Windows path aliases and preserves folder casing.
 
 ## Download
 

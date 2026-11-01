@@ -1,11 +1,12 @@
 # kaze handoff
 
-Last updated: 2026-11-01, during the main-audit follow-up on `perf/audit-followup`. Read this first when you pick up kaze on another machine.
+Last updated: 2026-11-01, after PR #84 merged and release 0.19.1 was prepared. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
-**Audit follow-up is implemented** on `perf/audit-followup`, with the owner's
-authorization to commit/push and open a PR, explicitly without merging. Subagent
+**Audit follow-up merged in PR #84.** The owner authorized merging and publishing
+fix-only release **0.19.1** on 2026-11-01; the release PR prepares its version,
+changelog, lander and download notes. Subagent
 text wrapping shapes once without paint recording; pane caches track content and
 layout; reopened helpers reset their turn's steps/report/time. Git discovery runs
 on at most two background workers with stale-result checks and a bounded path
@@ -13,7 +14,9 @@ spelling cache. Input reserves chunks and bytes before copying, includes the act
 write, and reports overload to the user. The queue budget is 64 MiB + 4 KiB so one
 maximum paste fits. PR test/vet/build CI is added, and the concurrent notification
 test uses race-safe callbacks. See `docs/audits/2026-11-01-main-followup.md` and the
-matching audit-followup design/plan. No install, version bump or release.
+matching audit-followup design/plan. No installed copy was replaced by this work.
+Windows CI also exposed short-path and fixture assumptions, now corrected; the
+lifetime-lock regression runs in a subprocess so Windows can clean up its files.
 
 **macOS session shortcuts:** a native hidden-window probe reproduced AppKit
 consuming Ctrl+Tab and Ctrl+Shift+Tab before Gio received them. The Mac view's
@@ -220,8 +223,8 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 
 ## Next
 
-1. Review the audit follow-up branch. The owner's existing release hold in
-   `CLAUDE.md` remains in force; do not publish from this task.
+1. Verify the 0.19.1 update in an installed Mac copy, especially Ctrl+Tab and
+   Ctrl+Shift+Tab. Normal chrome layout is unchanged, so new screenshots are not needed.
 2. Verify installed-app update/relaunch and current window chrome, hooks and native
    folder pickers on Windows. A cross-build does not verify runtime behavior.
 3. Follow up the existing combining-mark/NFD and Option-as-Alt gaps separately.

@@ -150,6 +150,10 @@ binaries; re-run `go test` with `-ldflags "-X main.r=<random>"`.
 | Open settings | Ctrl+, | Cmd+, |
 | New line in Claude Code (without sending) | Alt+Enter | Option+Enter |
 
+Session switching follows sidebar order, skips workspace members and scratch shells, and works
+from a focused floating terminal too. If a busy terminal cannot accept more input, Kaze shows
+"Input not sent"; wait for it to respond before trying again.
+
 On macOS, Cmd+V with an image on the clipboard (a screenshot, say) pastes it into Claude Code or
 Codex: kaze sends them Ctrl+V, the key they read images with. A plain shell never gets it.
 
@@ -839,6 +843,7 @@ Done:
 - Start folder (#77): choose where new plain tabs open in Settings > Workspaces > Startup.
 - 0.18: automatically reopen folders and exact Claude/Codex conversations after restart, including updates.
 - 0.17.1: kaze names Claude and Codex from the program running in the tab, so the Codex logo needs no setup.
+- 0.19.1: restored macOS session-switching shortcuts, faster subagent text wrapping, fresh helper turns, background Git lookups and bounded input queues.
 - 0.19: the subagent pane shows the prompt, a one-line summary and the report; a start folder for new tabs.
 
 Next:
