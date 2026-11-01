@@ -22,7 +22,17 @@
     <div class="section-intro"><a class="archive-back" href="index.html#changelog">Back to Kaze</a><h1 id="changelog-title">Changelog.</h1><p>Features, improvements and fixes, release by release. Kaze checks for updates in Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.18</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.19</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-body">
+          <h3>Subagent conversations and a start folder</h3>
+          <ul>
+            <li><b>Subagents read like a conversation:</b> click a subagent to see the prompt it was given, one line on what it has done so far ("Searched for 13 patterns, ran 15 shell commands") and, when it finishes, its report. Individual tool calls are no longer listed. Works for Claude Code subagents and Codex helpers.</li>
+            <li><b>Start folder:</b> choose where new tabs open in Settings, Workspaces, Startup (<b>Choose…</b> or <b>Use home</b>), or set <code>start_dir</code> in the config. Workspaces and restored sessions keep their own folders, and a folder that has gone missing falls back to home with a warning.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
+        <div class="release-meta"><span class="version">0.18</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Your sessions come back</h3>
           <ul>

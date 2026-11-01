@@ -4,21 +4,13 @@ Last updated: 2026-10-31, after Agents settings and Codex hooks were built on `f
 
 ## Where things stand
 
-**Start folder (issue #77) is implemented locally** on `feat/start-folder` in the
-isolated `/Users/jpatrickzxc/Documents/coding/kaze-terminal-start-folder` worktree, based on main after PR #76 merged.
-`start_dir` is an optional config string; empty means home, `~` expands, invalid
-paths/types warn and use home. Settings > Workspaces > Startup shows the path,
-Choose… and Use home, reusing the asynchronous native picker and its shared busy
-state. Only new plain tabs use the override. Workspace/restored cwd and startup
-precedence stay intact. Plain tabs record the effective cwd at creation, before
-OSC 7, so later setting changes cannot rewrite their restore metadata. Paths are
-rechecked on tab creation to handle folders deleted since config load. Narrow rows
-fit long mono hints and stack buttons when needed. Full tests/vet, focused config/UI
-races and macOS/Windows amd64/arm64 builds pass. A real POSIX PTY probe verified a
-folder with spaces/Japanese. Native offscreen renders were inspected at 1100 and
-480 px in Midnight and Washi without global input. Windows picker runtime remains
-unverified. See `docs/audits/2026-11-01-start-folder.md`. Prepared for PR review at the owner's request. No installation or release of #77;
-follow the release workflow after its eventual feature merge.
+**Start folder (issue #77) shipped in 0.19** (PR #81). `start_dir` is an optional config
+string; empty means home, `~` expands, invalid paths/types warn and use home. Settings >
+Workspaces > Startup shows the path, Choose… and Use home, reusing the native folder picker.
+Only new plain tabs use it; workspace/restored folders and startup precedence are unchanged.
+Plain tabs record their folder at creation, before OSC 7. Windows picker runtime remains
+unverified. See `docs/audits/2026-11-01-start-folder.md`. The subagent pane rework (#78,
+PR #79) shipped in the same release.
 
 
 **Session restoration (issue #75) is implemented** on `feat/session-restore`
@@ -196,7 +188,7 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 2. **Windows app icon** from `assets/branding` (PR 8 merged the logo and the macOS icon only).
 3. **Notification card redesign** (GitHub issue #9).
 4. **Real panes** (Zellij-like tiles; would replace the sidebar's workspaces section).
-5. ~~Plan 2: subagent child tabs~~: replaced by the subagents feature (tree, live pane, board), spec `docs/superpowers/specs/2026-10-31-kaze-subagents-design.md`, built on `feat/subagents`. It also does issue #23 Part 1 (the Claude session id, transcript path and folder ride on every `kaze notify` message). Open: whether a subagent's permission prompt carries its `agent_id` (needs one interactive run; both paths are built). **Live pane reworked (#78, PR #79, 2026-11-01):** it now shows the subagent's prompt, one summary line ("Searched for 13 patterns, ran 15 shell commands") and its report, not every tool call. The Agent call's prompt rides on the hook message as `task_prompt` (16 KB cap); a Codex helper's next turn replaces it. Not done: the subagent's in-between messages (hooks don't carry them; needs the transcript reader). The lander still says "watch its steps live"; fix that wording in the release that ships this.
+5. ~~Plan 2: subagent child tabs~~: replaced by the subagents feature (tree, live pane, board), spec `docs/superpowers/specs/2026-10-31-kaze-subagents-design.md`, built on `feat/subagents`. It also does issue #23 Part 1 (the Claude session id, transcript path and folder ride on every `kaze notify` message). Open: whether a subagent's permission prompt carries its `agent_id` (needs one interactive run; both paths are built). **Live pane reworked (#78, PR #79, 2026-11-01):** it now shows the subagent's prompt, one summary line ("Searched for 13 patterns, ran 15 shell commands") and its report, not every tool call. The Agent call's prompt rides on the hook message as `task_prompt` (16 KB cap); a Codex helper's next turn replaces it. Not done: the subagent's in-between messages (hooks don't carry them; needs the transcript reader).
 6. **Mac milestone** (checklist below): build and use kaze on macOS for the first time.
 7. Speed task: tighten kaze's own keypress p99 and first-frame time.
 8. Later (spec 7 and owner ideas): browser button, notes-vault graph, smart Ctrl+C (copy when text is selected, else interrupt), kaze-native autocomplete.

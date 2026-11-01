@@ -51,3 +51,9 @@ Settings > Workspaces gains the Restore sessions on launch control in Startup, a
 Updates confirmation explains that conversations/folders return while commands stop.
 Retake captures showing those sections when needed. Existing terminal/board captures
 are not replaced with generated UI; no screenshot was retouched for this release.
+
+## 0.19 subagent pane and start folder
+
+The subagent pane now shows the prompt, a one-line summary and the report instead of tool
+calls, so the Subagents capture is out of date. Settings > Workspaces > Startup gains the
+Start folder row. Retake those captures when needed; nothing was generated or retouched.

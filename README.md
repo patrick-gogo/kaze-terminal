@@ -839,6 +839,7 @@ Done:
 - Start folder (#77): choose where new plain tabs open in Settings > Workspaces > Startup.
 - 0.18: automatically reopen folders and exact Claude/Codex conversations after restart, including updates.
 - 0.17.1: kaze names Claude and Codex from the program running in the tab, so the Codex logo needs no setup.
+- 0.19: the subagent pane shows the prompt, a one-line summary and the report; a start folder for new tabs.
 
 Next:
 

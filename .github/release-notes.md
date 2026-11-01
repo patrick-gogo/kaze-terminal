@@ -1,10 +1,7 @@
-## What’s new in Kaze 0.18
+## What’s new in Kaze 0.19
 
-- **Your sessions return:** automatically reopen folders, names, order, colors and the selected session after restarting Kaze, including Update and restart.
-- **The same Claude/Codex conversations:** configured agent hooks provide exact conversation IDs. Idle resumption does not submit another prompt or pick another chat in the same repo.
-- **A startup choice:** disable restoration under Settings > Workspaces > Startup to start fresh. Explicit workspace launches retain their precedence.
-- **No command replay:** plain terminals start fresh shells and workspace recipes are not rerun. Running commands, servers, scratch shells and floating layout still stop at exit.
-- **Verification:** full tests/vet, focused race checks and macOS/Windows builds pass. Real isolated CLI round trips used local stub responses. Windows runtime and a real installed-app updater restart remain manual checks.
+- **Subagents read like a conversation:** the subagent pane shows the prompt it was given, one line on what it has done so far, and its report when it finishes. Individual tool calls are no longer listed. Works for Claude Code subagents and Codex helpers.
+- **Start folder:** choose where new tabs open under Settings > Workspaces > Startup (Choose… or Use home), or set `start_dir` in `config.toml`. Workspaces and restored sessions keep their own folders; a missing folder falls back to home with a warning.
 
 ## Download
 

@@ -64,7 +64,7 @@
       <article>
         <svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4m-6 4v-4h12v4"/></svg>
         <h3>See every subagent.</h3>
-        <p>When Claude Code or Codex hands work to subagents, each one shows under its session with its task and current step. Click one to watch its steps live and read its report, or press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> for a board of every subagent: running, waiting on you and done.</p>
+        <p>When Claude Code or Codex hands work to subagents, each one shows under its session with its task and current step. Click one to read the prompt it was given, a one-line summary of its work and its report, or press <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>A</kbd> for a board of every subagent: running, waiting on you and done.</p>
         <button type="button" class="show-shot" data-show="agents">See the subagents <span aria-hidden="true">↑</span></button>
       </article>
       <article>
@@ -103,7 +103,17 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>The latest releases.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.18</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.19</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-body">
+          <h3>Subagent conversations and a start folder</h3>
+          <ul>
+            <li><b>Subagents read like a conversation:</b> click a subagent to see the prompt it was given, one line on what it has done so far ("Searched for 13 patterns, ran 15 shell commands") and, when it finishes, its report. Individual tool calls are no longer listed. Works for Claude Code subagents and Codex helpers.</li>
+            <li><b>Start folder:</b> choose where new tabs open in Settings, Workspaces, Startup (<b>Choose…</b> or <b>Use home</b>), or set <code>start_dir</code> in the config. Workspaces and restored sessions keep their own folders, and a folder that has gone missing falls back to home with a warning.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="release">
+        <div class="release-meta"><span class="version">0.18</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Your sessions come back</h3>
           <ul>
@@ -119,17 +129,6 @@
           <h3>Codex logo, no setup</h3>
           <ul>
             <li><b>Fixed:</b> the Codex logo now shows for interactive Codex. Kaze sees Claude Code or Codex running in a tab by itself and shows its logo within about a second, before your first prompt, with no hooks needed (macOS).</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.17</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
-        <div class="release-body">
-          <h3>Agent logos and colored links</h3>
-          <ul>
-            <li><b>Agent logos in the sidebar:</b> a session running Claude Code shows the Claude logo, and one running Codex shows the OpenAI logo, next to the agent's name.</li>
-            <li><b>Named as soon as it opens:</b> the logo and name appear the moment Claude Code or Codex starts, before your first prompt. Settings, Agents offers the new SessionStart hook for each; in Codex, run <code>/hooks</code> to trust it.</li>
-            <li><b>Links stand out:</b> web links in the terminal are drawn in blue with an underline. Text a program already colored keeps its color and gets the underline.</li>
           </ul>
         </div>
       </li>
