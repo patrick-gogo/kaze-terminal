@@ -5,6 +5,7 @@ package subagents
 
 import (
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -122,18 +123,7 @@ func (t *Tracker) Apply(e Event) bool {
 		if a := t.agents[k]; a != nil {
 			return t.reopen(a)
 		}
-		a := t.add(e)
-		q := queueKey{e.Src, e.Session}
-		if i := slices.IndexFunc(t.queues[q], func(c call) bool { return c.typ == e.AgentType }); i >= 0 {
-			c := t.queues[q][i]
-			t.queues[q] = slices.Delete(t.queues[q], i, i+1)
-			if c.desc != "" {
-				a.Task = c.desc
-			}
-			if p := t.agents[c.parent]; p != nil {
-				a.Parent, a.Depth = c.parent, min(p.Depth+1, 1)
-			}
-		}
+		t.pair(t.add(e), e)
 		return true
 	case EvTool:
 		if e.AgentID == "" {
@@ -183,6 +173,11 @@ func (t *Tracker) Apply(e Event) bool {
 		}
 		a.stopped = true
 		a.State, a.Ended, a.Report = Done, e.At, e.Report
+		if a.Type == "" && a.Task == unknownTask {
+			if line := firstLine(e.Report); line != "" {
+				a.Task = line // better than a bare "subagent" (#61)
+			}
+		}
 		t.done = append(t.done, a)
 		if len(t.done) > maxDone {
 			t.drop(func(x *Agent) bool { return x == t.done[0] })
@@ -235,11 +230,49 @@ func (t *Tracker) session(e Event) bool {
 	return true
 }
 
+// unknownTask names an agent whose type and task kaze never learned.
+const unknownTask = "subagent"
+
+// pair gives a newly typed agent the task of its waiting Agent call: one of
+// the same type first, else one that named no type. Claude Code starts an
+// untyped call as "general-purpose" and Codex as "default" (#61).
+func (t *Tracker) pair(a *Agent, e Event) {
+	q := queueKey{e.Src, e.Session}
+	i := slices.IndexFunc(t.queues[q], func(c call) bool { return c.typ == e.AgentType })
+	if i < 0 {
+		i = slices.IndexFunc(t.queues[q], func(c call) bool { return c.typ == "" })
+	}
+	if i < 0 {
+		return
+	}
+	c := t.queues[q][i]
+	t.queues[q] = slices.Delete(t.queues[q], i, i+1)
+	if c.desc != "" {
+		a.Task = c.desc
+	}
+	if p := t.agents[c.parent]; p != nil && p != a {
+		a.Parent, a.Depth = c.parent, min(p.Depth+1, 1)
+	}
+}
+
+// firstLine is the first non-blank line of s, trimmed and cut to 80 runes.
+func firstLine(s string) string {
+	for line := range strings.Lines(s) {
+		if line = strings.TrimSpace(line); line != "" {
+			if r := []rune(line); len(r) > 80 {
+				line = string(r[:80])
+			}
+			return line
+		}
+	}
+	return ""
+}
+
 func (t *Tracker) add(e Event) *Agent {
 	a := &Agent{Key: Key{e.Session, e.AgentID}, Tab: e.Tab, src: e.Src, Type: e.AgentType, Task: e.AgentType,
 		Started: e.At, InTree: true}
 	if a.Task == "" {
-		a.Task = "subagent"
+		a.Task = unknownTask
 	}
 	t.agents[a.Key] = a
 	t.order = append(t.order, a)
@@ -249,6 +282,14 @@ func (t *Tracker) add(e Event) *Agent {
 // get finds the event's subagent, or starts one kaze missed the start of.
 func (t *Tracker) get(e Event) *Agent {
 	if a := t.agents[Key{e.Session, e.AgentID}]; a != nil {
+		if a.Type == "" && e.AgentType != "" {
+			// First seen through a message with no type: fill it in now (#61).
+			a.Type = e.AgentType
+			if a.Task == unknownTask {
+				a.Task = e.AgentType
+			}
+			t.pair(a, e)
+		}
 		return a
 	}
 	return t.add(e)

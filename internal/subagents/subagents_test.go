@@ -376,3 +376,57 @@ func TestFinishedHelperReopensForANewTurn(t *testing.T) {
 		t.Fatal("still counted as active")
 	}
 }
+
+// Issue #61, seen live on Claude Code 2.1.316: an Agent call with no
+// subagent_type starts a "general-purpose" agent. It must still get its task.
+func TestUntypedCallPairsWithItsStart(t *testing.T) {
+	var tr Tracker
+	tr.Apply(agentCall("Run sleep and echo 1", ""))
+	tr.Apply(agentCall("Run sleep and echo 2", ""))
+	tr.Apply(ev(EvStart, "a1", "general-purpose"))
+	tr.Apply(ev(EvStart, "a2", "general-purpose"))
+	a, b := tr.Get(Key{"s1", "a1"}), tr.Get(Key{"s1", "a2"})
+	if a.Task != "Run sleep and echo 1" || b.Task != "Run sleep and echo 2" || a.Type != "general-purpose" {
+		t.Fatalf("got %q/%q %q/%q", a.Type, a.Task, b.Type, b.Task)
+	}
+}
+
+// A typed call still prefers a start of its own type over an untyped one.
+func TestTypedCallWinsOverUntyped(t *testing.T) {
+	var tr Tracker
+	tr.Apply(agentCall("anything", ""))
+	tr.Apply(agentCall("look", "Explore"))
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	tr.Apply(ev(EvStart, "a2", "general-purpose"))
+	if a, b := tr.Get(Key{"s1", "a1"}), tr.Get(Key{"s1", "a2"}); a.Task != "look" || b.Task != "anything" {
+		t.Fatalf("tasks %q %q", a.Task, b.Task)
+	}
+}
+
+// An agent first seen through a message with no type (a needs without
+// agent_type) takes the type, and a waiting task, from the next message that has one.
+func TestLateTypeFillsInTheAgent(t *testing.T) {
+	var tr Tracker
+	tr.Apply(agentCall("audit the board", ""))
+	tr.Apply(ev(EvTool, "a1", "")) // no type yet
+	a := tr.Get(Key{"s1", "a1"})
+	if a.Type != "" {
+		t.Fatalf("setup: %+v", a)
+	}
+	tr.Apply(tool("a1", "Bash")) // tool() has no type either
+	step := ev(EvTool, "a1", "general-purpose")
+	if !tr.Apply(step) || a.Type != "general-purpose" || a.Task != "audit the board" {
+		t.Fatalf("got %q %q", a.Type, a.Task)
+	}
+}
+
+// With no type or task ever known, the report names the agent, not "subagent".
+func TestUnknownAgentIsNamedFromItsReport(t *testing.T) {
+	var tr Tracker
+	stop := ev(EvStop, "a1", "")
+	stop.Report = "\n  Found 3 stale caches in render.\nDetails follow."
+	tr.Apply(stop)
+	if a := tr.Get(Key{"s1", "a1"}); a.Task != "Found 3 stale caches in render." {
+		t.Fatalf("task %q", a.Task)
+	}
+}
