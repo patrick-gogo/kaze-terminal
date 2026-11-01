@@ -455,10 +455,10 @@ func modes(s *term.Session) term.Modes {
 	return s.Applier().Modes()
 }
 
-// start launches a tab's shell in dir, or the window's folder when dir is "".
+// start launches a tab's shell in dir, or the configured start folder when empty.
 func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 	if dir == "" {
-		dir = win.opt.Dir
+		dir = win.plainStartDir()
 	}
 	cols, rows := win.mgr.Size()
 	return ptyx.Start(win.opt.Shell, cols, rows, env, dir)
@@ -468,7 +468,7 @@ func (win *window) newTab() {
 	win.dropSideEdit()
 	win.hideSettings() // the new tab is shown
 	win.closeBoard()
-	if _, err := win.mgr.New(); err != nil {
+	if _, err := win.mgr.NewOpts(tabs.StartOpts{Dir: win.plainStartDir()}); err != nil {
 		log.Printf("kaze: new tab: %v", err)
 		// A windowsgui build has no console, so the status bar is where this can be seen.
 		win.notice = "new tab failed: " + err.Error()
@@ -1494,17 +1494,17 @@ func (win *window) writeClipboard(gtx layout.Context, text string) {
 // openFirst opens the first tab with the warnings written in before the shell
 // starts. When the configured shell fails and def is set, it retries with def
 // and adds a warning that says so.
-func openFirst(m *tabs.Manager, shell *[]string, def, warns []string) (*tabs.Tab, string, error) {
+func openFirst(m *tabs.Manager, shell *[]string, def, warns []string, dir string) (*tabs.Tab, string, error) {
 	prefeed := func(w []string) func(*term.Session) {
 		return func(s *term.Session) { injectWarnings(s, w) }
 	}
-	t, err := m.NewWith(prefeed(warns))
+	t, err := m.NewOpts(tabs.StartOpts{Dir: dir, Prefeed: prefeed(warns)})
 	if err == nil || len(def) == 0 || slices.Equal(*shell, def) {
 		return t, "", err
 	}
 	warn := fmt.Sprintf("shell %q failed: %v; using the default shell", strings.Join(*shell, " "), err)
 	*shell = def
-	t, err = m.NewWith(prefeed(append(slices.Clip(warns), warn)))
+	t, err = m.NewOpts(tabs.StartOpts{Dir: dir, Prefeed: prefeed(append(slices.Clip(warns), warn))})
 	if err != nil {
 		err = fmt.Errorf("%s; the default shell failed too: %w", warn, err)
 	}

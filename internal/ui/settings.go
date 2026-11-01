@@ -863,10 +863,22 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 		h = max(h, size.Y)
 	}
 	r.Min.X = lx
+	// Controls that cannot share the row flow vertically at narrow widths.
+	wrapControls := w > r.Dx() && len(cs) > 1
+	if wrapControls {
+		w, h = 0, 0
+		for i, c := range cs {
+			w = max(w, c.size.X)
+			h += c.size.Y
+			if i > 0 {
+				h += gap
+			}
+		}
+	}
 	// The hint goes last: a long one wraps in the room the controls leave.
 	switch {
 	case row.hint != "" && row.monoHint:
-		hc, hs = p.mono(row.hint, 11, col.muted)
+		hc, hs = p.fitMonoHint(row.hint, max(r.Dx(), 0))
 	case row.hint != "":
 		room := r.Dx()
 		if w > 0 {
@@ -887,7 +899,7 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	for _, e := range extra {
 		labelW = max(labelW, e.size.X)
 	}
-	stacked := labelW+gap+w > r.Dx()
+	stacked := wrapControls || labelW+gap+w > r.Dx()
 	rowH := max(max(labelH, h, tsz.Y)+gtx.Dp(28), gtx.Dp(58))
 	if stacked {
 		rowH = labelH + gap + h + gtx.Dp(28)
@@ -915,9 +927,16 @@ func (p *page) row(r image.Rectangle, y int, row settingRow) int {
 	}
 	for _, c := range cs {
 		at := image.Pt(x, cy+(h-c.size.Y)/2)
+		if wrapControls {
+			at = image.Pt(x, cy)
+		}
 		p.st.shift(c.from, c.to, at)
 		place(ops, c.call, at)
-		x += c.size.X + gap
+		if wrapControls {
+			cy += c.size.Y + gap
+		} else {
+			x += c.size.X + gap
+		}
 	}
 	return y + rowH
 }

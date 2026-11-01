@@ -351,3 +351,35 @@ func (p *page) preview(r image.Rectangle, y int) int {
 	call.Add(ops)
 	return box.Max.Y + gtx.Dp(18)
 }
+
+// fitMonoHint retains both ends of a path and keeps it inside its row, even
+// when the settings page is narrow. Measuring does not add test-visible text.
+func (p *page) fitMonoHint(s string, width int) (op.CallOp, image.Point) {
+	_, size := p.c.label(p.gtx, s, 11, p.col.muted)
+	if size.X <= width {
+		return p.mono(s, 11, p.col.muted)
+	}
+	_, ellipsis := p.c.label(p.gtx, "…", 11, p.col.muted)
+	if ellipsis.X > width {
+		return p.mono("", 11, p.col.muted)
+	}
+	lo, hi := 1, len([]rune(s))
+	for lo < hi {
+		n := (lo + hi + 1) / 2
+		candidate := "…"
+		if n >= 3 {
+			candidate = truncateMiddle(s, n)
+		}
+		_, sz := p.c.label(p.gtx, candidate, 11, p.col.muted)
+		if sz.X <= width {
+			lo = n
+		} else {
+			hi = n - 1
+		}
+	}
+	hint := "…"
+	if lo >= 3 {
+		hint = truncateMiddle(s, lo)
+	}
+	return p.mono(hint, 11, p.col.muted)
+}

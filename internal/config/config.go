@@ -24,6 +24,7 @@ const (
 )
 
 type Config struct {
+	StartDir        string  `toml:"start_dir"`        // cwd for new plain tabs; empty means home
 	RestoreSessions bool    `toml:"restore_sessions"` // restore folders and exact agent conversations; default true
 	FontSize        float32 `toml:"font_size"`        // default 14
 	FontFamily      string  `toml:"font_family"`      // not supported yet; a set value warns
@@ -142,6 +143,18 @@ func Load(path string) (Config, []string, error) {
 			if s != "" {
 				warn("font_family is not supported yet; using the bundled font")
 			}
+		case "start_dir":
+			value, ok := v.(string)
+			if !ok {
+				warn("start_dir must be a folder path string, got %v; using the home folder", v)
+				continue
+			}
+			home, _ := os.UserHomeDir()
+			if _, err := ResolveStartDir(value, home); err != nil {
+				warn("start_dir: %v; using the home folder", err)
+				continue
+			}
+			cfg.StartDir = value
 		case "shell":
 			if s, ok := toStrings(v); ok && strings.TrimSpace(s[0]) != "" {
 				cfg.Shell = s

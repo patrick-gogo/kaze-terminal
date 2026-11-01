@@ -4,6 +4,23 @@ Last updated: 2026-10-31, after Agents settings and Codex hooks were built on `f
 
 ## Where things stand
 
+**Start folder (issue #77) is implemented locally** on `feat/start-folder` in the
+isolated `/Users/jpatrickzxc/Documents/coding/kaze-terminal-start-folder` worktree, based on main after PR #76 merged.
+`start_dir` is an optional config string; empty means home, `~` expands, invalid
+paths/types warn and use home. Settings > Workspaces > Startup shows the path,
+Choose… and Use home, reusing the asynchronous native picker and its shared busy
+state. Only new plain tabs use the override. Workspace/restored cwd and startup
+precedence stay intact. Plain tabs record the effective cwd at creation, before
+OSC 7, so later setting changes cannot rewrite their restore metadata. Paths are
+rechecked on tab creation to handle folders deleted since config load. Narrow rows
+fit long mono hints and stack buttons when needed. Full tests/vet, focused config/UI
+races and macOS/Windows amd64/arm64 builds pass. A real POSIX PTY probe verified a
+folder with spaces/Japanese. Native offscreen renders were inspected at 1100 and
+480 px in Midnight and Washi without global input. Windows picker runtime remains
+unverified. See `docs/audits/2026-11-01-start-folder.md`. Prepared for PR review at the owner's request. No installation or release of #77;
+follow the release workflow after its eventual feature merge.
+
+
 **Session restoration (issue #75) is implemented** on `feat/session-restore`
 (approved design and plan: `docs/superpowers/{specs,plans}/2026-11-01-kaze-session-restore*.md`).
 Default-on `restore_sessions` has a Startup toggle in Settings > Workspaces, even when

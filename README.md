@@ -316,7 +316,7 @@ sidebar, and it closes with that row's ×. Its menu on the left has:
 
 - **Appearance:** theme cards (each a small terminal in that theme's colors), a live preview,
   font size, line spacing, cursor shape and blinking.
-- **Workspaces:** saved launch recipes, one card each with its state, plus startup and session restoration choices (see Workspaces below).
+- **Workspaces:** saved launch recipes, one card each with its state, plus Start folder, startup and session restoration choices (see Workspaces below).
 - **Agents:** shared alert choices (chimes, taskbar flash and done-toast duration), Claude usage,
   and separate setup checks for Claude Code and Codex.
 - **Shortcuts:** every shortcut with its keys and config name, grouped and searchable, and kaze's
@@ -506,9 +506,23 @@ delete it before saving from the settings page.
 
 Pick one under Settings > Workspaces (`startup_workspace` in `config.toml`), or run
 `kaze --workspace "My project"`. Either way kaze opens only that workspace's tabs, without the
-usual home-folder tab. An explicit `--workspace` wins over session restoration and the startup
+usual plain tab. An explicit `--workspace` wins over session restoration and the startup
 workspace setting. Otherwise, saved sessions restore first; the startup workspace runs when
 there is nothing to restore. An unknown name opens a normal tab and shows a warning.
+
+### Start folder for plain tabs
+
+Under **Settings > Workspaces > Startup**, use **Start folder > Choose…** to pick the
+folder for the first ordinary session and every new plain tab (Cmd+T on macOS,
+Ctrl+Shift+T on Windows). **Use home** clears the override. The current path is shown
+next to the controls; choosing a folder applies to subsequent tabs immediately.
+
+You can also set `start_dir = "~/Documents"` in `config.toml`. Empty means your home
+folder. `~` expands to home; relative paths resolve against the folder Kaze was
+launched from. A missing folder or a path to a file falls back to home with a warning.
+Changing this setting never moves existing tabs. Workspace tabs and restored sessions
+keep their own folders, and the existing startup-workspace/restore precedence stays
+in effect.
 
 ### Known limits
 
@@ -570,6 +584,7 @@ error makes kaze use all defaults.
 | `done_toast` | How long the "done" toast stays: `3s`, `6s`, `10s` or `until_seen` | `6s` |
 | `show_usage` | Show the Claude usage readout in the status bar | `true` |
 | `check_updates` | Ask GitHub once a day whether a newer kaze is out (see Updates) | `true` |
+| `start_dir` | Start folder for fresh plain sessions and new plain tabs; `~` expands to home | empty, home folder |
 | `restore_sessions` | Restore folders and exact Claude/Codex conversations on launch | `true` |
 | `startup_workspace` | The workspace to run when kaze starts (chosen in Settings > Workspaces, stored as its ID) | none, a normal tab |
 | `[colors]` | `fg`, `bg`, `cursor`, `selection`, `color0` to `color15`, as `"#rrggbb"` | the built-in Midnight palette |
@@ -818,6 +833,7 @@ Done:
 - Subagents: each session's subagents in the sidebar, a live pane per subagent and the agents board (replaces Plan 2's child tabs).
 - 0.16: clickable links, Codex helpers alongside Claude Code subagents, and screenshot paste with Cmd+V.
 - 0.17: Claude and Codex logos on the sidebar rows as soon as an agent opens, and links drawn in blue.
+- Start folder (#77): choose where new plain tabs open in Settings > Workspaces > Startup.
 - 0.18: automatically reopen folders and exact Claude/Codex conversations after restart, including updates.
 - 0.17.1: kaze names Claude and Codex from the program running in the tab, so the Codex logo needs no setup.
 

@@ -39,7 +39,8 @@ func (win *window) openStartup(def []string) error {
 	if warn != "" {
 		win.opt.Warnings = append(win.opt.Warnings, warn)
 	}
-	_, _, err := openFirst(win.mgr, &win.opt.Shell, def, win.opt.Warnings)
+	dir := win.plainStartDir()
+	_, _, err := openFirst(win.mgr, &win.opt.Shell, def, win.opt.Warnings, dir)
 	return err
 }
 
