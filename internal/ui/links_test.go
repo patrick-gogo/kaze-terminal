@@ -17,6 +17,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 
+	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 )
 
@@ -173,7 +174,8 @@ func TestEmptyPasteSendsCtrlVOnlyForAnAgentImage(t *testing.T) {
 				return a != nil && textShown(a, 0, 'x')()
 			})
 			if c.agent {
-				win.agents = map[tabs.TabID]agentState{tab.ID: {agent: "claude", claude: true, running: true}}
+				win.liveMgr.Store(win.mgr)
+				win.onNotify(notify.Msg{Tab: int(tab.ID), Kind: notify.KindPrompt})
 			}
 			win.paste(tab, empty, modes(tab.Session))
 			if c.want != "" {
@@ -185,5 +187,92 @@ func TestEmptyPasteSendsCtrlVOnlyForAnAgentImage(t *testing.T) {
 				t.Fatalf("sent %q", got)
 			}
 		})
+	}
+}
+
+// A scratch shell's hooks count on its session's row, but the paste goes to the
+// scratch terminal itself: the agent identity must be that terminal's.
+func TestEmptyPasteFollowsTheTerminalRunningTheAgent(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS only")
+	}
+	empty := transfer.DataEvent{Type: "application/text", Open: func() io.ReadCloser { return io.NopCloser(strings.NewReader("")) }}
+	for _, c := range []struct {
+		name      string
+		agentIn   string // "scratch" or "parent": where Codex runs
+		pasteTo   string
+		wantCtrlV bool
+	}{
+		{"Codex in the scratch shell", "scratch", "scratch", true},
+		{"Codex in the session, paste in a plain scratch shell", "parent", "scratch", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := &recStarter{}
+			win := testWindow(t, st)
+			win.liveMgr.Store(win.mgr)
+			win.clipImage = func() bool { return true }
+			parent, err := win.mgr.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			scratch, err := win.mgr.NewOpts(tabs.StartOpts{Parent: parent.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			st.mu.Lock()
+			pp, sp := st.ptys[len(st.ptys)-2], st.ptys[len(st.ptys)-1]
+			st.mu.Unlock()
+			src := parent
+			if c.agentIn == "scratch" {
+				src = scratch
+			}
+			win.onNotify(notify.Msg{Tab: int(src.ID), Kind: notify.KindPrompt, Agent: "codex"})
+			win.drainAlerts(t0)
+			to, p := parent, pp
+			if c.pasteTo == "scratch" {
+				to, p = scratch, sp
+			}
+			win.paste(to, empty, modes(to.Session))
+			if c.wantCtrlV {
+				waitSent(t, p, "\x16")
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+			if got := p.sent(); got != "" {
+				t.Fatalf("sent %q", got)
+			}
+		})
+	}
+}
+
+// Once the agent quits and the shell prompt is back, the terminal is a plain
+// shell again: an empty paste must not send Ctrl+V.
+func TestEmptyPasteStopsAfterTheAgentQuits(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS only")
+	}
+	st := &recStarter{}
+	win := testWindow(t, st)
+	win.liveMgr.Store(win.mgr)
+	win.clipImage = func() bool { return true }
+	tab, p := shellTab(t, win, st, "x", func() bool {
+		a := win.mgr.Active()
+		return a != nil && textShown(a, 0, 'x')()
+	})
+	win.onNotify(notify.Msg{Tab: int(tab.ID), Kind: notify.KindPrompt})
+	before := shellSeq(tab)
+	go p.w.Write([]byte("\x1b]133;A\x07")) // the shell's prompt mark: the agent has exited
+	deadline := time.Now().Add(3 * time.Second)
+	for shellSeq(tab) == before {
+		if time.Now().After(deadline) {
+			t.Fatal("prompt mark never arrived")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	empty := transfer.DataEvent{Type: "application/text", Open: func() io.ReadCloser { return io.NopCloser(strings.NewReader("")) }}
+	win.paste(tab, empty, modes(tab.Session))
+	time.Sleep(50 * time.Millisecond)
+	if got := p.sent(); got != "" {
+		t.Fatalf("sent %q to the shell", got)
 	}
 }

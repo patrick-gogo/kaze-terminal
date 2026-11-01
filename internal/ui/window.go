@@ -121,6 +121,7 @@ type window struct {
 	links      render.Links       // link finder, reused every frame
 	openLink   func(string) error // opens a clicked link; nil uses the system browser
 	clipImage  func() bool        // reports an image on the clipboard; nil asks the system
+	terms      termAgents         // the agent each terminal runs, by the tab its hooks ran in
 	gestureCol int                // last cell reported to the app, for a release sent by endGesture
 	gestureRow int
 	dragPos    image.Point // last drag position relative to the grid, for auto-scroll
@@ -1179,7 +1180,7 @@ func (win *window) paste(t *tabs.Tab, e transfer.DataEvent, m term.Modes) {
 		// No text: the clipboard may hold an image, such as a screenshot. Let
 		// an agent read it the way it pastes images (Claude Code and Codex:
 		// Ctrl+V). Only then: in a plain zsh, Ctrl+V makes the next key literal.
-		if k := emptyPasteKey(runtime.GOOS); k != "" && win.agentOf(t.ID).agentName() != "" && win.hasClipImage() {
+		if k := emptyPasteKey(runtime.GOOS); k != "" && win.terms.in(t) != "" && win.hasClipImage() {
 			win.takeOver(t)
 			t.Session.Write([]byte(k))
 			win.snapToBottom(t.Session)
