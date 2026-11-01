@@ -103,11 +103,11 @@ func TestCodexSubagentEvents(t *testing.T) {
 			func(m notify.Msg) bool { return m.AgentID == "t1" && m.Tool == "Bash" && m.Summary == "go test ./..." }},
 		{"spawn v2", "tool", `{"session_id":"s1","tool_name":"spawn_agent","tool_input":{"task_name":"audit_ui","message":"Check the UI","agent_type":"explorer"}}`, "",
 			func(m notify.Msg) bool {
-				return m.AgentID == "" && m.Tool == "Agent" && m.Description == "audit_ui" && m.AgentType == "explorer"
+				return m.AgentID == "" && m.Tool == "Agent" && m.Description == "audit_ui" && m.AgentType == "explorer" && m.TaskPrompt == "Check the UI"
 			}},
 		{"spawn v1", "tool", `{"session_id":"s1","tool_name":"spawn_agent","tool_input":{"message":"Check the UI\nin detail"}}`, "",
 			func(m notify.Msg) bool {
-				return m.Tool == "Agent" && m.Description == "Check the UI" && m.AgentType == "default"
+				return m.Tool == "Agent" && m.Description == "Check the UI" && m.AgentType == "default" && m.TaskPrompt == "Check the UI\nin detail"
 			}},
 	}
 	for _, c := range cases {
@@ -140,7 +140,17 @@ func TestCodexHelperPromptStartsItsNextTurn(t *testing.T) {
 	srv, got := startServer(t)
 	runNotifyOutput([]string{"prompt", "--agent", "codex"}, strings.NewReader(`{"session_id":"s1","agent_id":"t1","agent_type":"explorer","prompt":"$review"}`), envOf(srv, "2"), io.Discard)
 	m := wait(t, got)
-	if m.Kind != notify.KindAgentStart || m.AgentID != "t1" || m.AgentType != "explorer" || m.Command != "" || m.Session != "s1" {
+	if m.Kind != notify.KindAgentStart || m.AgentID != "t1" || m.AgentType != "explorer" || m.Command != "" || m.Session != "s1" ||
+		m.TaskPrompt != "$review" {
+		t.Fatalf("got %+v", m)
+	}
+}
+
+// A Claude SubagentStart carries no prompt field, so nothing is sent for it.
+func TestClaudeAgentStartHasNoPrompt(t *testing.T) {
+	srv, got := startServer(t)
+	runNotify([]string{"agent-start"}, strings.NewReader(`{"session_id":"s1","agent_id":"a1","agent_type":"Explore","prompt":"x"}`), envOf(srv, "2"))
+	if m := wait(t, got); m.Kind != notify.KindAgentStart || m.TaskPrompt != "" {
 		t.Fatalf("got %+v", m)
 	}
 }

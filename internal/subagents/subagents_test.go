@@ -110,6 +110,35 @@ func TestStepsCapAt200(t *testing.T) {
 	}
 }
 
+func TestCallPromptPairsWithItsAgent(t *testing.T) {
+	var tr Tracker
+	a, b := agentCall("A", "Explore"), agentCall("B", "Explore")
+	a.Prompt, b.Prompt = "prompt A", "prompt B"
+	tr.Apply(a)
+	tr.Apply(b)
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	tr.Apply(ev(EvStart, "a2", "Explore"))
+	if x, y := tr.Get(Key{"s1", "a1"}), tr.Get(Key{"s1", "a2"}); x.Prompt != "prompt A" || y.Prompt != "prompt B" {
+		t.Fatalf("prompts %q %q", x.Prompt, y.Prompt)
+	}
+}
+
+func TestActivityCountsEveryStep(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	names := []string{"Grep", "Glob", "Bash", "Bash", "Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch",
+		"WebFetch", "WebSearch", "TodoWrite", "mcp__x__y"}
+	for range 20 {
+		for _, n := range names {
+			tr.Apply(tool("a1", n))
+		}
+	}
+	want := Activity{Searches: 40, Commands: 40, Reads: 20, Edits: 100, Web: 40, Other: 40}
+	if got := tr.Get(Key{"s1", "a1"}).Activity; got != want {
+		t.Fatalf("activity %+v, want %+v", got, want)
+	}
+}
+
 func TestNeedsWithAgentID(t *testing.T) {
 	var tr Tracker
 	tr.Apply(ev(EvStart, "a1", "Explore"))
@@ -343,6 +372,59 @@ func TestFinishedLeaveTreeWhenNoneRun(t *testing.T) {
 	}
 }
 
+// A helper's next turn shows that turn's message, not the first prompt, and
+// counts its steps afresh (PR 79 review).
+func TestNewTurnReplacesPromptAndActivity(t *testing.T) {
+	var tr Tracker
+	call := agentCall("audit", "explorer")
+	call.Prompt = "first message"
+	tr.Apply(call)
+	tr.Apply(ev(EvStart, "h1", "explorer"))
+	tr.Apply(tool("h1", "Bash"))
+	tr.Apply(ev(EvStop, "h1", "explorer"))
+	again := ev(EvStart, "h1", "explorer")
+	again.Prompt = "second message"
+	tr.Apply(again)
+	a := tr.Get(Key{"s1", "h1"})
+	if a.Prompt != "second message" || a.Activity != (Activity{}) {
+		t.Fatalf("prompt %q activity %+v", a.Prompt, a.Activity)
+	}
+	// A turn whose message kaze didn't get drops the old prompt rather than show it.
+	tr.Apply(ev(EvStop, "h1", "explorer"))
+	tr.Apply(ev(EvStart, "h1", "explorer"))
+	if a.Prompt != "" {
+		t.Fatalf("stale prompt %q", a.Prompt)
+	}
+}
+
+// A running agent's start that carries its message fills in a missing prompt.
+func TestStartMessageFillsMissingPrompt(t *testing.T) {
+	var tr Tracker
+	tr.Apply(ev(EvStart, "h1", "explorer"))
+	turn := ev(EvStart, "h1", "explorer")
+	turn.Prompt = "check the UI"
+	if !tr.Apply(turn) || tr.Get(Key{"s1", "h1"}).Prompt != "check the UI" {
+		t.Fatalf("prompt %q", tr.Get(Key{"s1", "h1"}).Prompt)
+	}
+}
+
+// An Agent call that never started (denied) must not lend its prompt to a
+// later agent of the same type once the owner moves on (PR 79 review).
+func TestOwnerPromptForgetsCallsThatNeverStarted(t *testing.T) {
+	var tr Tracker
+	denied := agentCall("denied", "Explore")
+	denied.Prompt = "old prompt"
+	tr.Apply(denied)
+	tr.Apply(ev(EvPrompt, "", ""))
+	next := agentCall("next", "Explore")
+	next.Prompt = "new prompt"
+	tr.Apply(next)
+	tr.Apply(ev(EvStart, "a1", "Explore"))
+	if a := tr.Get(Key{"s1", "a1"}); a.Task != "next" || a.Prompt != "new prompt" {
+		t.Fatalf("task %q prompt %q", a.Task, a.Prompt)
+	}
+}
+
 // A Codex helper can take more turns after it finishes: a new start reopens
 // it, and its next stop replaces the report, with one board card throughout.
 func TestFinishedHelperReopensForANewTurn(t *testing.T) {
@@ -410,7 +492,7 @@ func TestLateTypeFillsInTheAgent(t *testing.T) {
 	var tr Tracker
 	tr.Apply(ev(EvStart, "a0", "Plan")) // something running, so a needs is shown
 	tr.Apply(agentCall("audit the board", ""))
-	tr.Apply(ev(EvNeeds, "a1", ""))     // a needs may name the agent with no type
+	tr.Apply(ev(EvNeeds, "a1", "")) // a needs may name the agent with no type
 	a := tr.Get(Key{"s1", "a1"})
 	if a == nil || a.Type != "" {
 		t.Fatalf("setup: %+v", a)

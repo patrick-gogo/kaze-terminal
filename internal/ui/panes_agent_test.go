@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"gioui.org/font"
+
 	"github.com/patrick-gogo/kaze-terminal/internal/notify"
 	"github.com/patrick-gogo/kaze-terminal/internal/subagents"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
@@ -50,23 +52,139 @@ func TestAgentPaneReplacesOldestNotScratch(t *testing.T) {
 	}
 }
 
-func TestAgentPaneLines(t *testing.T) {
-	a := &subagents.Agent{Type: "Explore", State: subagents.Done, Dropped: 3, Report: "line one\nline two",
-		Steps: []subagents.Step{{At: t0, Tool: "Grep", Summary: "auth"}, {At: t0.Add(61e9), Tool: "Read", Summary: "a.go"}}}
+func paneTexts(a *subagents.Agent) string {
 	var got []string
 	for _, l := range agentPaneLines(a) {
 		got = append(got, l.text)
 	}
-	want := []string{"3 earlier steps", "09:00:00  Grep  auth", "09:01:01  Read  a.go", "Report", "line one", "line two"}
-	if strings.Join(got, "|") != strings.Join(want, "|") {
+	return strings.Join(got, "|")
+}
+
+func TestAgentPaneLines(t *testing.T) {
+	a := &subagents.Agent{Type: "Explore", State: subagents.Done, Dropped: 3, Report: "line one\nline two",
+		Prompt:   "Find auth.\n\nReport file:line.",
+		Steps:    []subagents.Step{{At: t0, Tool: "Grep", Summary: "auth"}, {At: t0.Add(61e9), Tool: "Read", Summary: "a.go"}},
+		Activity: subagents.Activity{Searches: 13, Commands: 15, Reads: 1}}
+	// The prompt and report are one block each; wrapping splits them into lines.
+	want := "Prompt|Find auth.\n\nReport file:line.|Searched for 13 patterns, ran 15 shell commands, read 1 file|Report|line one\nline two"
+	if got := paneTexts(a); got != want {
 		t.Fatalf("lines %q", got)
 	}
 }
 
+func TestAgentPanePromptKeepsIndentation(t *testing.T) {
+	a := &subagents.Agent{State: subagents.Running, Prompt: "\n  Steps:\n\t- one\n    - two  \n\n"}
+	if got := agentPaneLines(a)[1].text; got != "  Steps:\n\t- one\n    - two" {
+		t.Fatalf("prompt block %q", got)
+	}
+}
+
+func TestWrapBlockKeepsIndentAndBlankLines(t *testing.T) {
+	win, _, _, _, _, _, _ := paneWindow(t)
+	gtx := pageContext(1000, 600)
+	got := win.wrapBlock(gtx, "a\n\n    b\n\tc", 12, 400)
+	if strings.Join(got, "|") != "a||    b|    c" {
+		t.Fatalf("lines %q", got)
+	}
+	// A wrapped indented line keeps its indent on every piece.
+	got = win.wrapBlock(gtx, "  "+strings.Repeat("word ", 60), 12, 200)
+	if len(got) < 3 {
+		t.Fatalf("not wrapped: %q", got)
+	}
+	for _, l := range got {
+		if !strings.HasPrefix(l, "  w") {
+			t.Fatalf("indent lost: %q", got)
+		}
+	}
+}
+
+func TestWrapSansBreaksLongWords(t *testing.T) {
+	win, _, _, _, _, _, _ := paneWindow(t)
+	gtx := pageContext(1000, 600)
+	url := "https://example.com/" + strings.Repeat("path/", 56)
+	for _, s := range []string{url, "see " + url + " now"} {
+		got := win.wrapSans(gtx, s, 12, 440)
+		if len(got) < 2 {
+			t.Fatalf("not broken: %q", got)
+		}
+		for _, l := range got {
+			if _, sz := win.ui.sans(gtx, l, 12, win.ui.th.Muted, font.Normal); sz.X > 440 {
+				t.Fatalf("line %d px wide: %q", sz.X, l)
+			}
+		}
+		if strings.ReplaceAll(strings.Join(got, ""), " ", "") != strings.ReplaceAll(s, " ", "") {
+			t.Fatalf("text lost: %q", got)
+		}
+	}
+}
+
+func TestAgentPaneStepReusesPromptAndReportLayout(t *testing.T) {
+	win, _, r, a, _, _, _ := paneWindow(t)
+	win.liveMgr.Store(win.mgr)
+	send := func(m notify.Msg) { m.Tab, m.Session = int(a.ID), "s"; win.onNotify(m) }
+	send(notify.Msg{Kind: notify.KindTool, Tool: "Agent", AgentType: "Explore", TaskPrompt: strings.Repeat("look ", 300)})
+	send(notify.Msg{Kind: notify.KindAgentStart, AgentID: "x", AgentType: "Explore"})
+	floatFrames(t, win, r)
+	k := subagents.Key{Session: "s", ID: "x"}
+	win.openAgentPane(a.ID, k)
+	floatFrames(t, win, r)
+	p := win.fl.set(a.ID).find(win.fl.agentID(k))
+	if p == nil || len(p.promptWrap.lines) < 3 {
+		t.Fatalf("prompt not laid out: %+v", p)
+	}
+	before := &p.promptWrap.lines[0]
+	send(notify.Msg{Kind: notify.KindTool, AgentID: "x", AgentType: "Explore", Tool: "Bash", Summary: "ls"})
+	floatFrames(t, win, r)
+	if &p.promptWrap.lines[0] != before {
+		t.Fatal("a step laid the prompt out again")
+	}
+	if !strings.Contains(p.wrapped[len(p.wrapped)-1].text, "Ran 1 shell command") {
+		t.Fatalf("summary not updated: %+v", p.wrapped[len(p.wrapped)-1])
+	}
+}
+
+func TestAgentPaneActivityWording(t *testing.T) {
+	for _, c := range []struct {
+		act  subagents.Activity
+		want string
+	}{
+		{subagents.Activity{}, ""},
+		{subagents.Activity{Searches: 1}, "Searched for 1 pattern"},
+		{subagents.Activity{Commands: 1, Edits: 2}, "Ran 1 shell command, edited 2 files"},
+		{subagents.Activity{Reads: 2, Web: 1, Other: 3}, "Read 2 files, made 1 web request, used 3 other tools"},
+		{subagents.Activity{Web: 2, Other: 1}, "Made 2 web requests, used 1 other tool"},
+	} {
+		if got := activityText(c.act); got != c.want {
+			t.Errorf("%+v: got %q want %q", c.act, got, c.want)
+		}
+	}
+}
+
+func TestAgentPaneRunningWithoutStepsOrPrompt(t *testing.T) {
+	if got := paneTexts(&subagents.Agent{State: subagents.Running}); got != "Working…" {
+		t.Fatalf("lines %q", got)
+	}
+	a := &subagents.Agent{State: subagents.Running, Activity: subagents.Activity{Commands: 2}}
+	if got := paneTexts(a); got != "Ran 2 shell commands so far" {
+		t.Fatalf("lines %q", got)
+	}
+	if got := paneTexts(&subagents.Agent{State: subagents.Done, Report: "ok\n"}); got != "Report|ok" {
+		t.Fatalf("lines %q", got)
+	}
+}
+
+func TestAgentPaneShowsNoToolCalls(t *testing.T) {
+	a := &subagents.Agent{State: subagents.Running, Prompt: "p", Dropped: 9,
+		Steps: []subagents.Step{{At: t0, Tool: "Bash", Summary: "grep -rn secret"}}, Activity: subagents.Activity{Commands: 10}}
+	if got := paneTexts(a); strings.Contains(got, "grep") || strings.Contains(got, "earlier") {
+		t.Fatalf("tool calls shown: %q", got)
+	}
+}
+
 func TestAgentPaneWaitingStrip(t *testing.T) {
-	a := &subagents.Agent{State: subagents.Waiting}
+	a := &subagents.Agent{State: subagents.Waiting, Prompt: "p"}
 	l := agentPaneLines(a)
-	if len(l) == 0 || l[0].text != "Waiting for your approval in the session below" || l[0].kind != lineWaiting {
+	if len(l) == 0 || l[len(l)-1].text != "Waiting for your approval in the session below" || l[len(l)-1].kind != lineWaiting {
 		t.Fatalf("lines %+v", l)
 	}
 }
@@ -158,6 +276,8 @@ func TestAgentPaneDrawsInAFrame(t *testing.T) {
 	win, _, r, a, _, _, _ := paneWindow(t)
 	win.liveMgr.Store(win.mgr)
 	for _, m := range []notify.Msg{
+		{Tab: int(a.ID), Kind: notify.KindTool, Session: "s", Tool: "Agent", AgentType: "Explore", Description: "Find auth",
+			TaskPrompt: strings.Repeat("look ", 200)},
 		{Tab: int(a.ID), Kind: notify.KindAgentStart, Session: "s", AgentID: "x", AgentType: "Explore"},
 		{Tab: int(a.ID), Kind: notify.KindTool, Session: "s", AgentID: "x", Tool: "Grep", Summary: "auth in src"},
 		{Tab: int(a.ID), Kind: notify.KindAgentStop, Session: "s", AgentID: "x", Report: strings.Repeat("word ", 400)},
@@ -174,6 +294,15 @@ func TestAgentPaneDrawsInAFrame(t *testing.T) {
 	}
 	if len(p.wrapped) < 10 || !p.follow || p.scroll == 0 {
 		t.Fatalf("report not wrapped or not at the bottom: %d lines, scroll %d", len(p.wrapped), p.scroll)
+	}
+	prompt := 0
+	for _, l := range p.wrapped {
+		if l.kind == linePrompt {
+			prompt++
+		}
+	}
+	if prompt < 3 {
+		t.Fatalf("prompt not shown or not wrapped: %d lines", prompt)
 	}
 	if win.fl.keys != 0 {
 		t.Fatal("the live pane took the keyboard")

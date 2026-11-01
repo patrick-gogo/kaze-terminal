@@ -35,12 +35,13 @@ func TestAgentKindsNeverChime(t *testing.T) {
 func TestDrainFeedsTracker(t *testing.T) {
 	win, _, _ := liveWindow(t, 2)
 	id := int(win.mgr.Tabs()[1].ID)
-	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindTool, Session: "s1", Tool: "Agent", AgentType: "Explore", Description: "Find auth"})
+	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindTool, Session: "s1", Tool: "Agent", AgentType: "Explore", Description: "Find auth", TaskPrompt: "Find the auth code."})
 	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindAgentStart, Session: "s1", AgentID: "a1", AgentType: "Explore"})
 	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindTool, Session: "s1", AgentID: "a1", Tool: "Grep", Summary: "auth"})
 	win.drainSubs(t0)
 	shown, _ := win.subs.Tree(id)
-	if len(shown) != 1 || shown[0].Task != "Find auth" || len(shown[0].Steps) != 1 || shown[0].Steps[0].Summary != "auth" {
+	if len(shown) != 1 || shown[0].Task != "Find auth" || shown[0].Prompt != "Find the auth code." ||
+		len(shown[0].Steps) != 1 || shown[0].Steps[0].Summary != "auth" {
 		t.Fatalf("tree %+v", shown)
 	}
 }
@@ -56,6 +57,16 @@ func TestNeedsAndPromptReachTracker(t *testing.T) {
 	}
 	if win.inbox.size() != 1 {
 		t.Fatal("needs must still alert as today")
+	}
+}
+
+func TestHelperTurnMessageReachesTracker(t *testing.T) {
+	win, _, _ := liveWindow(t, 2)
+	id := int(win.mgr.Tabs()[1].ID)
+	win.onNotify(notify.Msg{Tab: id, Kind: notify.KindAgentStart, Session: "s1", AgentID: "h1", AgentType: "explorer", TaskPrompt: "check it"})
+	win.drainSubs(t0)
+	if a := win.subs.Get(subagents.Key{Session: "s1", ID: "h1"}); a == nil || a.Prompt != "check it" {
+		t.Fatalf("agent %+v", a)
 	}
 }
 

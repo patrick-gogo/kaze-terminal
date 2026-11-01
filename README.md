@@ -271,8 +271,11 @@ never reads transcript files.
   it has run and the step it is on now (for example `Grep authMiddleware in src`). A ring means
   running, an amber dot means it is waiting for your approval, a green dot means done. The row
   shows a "3 agents" chip. Finished ones leave the list at your next prompt.
-- **Live pane:** click a subagent to open a read-only floating pane with its steps as they happen
-  and, when it finishes, its report (**Copy report** copies it). The keyboard stays with your session.
+- **Live pane:** click a subagent to open a read-only floating pane that reads like a conversation:
+  the prompt it was given, one line on what it has done so far ("Searched for 13 patterns, ran 15
+  shell commands") and, when it finishes, its report (**Copy report** copies it). Individual tool
+  calls aren't listed. The keyboard stays with your session. A subagent whose Agent call kaze
+  missed shows no prompt.
 - **The board:** every subagent in every session in three columns: running, waiting on you, and
   done. Open it with the Agents button in the sidebar, the "N agents running" text in the status
   bar, "Show agents" in the palette, or Ctrl+Shift+A (Cmd+Shift+A on macOS). Click a card to go to

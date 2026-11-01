@@ -101,6 +101,7 @@ func runNotifyOutput(args []string, stdin io.Reader, env func(string) string, st
 			// helper's next turn, which reopens it if it had finished.
 			kind = notify.KindAgentStart
 			msg.Kind = kind
+			msg.TaskPrompt = notify.FitReport(strings.TrimSpace(hook.Prompt), notify.MaxPrompt)
 		}
 		if !agentMsg(&msg, kind, parsed, hook.AgentID, hook.AgentType, hook.ToolName, hook.ToolInput, hook.Last) {
 			return 0 // nothing kaze shows: a main-conversation tool call, or unreadable
@@ -240,14 +241,15 @@ func agentMsg(m *notify.Msg, kind notify.Kind, parsed bool, id, typ, tool string
 		var call struct {
 			Description string `json:"description"`
 			Type        string `json:"subagent_type"`
+			Prompt      string `json:"prompt"`
 			TaskName    string `json:"task_name"`  // Codex
 			Message     string `json:"message"`    // Codex
 			AgentType   string `json:"agent_type"` // Codex
 		}
 		_ = json.Unmarshal(input, &call)
-		desc, typ := call.Description, call.Type
+		desc, typ, prompt := call.Description, call.Type, call.Prompt
 		if tool == codexSpawn {
-			desc, typ = call.TaskName, call.AgentType
+			desc, typ, prompt = call.TaskName, call.AgentType, call.Message
 			if desc == "" {
 				desc, _, _ = strings.Cut(strings.TrimSpace(call.Message), "\n")
 			}
@@ -256,6 +258,7 @@ func agentMsg(m *notify.Msg, kind notify.Kind, parsed bool, id, typ, tool string
 			}
 		}
 		m.Tool, m.Description, m.AgentType = "Agent", trimRunes(strings.TrimSpace(desc), reasonMaxRunes), typ
+		m.TaskPrompt = notify.FitReport(strings.TrimSpace(prompt), notify.MaxPrompt)
 		return true
 	}
 	return true
