@@ -216,3 +216,24 @@ func TestVisibleWithDocPathsAllocatesNothing(t *testing.T) {
 		t.Fatal(n)
 	}
 }
+
+func TestLinksInGivesByteOffsets(t *testing.T) {
+	s := "見て docs/a.md と https://a.io"
+	ls := LinksIn(s)
+	if len(ls) != 2 {
+		t.Fatal(ls)
+	}
+	for _, l := range ls {
+		if s[l.Start:l.End] != l.Text {
+			t.Fatal(l)
+		}
+	}
+}
+
+func TestLinksInInvalidUTF8Prefix(t *testing.T) {
+	s := "\xff docs/a.md"
+	ls := LinksIn(s)
+	if len(ls) != 1 || ls[0].Text != "docs/a.md" {
+		t.Fatal(ls)
+	}
+}

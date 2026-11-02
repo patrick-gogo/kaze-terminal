@@ -642,7 +642,9 @@ func (win *window) frame(gtx layout.Context) error {
 		if win.fl.refocus {
 			win.fl.refocus, win.wantFocus = false, true // its filters are up now
 		}
-		win.termEvents(gtx, win.mainView(active), cw, ch)
+		if win.docs.shown == 0 {
+			win.termEvents(gtx, win.mainView(active), cw, ch)
+		}
 	}
 	if win.mgr.Empty() {
 		return nil

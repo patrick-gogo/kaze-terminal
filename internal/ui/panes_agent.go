@@ -48,6 +48,7 @@ const (
 	lineActivity
 	lineReportHead
 	lineReport
+	lineMessage
 )
 
 // agentLine is one line of a live pane's body before wrapping.
@@ -80,7 +81,7 @@ func agentPaneLines(a *subagents.Agent) []agentLine {
 	}
 	if a.State == subagents.Done {
 		out = append(out, agentLine{kind: lineReportHead, text: "Report"})
-		out = append(out, agentLine{kind: lineReport, text: trimBlock(a.Report)})
+		out = append(out, agentLine{kind: lineReport, text: new(subagents.Transcript).Report(trimBlock(a.Report))})
 	}
 	return out
 }
@@ -189,11 +190,11 @@ func (win *window) agentLook(a *subagents.Agent, front bool) paneLook {
 
 // drawAgentPane draws live pane p for a and takes its input areas.
 func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent, front bool) {
+	win.pollAgentPane(gtx, p, a)
 	ops, c, th := gtx.Ops, win.ui, win.ui.th
 	p.hits = c.layoutPane(gtx, p.hits.outer, win.agentLook(a, front))
 	body := p.hits.body
-	pad := gtx.Dp(10)
-	inner := image.Rect(body.Min.X+pad, body.Min.Y+gtx.Dp(6), body.Max.X-pad, body.Max.Y-gtx.Dp(6))
+	inner := agentInner(gtx, body)
 	if inner.Empty() {
 		return
 	}
@@ -232,7 +233,7 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 			paint.FillShape(ops, th.Border, clip.Rect(image.Rect(x, top+gtx.Dp(2), inner.Max.X, top+gtx.Dp(2)+1)).Op())
 			call, sz := c.sans(gtx, l.text, 11, th.Done, font.SemiBold)
 			place(ops, call, image.Pt(x, mid-sz.Y/2+gtx.Dp(2)))
-		case lineReport:
+		case lineReport, lineMessage:
 			call, sz := c.sans(gtx, l.text, 12, th.ActiveFG, font.Normal)
 			place(ops, call, image.Pt(x, mid-sz.Y/2))
 		}
@@ -249,6 +250,11 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 // only the one-line summary again (PR 79 review).
 func (win *window) agentWrapped(gtx layout.Context, p *pane, a *subagents.Agent, w int) []agentLine {
 	key := paneWrapKey{width: w, prompt: a.Prompt, report: a.Report, activity: a.Activity, state: a.State, metric: gtx.Metric, locale: gtx.Locale, shaper: win.ui.shaper}
+	key.stream = p.transcript
+	if p.transcript != nil {
+		key.streamVersion = p.transcript.Version
+		key.streamAvailable = p.transcript.Available
+	}
 	if p.wrapKey == key && p.wrapped != nil {
 		return p.wrapped
 	}
@@ -257,12 +263,16 @@ func (win *window) agentWrapped(gtx layout.Context, p *pane, a *subagents.Agent,
 	win.ui.fit(a.Prompt)
 	win.ui.fit(a.Report)
 	out := p.wrapped[:0]
-	for _, l := range agentPaneLines(a) {
+	for _, l := range paneConversation(p, a) {
 		switch l.kind {
 		case linePrompt:
 			out = append(out, win.wrapCached(gtx, &p.promptWrap, l, w-gtx.Dp(10))...) // room for the bar
 		case lineReport:
 			out = append(out, win.wrapCached(gtx, &p.reportWrap, l, w)...)
+		case lineMessage:
+			for _, s := range win.wrapBlock(gtx, l.text, 12, w) {
+				out = append(out, agentLine{kind: l.kind, text: s})
+			}
 		case lineActivity:
 			for _, s := range win.wrapSans(gtx, l.text, 11, w) {
 				out = append(out, agentLine{kind: l.kind, text: s})
@@ -359,13 +369,9 @@ func (win *window) agentPaneEvents(gtx layout.Context, p *pane) {
 		if !ok || win.bench.IgnoreInput() {
 			continue
 		}
-		switch e.Kind {
-		case pointer.Press:
-			if o := win.fl.owner(p.id); o != 0 {
-				win.fl.raise(o, p.id)
-			}
-		case pointer.Scroll:
-			p.agentScroll(int(e.Scroll.Y), max(len(p.wrapped)*gtx.Dp(18)-p.hits.body.Dy()+gtx.Dp(12), 0))
+		win.agentPanePointer(gtx, p, e)
+		if win.docs.shown != 0 {
+			return
 		}
 		win.w.Invalidate()
 	}
@@ -374,9 +380,9 @@ func (win *window) agentPaneEvents(gtx layout.Context, p *pane) {
 // copyReport puts a's report on the clipboard.
 func (win *window) copyReport(gtx layout.Context, a *subagents.Agent) {
 	if win.toClipboard != nil {
-		win.toClipboard(a.Report)
+		win.toClipboard(win.agentReport(a))
 	} else {
-		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(a.Report))})
+		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(win.agentReport(a)))})
 	}
 	win.note("Report copied")
 }
