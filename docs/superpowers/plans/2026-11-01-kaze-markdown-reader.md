@@ -88,7 +88,7 @@
   - `continues` joins the next row when its first rune is `urlRune(r) || r == '\\'`.
   - Unexported helpers: `pathRune(r rune) bool`, `pathAt(rs []rune, i int) (end, next int)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Rename the call in `TestFindURLs` to `findLinks` (its cases contain no `.md`, so it must stay green). Add:
 
@@ -130,9 +130,9 @@ func TestVisibleUnderlinesDocPathsButNotTheLineSuffix(t *testing.T) // "a docs/x
 func TestVisibleWithDocPathsAllocatesNothing(t *testing.T) // 23 rows of "wrote docs/plan-%d.md and README.md:3"; warm once; testing.AllocsPerRun(20, ...) == 0
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/render/ -run 'Doc|WebLink|FindURLs' -v`. Expected: FAIL (undefined `findLinks`, `IsWebLink`).
+- [x] **Step 2: Run** `go test ./internal/render/ -run 'Doc|WebLink|FindURLs' -v`. Expected: FAIL (undefined `findLinks`, `IsWebLink`).
 
-- [ ] **Step 3: Implement** in `internal/render/links.go`. Keep `urlRune`, `schemeLen`, `trimURLEnd` as they are. The scan:
+- [x] **Step 3: Implement** in `internal/render/links.go`. Keep `urlRune`, `schemeLen`, `trimURLEnd` as they are. The scan:
 
 ```go
 // appendLinks appends the [start, end) rune ranges of the web links and the
@@ -161,8 +161,8 @@ func appendLinks(out [][2]int, rs []rune) [][2]int {
 
 Update the doc comments: `LinkSpan` and `Links` describe "web links and .md paths".
 
-- [ ] **Step 4: Run** `go test ./internal/render/ -v` and `go test ./internal/render/ -run XXX -bench VisibleLinks -benchmem`. Expected: PASS, and the benchmark still reports `0 allocs/op`.
-- [ ] **Step 5: Commit** `feat(render): Find .md paths next to web links`
+- [x] **Step 4: Run** `go test ./internal/render/ -v` and `go test ./internal/render/ -run XXX -bench VisibleLinks -benchmem`. Expected: PASS, and the benchmark still reports `0 allocs/op`.
+- [x] **Step 5: Commit** `feat(render): Find .md paths next to web links`
 
 ### Task 2: Resolve and load a doc (`internal/mdoc`)
 
