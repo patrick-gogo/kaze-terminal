@@ -2,8 +2,10 @@ package ui
 
 import (
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/resources"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
@@ -147,7 +149,16 @@ func (win *window) tabResourceName(t *tabs.Tab) string {
 	if name := win.names[t.ID]; name != "" {
 		return cleanText(name)
 	}
-	return tabLabel(t, win.defTitle)
+	lt := *t
+	lt.Title = dropStatusMark(t.Title)
+	return tabLabel(&lt, win.defTitle)
+}
+
+// dropStatusMark removes the symbols an agent puts before its title (Claude
+// Code's ✳ when idle, a braille spinner while working): the card's font can't
+// draw them, and a spinner would rename the row on every turn.
+func dropStatusMark(s string) string {
+	return strings.TrimLeftFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.Is(unicode.So, r) })
 }
 func (win *window) initResources() {
 	if win.bench != nil {
