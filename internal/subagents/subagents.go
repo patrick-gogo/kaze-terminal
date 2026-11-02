@@ -57,19 +57,20 @@ func (a *Activity) count(tool string) {
 }
 
 type Agent struct {
-	Key            Key
-	Tab            int // the row it shows under
-	Type, Task     string
-	Parent         Key // zero when the main conversation started it
-	Depth          int // 0 = top level; deeper nesting draws at 1
-	State          State
-	Started, Ended time.Time
-	Prompt         string   // what its Agent call asked, "" when kaze never saw the call
-	Steps          []Step   // the newest maxSteps
-	Dropped        int      // steps dropped off the front
-	Activity       Activity // every step counted by kind, dropped ones included
-	Report         string
-	InTree         bool // false once the session's next prompt came after it finished
+	Engine, Transcript string
+	Key                Key
+	Tab                int // the row it shows under
+	Type, Task         string
+	Parent             Key // zero when the main conversation started it
+	Depth              int // 0 = top level; deeper nesting draws at 1
+	State              State
+	Started, Ended     time.Time
+	Prompt             string   // what its Agent call asked, "" when kaze never saw the call
+	Steps              []Step   // the newest maxSteps
+	Dropped            int      // steps dropped off the front
+	Activity           Activity // every step counted by kind, dropped ones included
+	Report             string
+	InTree             bool // false once the session's next prompt came after it finished
 
 	src     int  // the tab the hooks ran in
 	stopped bool // true only after a real stop; EndTab makes a provisional Done entry
@@ -88,6 +89,7 @@ const (
 )
 
 type Event struct {
+	Engine, Transcript          string
 	Kind                        EventKind
 	Tab                         int // the row's tab (after hookTab): Tree and Board use it
 	Src                         int // the tab the hook ran in (a scratch shell's own id): session resets use it
@@ -128,6 +130,14 @@ func (t *Tracker) init() {
 func (t *Tracker) Apply(e Event) bool {
 	t.init()
 	k := Key{e.Session, e.AgentID}
+	if a := t.agents[k]; a != nil {
+		if e.Engine != "" {
+			a.Engine = e.Engine
+		}
+		if e.Transcript != "" {
+			a.Transcript = e.Transcript
+		}
+	}
 	switch e.Kind {
 	case EvSession:
 		return t.session(e)
@@ -332,7 +342,7 @@ func (t *Tracker) ClearDone(tab int) int {
 }
 
 func (t *Tracker) add(e Event) *Agent {
-	a := &Agent{Key: Key{e.Session, e.AgentID}, Tab: e.Tab, src: e.Src, Type: e.AgentType, Task: e.AgentType,
+	a := &Agent{Engine: e.Engine, Transcript: e.Transcript, Key: Key{e.Session, e.AgentID}, Tab: e.Tab, src: e.Src, Type: e.AgentType, Task: e.AgentType,
 		Started: e.At, InTree: true}
 	if a.Task == "" {
 		a.Task = unknownTask

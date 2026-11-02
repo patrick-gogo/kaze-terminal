@@ -4,6 +4,7 @@ import (
 	"image"
 	"slices"
 	"sort"
+	"time"
 
 	"gioui.org/io/system"
 	"gioui.org/text"
@@ -53,24 +54,29 @@ type pane struct {
 	grab   paneGrab
 
 	// Live panes only.
-	agent      subagents.Key
-	scroll     int  // px the body is scrolled down
-	follow     bool // keep the newest line in view
-	wrapKey    paneWrapKey
-	wrapped    []agentLine
-	promptWrap wrapCache // the prompt and report laid out once, so a new step
-	reportWrap wrapCache // only redoes the one-line summary
+	transcript                      *subagents.Transcript
+	transcriptPath                  string
+	transcriptAt, transcriptStarted time.Time
+	agent                           subagents.Key
+	scroll                          int  // px the body is scrolled down
+	follow                          bool // keep the newest line in view
+	wrapKey                         paneWrapKey
+	wrapped                         []agentLine
+	promptWrap                      wrapCache // the prompt and report laid out once, so a new step
+	reportWrap                      wrapCache // only redoes the one-line summary
 }
 
 // wrapCache is one block of text wrapped to a width, kept until either changes.
 type paneWrapKey struct {
-	width          int
-	prompt, report string
-	activity       subagents.Activity
-	state          subagents.State
-	metric         unit.Metric
-	locale         system.Locale
-	shaper         *text.Shaper
+	streamVersion   uint64
+	streamAvailable bool
+	width           int
+	prompt, report  string
+	activity        subagents.Activity
+	state           subagents.State
+	metric          unit.Metric
+	locale          system.Locale
+	shaper          *text.Shaper
 }
 
 type wrapCache struct {
