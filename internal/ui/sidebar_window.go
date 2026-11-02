@@ -77,6 +77,7 @@ func (win *window) sideIn() sideInput {
 		Name:     func(id tabs.TabID) string { return win.names[id] },
 		Lines:    win.linesOf,
 		Agents:   win.sideAgents,
+		Docs:     win.sideDocs,
 	}
 	if win.ui != nil {
 		in.Clean = win.ui.fit
@@ -100,6 +101,7 @@ func (win *window) selectSession(id tabs.TabID) {
 // order (else the one before) is shown first, so closing never lands on a member
 // while a session is left; with none left, the first open member is shown.
 func (win *window) closeTab(id tabs.TabID) {
+	win.closeSessionDocs(id)
 	win.closeScratch(id)
 	if a := win.mgr.Active(); a != nil && a.ID == id {
 		if next := win.afterClose(id); next != 0 {
@@ -185,6 +187,7 @@ func (win *window) drawSide(gtx layout.Context, r image.Rectangle) {
 		if a := win.mgr.Active(); a != nil {
 			s.st.shown = a.ID
 		}
+		s.st.doc = win.docs.shown
 		s.st.settings, s.st.settingsOn = win.set.open, win.set.shown
 		s.st.floating = 0
 		if set := win.fl.sets[win.paneOwner()]; set != nil {
@@ -227,6 +230,13 @@ func revealScroll(gtx layout.Context, m sideModel, st sideState, h sideHits) (in
 		for _, r := range rs {
 			if r.ID == st.shown && !found {
 				top, found = y, true
+				for i, d := range r.Docs {
+					if d.ID == st.doc {
+						top = y + gtx.Dp(sideRowH) + i*gtx.Dp(sideDocH)
+						rH = gtx.Dp(sideDocH)
+						break
+					}
+				}
 			}
 			y += rowSpan(gtx, r)
 		}
@@ -457,11 +467,19 @@ func (win *window) sidePointer(e pointer.Event) {
 	p := e.Position.Round()
 	switch e.Kind {
 	case pointer.Move, pointer.Enter, pointer.Leave:
+		var hoverDoc docID
+		for _, d := range s.hits.docs {
+			if p.In(d.rect) && e.Kind != pointer.Leave {
+				hoverDoc = d.id
+				break
+			}
+		}
 		var hover tabs.TabID
 		if r, ok := s.hits.lineAt(p); ok && e.Kind != pointer.Leave {
 			hover = r.id
 		}
-		if hover != s.st.hover {
+		if hover != s.st.hover || hoverDoc != s.st.hoverDoc {
+			s.st.hoverDoc = hoverDoc
 			s.st.hover = hover
 			win.sideRedraw()
 		}
@@ -512,6 +530,16 @@ func (win *window) sidePress(p image.Point, b pointer.Buttons, at time.Duration)
 		return
 	case p.In(h.filter):
 		return // the frame gives the field the keyboard
+	}
+	for _, d := range h.docs {
+		if p.In(d.rect) {
+			if middle || p.In(d.close) {
+				win.closeDoc(d.id)
+			} else {
+				win.showDoc(d.id)
+			}
+			return
+		}
 	}
 	for _, a := range h.agents {
 		if primary && p.In(a.rect) {

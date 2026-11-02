@@ -141,6 +141,7 @@ func (win *window) sections() []settingsSection {
 
 // openSettings opens the Settings tab, or shows it when it is already open.
 func (win *window) openSettings() {
+	win.hideDoc()
 	win.dropSideEdit()
 	win.board.open = false
 	s := &win.set

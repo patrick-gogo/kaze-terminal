@@ -31,18 +31,19 @@ const maxSideText = 160
 
 // sideState is what the window knows that the model does not.
 type sideState struct {
-	shown      tabs.TabID      // highlighted row or member
-	settings   bool            // the pinned "Settings" row is open
-	settingsOn bool            // and shown
-	hover      tabs.TabID      // row showing its ×
-	scroll     int             // px the session list is scrolled
-	filter     string          // as typed, for the placeholder/clear state
-	ed         *widget.Editor  // the filter's editor; nil draws the text without a caret
-	renaming   tabs.TabID      // the row whose title is ren, 0 for none
-	ren        *widget.Editor  // the rename editor
-	nextKey    string          // the "Next waiting" button's key, "" for none
-	runFolded  map[uint64]bool // workspace runs whose header is folded
-	floating   tabs.TabID      // the front member pane over the shown session, highlighted like shown
+	doc, hoverDoc docID
+	shown         tabs.TabID      // highlighted row or member
+	settings      bool            // the pinned "Settings" row is open
+	settingsOn    bool            // and shown
+	hover         tabs.TabID      // row showing its ×
+	scroll        int             // px the session list is scrolled
+	filter        string          // as typed, for the placeholder/clear state
+	ed            *widget.Editor  // the filter's editor; nil draws the text without a caret
+	renaming      tabs.TabID      // the row whose title is ren, 0 for none
+	ren           *widget.Editor  // the rename editor
+	nextKey       string          // the "Next waiting" button's key, "" for none
+	runFolded     map[uint64]bool // workspace runs whose header is folded
+	floating      tabs.TabID      // the front member pane over the shown session, highlighted like shown
 }
 
 type sideRowHit struct {
@@ -65,6 +66,7 @@ type sideRunHit struct {
 
 // sideHits is where the last sidebar frame drew things, for clicks and the wheel.
 type sideHits struct {
+	docs                    []sideDocHit
 	rows                    []sideRowHit
 	groups                  []sideKeyHit
 	members                 []sideRowHit
@@ -305,13 +307,14 @@ func (c *chrome) sideList(gtx layout.Context, h *sideHits, m sideModel, st sideS
 	row := func(r sideRow) {
 		rect := image.Rect(pad, y, h.list.Max.X-pad, y+rowH)
 		y += rowSpan(gtx, r)
+		c.docLines(gtx, h, r, st, rect.Min.X+gap+dot+gap, rect.Max.X-gap, rect.Max.Y, closeCall, closeSize)
 		if len(r.Agents) > 0 || r.MoreAgents > 0 {
-			c.agentLines(gtx, h, r, rect.Min.X+gap+dot+gap, rect.Max.X-gap, rect.Max.Y)
+			c.agentLines(gtx, h, r, rect.Min.X+gap+dot+gap, rect.Max.X-gap, rect.Max.Y+len(r.Docs)*gtx.Dp(sideDocH))
 		}
 		if !rect.Overlaps(h.list) {
 			return
 		}
-		on := r.ID == st.shown && !st.settingsOn
+		on := r.ID == st.shown && !st.settingsOn && st.doc == 0
 		fg := th.Folder
 		if on {
 			paint.FillShape(ops, th.Active, clip.UniformRRect(rect, gtx.Dp(7)).Op(ops))
@@ -516,7 +519,7 @@ func (c *chrome) sideGroupHeader(gtx layout.Context, g sideGroup, st sideState, 
 	name := g.Name
 	if g.Folded {
 		for _, r := range g.Rows {
-			if r.ID == st.shown && !st.settingsOn {
+			if r.ID == st.shown && !st.settingsOn && st.doc == 0 {
 				name += " › " + cutRunes(r.Title, maxMemberLabel)
 				break
 			}

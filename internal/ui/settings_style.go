@@ -121,7 +121,7 @@ func (p *page) iconTile(name string) (op.CallOp, image.Point) {
 
 // iconNames are the icons chrome.icon draws.
 var iconNames = map[string]bool{
-	"appearance": true, "workspaces": true, "claude": true, "shortcuts": true, "updates": true,
+	"doc": true, "appearance": true, "workspaces": true, "claude": true, "shortcuts": true, "updates": true,
 	"about": true, "check": true, "alert": true, "prompt": true, "chart": true, "download": true,
 	"panel": true, "search": true, "terminal": true, "cog": true, "agents": true, "plus": true, "folder": true, "branch": true, "chip": true, "tabs": true, "up": true,
 }
@@ -172,6 +172,11 @@ func (c *chrome) icon(gtx layout.Context, name string, r image.Rectangle, col co
 	}
 	var fill func()
 	switch name {
+	case "doc":
+		line(6, 3, 14, 3, 19, 8, 19, 21, 6, 21, 6, 3)
+		line(14, 3, 14, 8, 19, 8)
+		line(9, 13, 16, 13)
+		line(9, 17, 16, 17)
 	case "appearance":
 		circle(12, 12, 9, 2*math.Pi, 0)
 		fill = func() {

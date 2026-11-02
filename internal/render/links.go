@@ -11,11 +11,11 @@ import (
 // of text with no spaces never makes a scan walk the whole history.
 const maxWrapRows = 16
 
-// LinkSpan is the part of a web link on one row: Row is absolute (scrollback
+// LinkSpan is the part of a web link or .md path on one row: Row is absolute (scrollback
 // first), From and To are inclusive columns. A wrapped link has one per row.
 type LinkSpan struct{ Row, From, To int }
 
-// Links finds http and https links in the grid text. A link that auto-wrapped
+// Links finds web links and .md paths in the grid text. A link that auto-wrapped
 // onto the next row is found whole; a full row ended by a newline is not joined. The zero value is ready; its buffers are
 // reused, so a frame with no links allocates nothing. Not safe for concurrent use.
 type Links struct {
@@ -41,7 +41,7 @@ func (l *Links) At(scr *screen.Screen, p Point) (string, bool) {
 		end++
 	}
 	l.line(scr, start, end)
-	l.found = appendURLs(l.found[:0], l.rs)
+	l.found = appendLinks(l.found[:0], l.rs)
 	for _, f := range l.found {
 		for k := f[0]; k < f[1]; k++ {
 			if l.pos[k] == p {
@@ -67,7 +67,7 @@ func (l *Links) Visible(scr *screen.Screen, top, n int) []LinkSpan {
 			end++
 		}
 		l.line(scr, row, end)
-		l.found = appendURLs(l.found[:0], l.rs)
+		l.found = appendLinks(l.found[:0], l.rs)
 		for _, f := range l.found {
 			l.addSpans(scr, f, top, last)
 		}
@@ -125,30 +125,82 @@ func continues(scr *screen.Screen, row int) bool {
 	if w == 0 {
 		return false
 	}
-	return cellAt(scr, w-1, row).Attrs&screen.AttrWrapped != 0 && urlRune(cellAt(scr, 0, row+1).Rune)
+	return cellAt(scr, w-1, row).Attrs&screen.AttrWrapped != 0 && (urlRune(cellAt(scr, 0, row+1).Rune) || cellAt(scr, 0, row+1).Rune == '\\')
 }
 
-// findURLs is appendURLs into a new slice.
-func findURLs(rs []rune) [][2]int { return appendURLs(nil, rs) }
+// findLinks is appendLinks into a new slice.
+func findLinks(rs []rune) [][2]int { return appendLinks(nil, rs) }
 
-// appendURLs appends the [start, end) rune ranges of the http and https links in rs.
-func appendURLs(out [][2]int, rs []rune) [][2]int {
-	for i := 0; i < len(rs); i++ {
+// appendLinks appends the [start, end) rune ranges of the http and https links in rs.
+func appendLinks(out [][2]int, rs []rune) [][2]int {
+	for i := 0; i < len(rs); {
 		n := schemeLen(rs[i:])
-		if n == 0 || i > 0 && (unicode.IsLetter(rs[i-1]) || unicode.IsDigit(rs[i-1])) {
+		if n > 0 && (i == 0 || !unicode.IsLetter(rs[i-1]) && !unicode.IsDigit(rs[i-1])) {
+			j := i + n
+			for j < len(rs) && urlRune(rs[j]) {
+				j++
+			}
+			end := trimURLEnd(rs, i+n, j)
+			if end > i+n {
+				out = append(out, [2]int{i, end})
+			}
+			i = max(j, i+1)
 			continue
 		}
-		j := i + n
-		for j < len(rs) && urlRune(rs[j]) {
-			j++
+		if !pathRune(rs[i]) {
+			i++
+			continue
 		}
-		j = trimURLEnd(rs, i+n, j)
-		if j > i+n {
-			out = append(out, [2]int{i, j})
-			i = j - 1
+		end, next := pathAt(rs, i)
+		if end > i {
+			out = append(out, [2]int{i, end})
 		}
+		i = max(next, i+1)
 	}
 	return out
+}
+
+func IsWebLink(s string) bool {
+	return len(s) >= 7 && (strings.EqualFold(s[:7], "http://") || len(s) >= 8 && strings.EqualFold(s[:8], "https://"))
+}
+func pathRune(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._-/\\~+@", r) || r > 127 && unicode.IsLetter(r) && unicode.In(r, unicode.Latin, unicode.Greek, unicode.Cyrillic)
+}
+func pathAt(rs []rune, i int) (end, next int) {
+	j := i
+	for j < len(rs) {
+		if j > i && !unicode.IsLetter(rs[j-1]) && !unicode.IsDigit(rs[j-1]) && schemeLen(rs[j:]) > 0 {
+			break
+		}
+		if pathRune(rs[j]) {
+			j++
+			continue
+		}
+		if j == i+1 && ((rs[i] >= 'a' && rs[i] <= 'z') || (rs[i] >= 'A' && rs[i] <= 'Z')) && rs[j] == ':' && j+1 < len(rs) && (rs[j+1] == '/' || rs[j+1] == '\\') {
+			j++
+			continue
+		}
+		break
+	}
+	end, next = j, j
+	for end > i && rs[end-1] == '.' {
+		end--
+	}
+	if end == j {
+		for range 2 {
+			if next+1 >= len(rs) || rs[next] != ':' || rs[next+1] < '0' || rs[next+1] > '9' {
+				break
+			}
+			next++
+			for next < len(rs) && rs[next] >= '0' && rs[next] <= '9' {
+				next++
+			}
+		}
+	}
+	if end-i < 4 || rs[end-3] != '.' || unicode.ToLower(rs[end-2]) != 'm' || unicode.ToLower(rs[end-1]) != 'd' || strings.ContainsRune("/\\.", rs[end-4]) {
+		return i, next
+	}
+	return end, next
 }
 
 // schemeLen is the length of "http://" or "https://" at the start of rs, any case, or 0.

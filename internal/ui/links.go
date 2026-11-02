@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/patrick-gogo/kaze-terminal/internal/render"
 	"image"
 
 	"gioui.org/io/pointer"
@@ -11,7 +12,7 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/term"
 )
 
-// linkUnder is the web link at grid pixel p in t, if any.
+// linkUnder is the web link or .md path at grid pixel p in t, if any.
 func (win *window) linkUnder(t *tabs.Tab, p image.Point, cw, ch int) (string, bool) {
 	s := t.Session
 	s.Lock()
@@ -23,6 +24,9 @@ func (win *window) linkUnder(t *tabs.Tab, p image.Point, cw, ch int) (string, bo
 // open hands a clicked link to the system browser. Only http and https links
 // are ever found, so terminal output can't make kaze open another scheme.
 func (win *window) open(u string) {
+	if !render.IsWebLink(u) {
+		return
+	}
 	f := win.openLink
 	if f == nil {
 		f = openURL

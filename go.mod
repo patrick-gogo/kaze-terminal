@@ -7,6 +7,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/aymanbagabas/go-pty v0.2.3
 	github.com/mattn/go-runewidth v0.0.31
+	github.com/yuin/goldmark v1.8.7
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 )

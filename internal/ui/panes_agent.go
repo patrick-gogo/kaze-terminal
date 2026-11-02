@@ -142,7 +142,7 @@ func (win *window) openAgentPane(tab tabs.TabID, k subagents.Key) {
 	if win.subs.Get(k) == nil || win.mgr.Lookup(tab) == nil {
 		return
 	}
-	if a := win.mgr.Active(); a == nil || a.ID != tab || win.set.shown || win.board.open {
+	if a := win.mgr.Active(); a == nil || a.ID != tab || win.set.shown || win.board.open || win.docs.shown != 0 {
 		win.closeBoard()
 		win.selectTab(tab)
 	}

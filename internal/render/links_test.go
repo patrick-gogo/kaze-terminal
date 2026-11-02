@@ -26,7 +26,7 @@ func TestFindURLs(t *testing.T) {
 	for _, c := range cases {
 		var got []string
 		rs := []rune(c.in)
-		for _, sp := range findURLs(rs) {
+		for _, sp := range findLinks(rs) {
 			got = append(got, string(rs[sp[0]:sp[1]]))
 		}
 		if strings.Join(got, " ") != c.want {
@@ -37,7 +37,7 @@ func TestFindURLs(t *testing.T) {
 
 func TestFindURLsTwoOnALine(t *testing.T) {
 	rs := []rune("a https://a.io b http://b.io/c")
-	if sp := findURLs(rs); len(sp) != 2 || string(rs[sp[1][0]:sp[1][1]]) != "http://b.io/c" {
+	if sp := findLinks(rs); len(sp) != 2 || string(rs[sp[1][0]:sp[1][1]]) != "http://b.io/c" {
 		t.Fatalf("got %v", sp)
 	}
 }
@@ -139,5 +139,80 @@ func TestLinkDoesNotRunIntoTheNextLine(t *testing.T) {
 	}
 	if _, ok := l.At(s, Point{Col: 1, Row: 1}); ok {
 		t.Fatal("the next line became part of the link")
+	}
+}
+
+func TestFindDocPaths(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"I've written it to `docs/superpowers/specs/x-design.md`.", "docs/superpowers/specs/x-design.md"},
+		{"⏺ Wrote 120 lines to docs/plan.md", "docs/plan.md"},
+		{"  ⎿  Read README.md (42 lines)", "README.md"},
+		{"│ See ./notes/todo.md for details │", "./notes/todo.md"},
+		{"• Edited docs/HANDOFF.md (+12 -3)", "docs/HANDOFF.md"},
+		{"Updated README.md:42 and docs/a.md:12:3.", "README.md docs/a.md"},
+		{"open ~/notes/today.md", "~/notes/today.md"},
+		{"/Users/pat/kaze/docs/x.MD", "/Users/pat/kaze/docs/x.MD"},
+		{`C:\Users\pat\kaze\docs\x.md`, `C:\Users\pat\kaze\docs\x.md`},
+		{`.\docs\x.md and C:/a/b.md`, `.\docs\x.md C:/a/b.md`},
+		{"**docs/bold.md** (see docs/paren.md)", "docs/bold.md docs/paren.md"},
+		{"保存先docs/a.md", "docs/a.md"},
+		{"main.go x.mdx x.md.bak README.markdown .md a/.md", ""},
+		{"https://github.com/a/b/blob/main/README.md", "https://github.com/a/b/blob/main/README.md"},
+		{"see docs/a.md, docs/b.md; done", "docs/a.md docs/b.md"},
+	}
+	for _, c := range cases {
+		var got []string
+		rs := []rune(c.in)
+		for _, sp := range findLinks(rs) {
+			got = append(got, string(rs[sp[0]:sp[1]]))
+		}
+		if strings.Join(got, " ") != c.want {
+			t.Errorf("%q: got %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestIsWebLink(t *testing.T) {
+	for _, s := range []string{"https://a.io", "HTTP://A.IO/x"} {
+		if !IsWebLink(s) {
+			t.Fatal(s)
+		}
+	}
+	for _, s := range []string{"docs/a.md", "file:///etc/passwd", "mailto:a@b.c", "javascript:x", "http:/x", ""} {
+		if IsWebLink(s) {
+			t.Fatal(s)
+		}
+	}
+}
+func TestLinkAtFindsADocPathWithoutItsLine(t *testing.T) {
+	s := screen.New(40, 2)
+	printAll(s, "edit docs/a.md:12 now")
+	var l Links
+	if u, ok := l.At(s, Point{Col: 7, Row: 0}); !ok || u != "docs/a.md" {
+		t.Fatalf("%q %v", u, ok)
+	}
+	if _, ok := l.At(s, Point{Col: 15, Row: 0}); ok {
+		t.Fatal("suffix linked")
+	}
+}
+func TestLinkAtJoinsAWrappedWindowsPath(t *testing.T) {
+	s := screen.New(12, 4)
+	printAll(s, `x C:\code\kaze\docs\plan.md`)
+	var l Links
+	for _, p := range []Point{{Col: 5, Row: 0}, {Col: 2, Row: 1}} {
+		if u, ok := l.At(s, p); !ok || u != `C:\code\kaze\docs\plan.md` {
+			t.Fatalf("%q %v", u, ok)
+		}
+	}
+}
+func TestVisibleWithDocPathsAllocatesNothing(t *testing.T) {
+	s := screen.New(60, 23)
+	for range 22 {
+		printAll(s, "wrote docs/plan.md and README.md:3\r\n")
+	}
+	var l Links
+	l.Visible(s, 0, 23)
+	if n := testing.AllocsPerRun(20, func() { l.Visible(s, 0, 23) }); n != 0 {
+		t.Fatal(n)
 	}
 }

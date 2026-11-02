@@ -129,7 +129,7 @@ func (win *window) keyTab() *tabs.Tab {
 
 // paneKeyView is the drawn pane with the keyboard, if any.
 func (win *window) paneKeyView() (termView, bool) {
-	if win.fl.keys == 0 || win.set.shown {
+	if win.fl.keys == 0 || win.set.shown || win.docs.shown != 0 {
 		return termView{}, false
 	}
 	for _, pv := range win.fl.views {

@@ -173,7 +173,8 @@ config. Settings, Shortcuts lists every shortcut as this machine has it.
 - **Links:** `http` and `https` links are drawn in blue with an underline (a link a program
   colored keeps its color) and show a hand cursor. Cmd+click (Ctrl+click on Windows) opens
   one in your browser, even while Claude Code or vim has the mouse. A link that wraps onto the
-  next row opens whole.
+  next row opens whole. `.md` paths use the same styling; Cmd+click (Ctrl+click on Windows)
+  opens them inside kaze.
 - **Wheel:** scrolls back through history. Typing jumps back to the bottom. Full-screen apps
   that don't use the mouse have no history to scroll.
 
@@ -316,6 +317,26 @@ never reads transcript files.
 - **Setup:** it needs three more Claude Code hooks (SubagentStart, SubagentStop and a PreToolUse
   hook). Settings > Agents lists them in the setup check, and **Fix** adds them. In the main
   conversation the tool hook exits at once unless Claude starts a subagent.
+
+## Reading docs
+
+Cmd+click an `.md` path in terminal output (Ctrl+click on Windows) to read it in kaze.
+Relative paths use that terminal's folder, then its Git repo root. Paths with spaces
+are not detected in terminal output.
+
+Each doc gets a temporary row under its session. Click a heading in the outline to
+jump there, or scroll with the wheel, arrows, Page Up/Down and Home/End. The outline
+hides in narrow windows. Click the session row to return to its terminal.
+
+Links inside a doc need only a plain click: another `.md` opens under the same session,
+heading links jump to that section, and web links open in your browser. Other file
+and URL types do nothing. This is a read-only view; closing a row never changes its file.
+
+The shown doc reloads when its file changes, keeping your scroll position. Reading is
+capped at 2 MB, with a notice for longer files. A removed file keeps its last loaded
+content. Close a row with its ×, middle click, or the session close shortcut
+(Cmd+W on macOS, Ctrl+Shift+W on Windows). Closing its session closes its docs too.
+Doc rows are not saved or restored after restart, and do not count as terminal tabs.
 
 ## The palette
 
@@ -861,6 +882,8 @@ scrolling, idle CPU, memory), including the goals it missed:
 ## Roadmap
 
 Done:
+
+- Markdown reader: Cmd+click an .md path to read it in kaze, nested under its session.
 
 - Plan 1: the terminal core with tabs.
 - Plan 3: alerts with a chime when Claude Code needs you, kaze's own title bar on Windows, and

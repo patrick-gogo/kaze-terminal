@@ -4,6 +4,17 @@ Last updated: 2026-11-02, after PR #93 merged and release 0.20 was prepared. Rea
 
 ## Where things stand
 
+**Markdown reader is implemented on `feat/markdown-reader`.** Cmd+click (Ctrl+click
+on Windows) an `.md` path to open a read-only document nested under its session.
+Includes GFM rendering, outline, keyboard/wheel scrolling, document and heading
+links, and shown-only reload checks, with a 2 MB read cap. Docs are window state,
+not terminal tabs or restored sessions. A workspace member shown as the main view
+nests docs under the first sidebar session. Windows close is Ctrl+Shift+W. Italic
+uses the existing fallback face; docs have no palette entry. Task 11 (subagent-pane
+link clicks) moves to #85 at the owner's request. Full tests, vet, macOS build and
+Windows cross-build pass; headless Midnight/Washi renders were visually inspected.
+No release, version bump or changelog changes. Installed-app checks remain open.
+
 **PR #93 review follow-up addresses all nine findings.** CPU baselines survive
 title changes, tab churn and ordinary idle gaps. New processes warm up without
 marking totals partial. Each native CPU read has its own timestamp; the hover card
@@ -258,6 +269,11 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 **Window chrome redesign (feat/window-chrome):** one Kaze-drawn 42dp title bar on macOS and Windows (spec `docs/superpowers/specs/2026-10-31-kaze-window-chrome-design.md`) and the direction-A status bar (32dp). macOS is now frameless: `internal/ui/maclights_darwin.go` shows the native traffic lights again and keeps them centred; its callbacks never call Gio inline (that deadlocked once). Native double-click on empty bar space zooms or minimizes per `AppleActionOnDoubleClick`. Owner checked the Mac behaviour by hand on 2026-10-31. The Windows build compiles (amd64, arm64) but has not been run since the redesign: try it on the Windows laptop. Every lander capture still shows the old chrome.
 
 ## Next
+
+- Owner: open the reader spec from terminal output, use the outline, return via the
+  session row, edit the file and check reload, close with Cmd+W, and try all themes.
+  On Windows verify Ctrl+click, backslash paths and drive letters. Native runtime
+  checks remain open. New reader screenshots can be captured after owner review.
 
 1. Verify the 0.20 update in an installed copy: the CPU/RAM status group, its
    hover card, minimize/restore, and resumed agents after the update relaunch.

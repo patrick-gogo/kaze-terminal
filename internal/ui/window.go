@@ -108,6 +108,8 @@ type window struct {
 	locs      map[tabs.TabID]locEntry
 	locations locationWork
 
+	docs      docsState
+	topFn     func(string) string
 	resources *resourceWork
 
 	memMB   float64
@@ -428,6 +430,12 @@ func (win *window) setFocused(f bool) {
 		return
 	}
 	win.focused = f
+	if f {
+		if d := win.shownDoc(); d != nil {
+			win.docs.checked = time.Now()
+			win.refreshDoc(d, win.docs.checked)
+		}
+	}
 	win.snapFocused.Store(f)
 	if !f {
 		// Windows may never send Leave once another window takes the pointer.
@@ -470,6 +478,7 @@ func (win *window) start(env []string, dir string) (ptyx.Session, error) {
 }
 
 func (win *window) newTab() {
+	win.hideDoc()
 	win.dropSideEdit()
 	win.hideSettings() // the new tab is shown
 	win.closeBoard()
@@ -520,7 +529,7 @@ func rendOptions(c config.Config) render.Options {
 
 // blinks reports whether the cursor blinks: only while the terminal is in front of the user.
 func (win *window) blinks() bool {
-	return win.opt.Config.CursorBlink && win.focused && !win.set.shown
+	return win.opt.Config.CursorBlink && win.focused && !win.set.shown && win.docs.shown == 0
 }
 
 // blink sets the cursor's phase for now and returns when the next phase starts;
@@ -626,6 +635,8 @@ func (win *window) frame(gtx layout.Context) error {
 		win.settingsEvents(gtx) // the terminal gets no input; its shell keeps running
 	} else if win.board.open {
 		win.boardEvents(gtx) // likewise
+	} else if win.docs.shown != 0 {
+		win.docEvents(gtx)
 	} else if active != nil {
 		win.paneEvents(gtx, cw, ch) // before the session: a pane sits over it
 		if win.fl.refocus {
@@ -640,6 +651,7 @@ func (win *window) frame(gtx layout.Context) error {
 	win.paneStep(active)
 	win.switchedTo(active)
 	list := win.mgr.Tabs()
+	win.pruneDocs(list)
 	win.pruneSels(list)
 	win.pruneLocs(list)
 	win.drainLocations()
@@ -713,12 +725,18 @@ func (win *window) frame(gtx layout.Context) error {
 	win.frameRuns = &runs
 	win.drawSide(gtx, sideRect)
 
+	if at, ok := win.docTick(gtx.Now); ok {
+		gtx.Execute(op.InvalidateCmd{At: at})
+	}
 	var panes []paneView
 	if win.set.shown {
 		win.drawSettings(gtx, termRect) // the renderer is not laid out
 		win.wsr.hits = win.wsr.hits[:0]
 	} else if win.board.open {
 		win.drawBoard(gtx, termRect)
+		win.wsr.hits = win.wsr.hits[:0]
+	} else if d := win.shownDoc(); d != nil {
+		win.drawDoc(gtx, d, termRect)
 		win.wsr.hits = win.wsr.hits[:0]
 	} else {
 		win.rend.SetFocused(win.viewFocused(0))
@@ -805,7 +823,7 @@ func (win *window) drawTerminal(gtx layout.Context, active *tabs.Tab, termRect, 
 
 // shownTab is the terminal tab in front of the user, or nil while settings is shown.
 func (win *window) shownTab() *tabs.Tab {
-	if win.set.shown || win.board.open {
+	if win.set.shown || win.board.open || win.docs.shown != 0 {
 		return nil
 	}
 	return win.mgr.Active()
@@ -843,6 +861,9 @@ func (win *window) switchedTo(t *tabs.Tab) {
 
 func (win *window) updateTitle(t *tabs.Tab) {
 	title := "kaze · " + tabLabel(t, win.defTitle)
+	if d := win.shownDoc(); d != nil {
+		title = "kaze · " + d.name
+	}
 	if win.set.shown {
 		title = "kaze · Settings"
 	}
@@ -947,6 +968,9 @@ func (win *window) focusTarget() event.Tag {
 	}
 	if win.board.open {
 		return &win.board.tag
+	}
+	if win.docs.shown != 0 {
+		return &win.docs.tag
 	}
 	if v, ok := win.paneKeyView(); ok {
 		return v.tag
@@ -1139,6 +1163,10 @@ func (win *window) routeView(gtx layout.Context, v termView, batch []event.Event
 			win.paste(t, e, m)
 		case pointer.Event:
 			win.pointerView(gtx, v, e, m, cw, ch)
+			if win.docs.shown != 0 {
+				win.endGesture()
+				return
+			}
 		}
 	}
 	if edited && !win.composing {
@@ -1177,6 +1205,8 @@ func (win *window) runShortcut(gtx layout.Context, a action) {
 			win.closeBoard() // like Settings: never the session hidden behind it
 		} else if win.set.shown {
 			win.closeSettings()
+		} else if d := win.shownDoc(); d != nil {
+			win.closeDoc(d.id)
 		} else if t := win.mgr.Active(); t != nil {
 			win.closeTab(t.ID)
 		}
@@ -1270,7 +1300,11 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 			// Cmd+click (Ctrl+click on Windows) opens a link, even when the app has the mouse.
 			if u, ok := win.linkUnder(t, p, cw, ch); ok {
 				win.held, win.linkClick, win.toApp, win.gestureTab = e.Buttons, true, false, t
-				win.open(u)
+				if render.IsWebLink(u) {
+					win.open(u)
+				} else {
+					win.openDocRef(t, v.tag != win.termTag, u)
+				}
 				return
 			}
 		}
