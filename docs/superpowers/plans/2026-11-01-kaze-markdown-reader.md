@@ -321,7 +321,7 @@ For the crumb test give the doc's repo from `win.repoFn` when it is set (status.
   - `open(u)` returns without calling anything unless `render.IsWebLink(u)`.
   - `pointerView`, Cmd+click branch: `if render.IsWebLink(u) { win.open(u) } else { win.openDocRef(t, v.tag != win.termTag, u) }`.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
 
 ```go
 func TestShortcutClickOpensADocPath(t *testing.T) {
@@ -367,10 +367,10 @@ func TestDocParentForEachTerminal(t *testing.T)            // session a → a; s
 func TestOpenNeverHandsANonWebURLToTheOS(t *testing.T)     // win.open of "file:///etc/passwd", "docs/a.md", "javascript:alert(1)", "C:\\x.md" → openLink never called; "https://a.io" → called once
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/ui/ -run 'DocPath|ShortcutClick|DocParent|NonWebURL' -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -run 'Link|Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS (the existing link tests stay green).
-- [ ] **Step 5: Commit** `feat(ui): Open .md paths from the terminal with Cmd+click`
+- [x] **Step 2: Run** `go test ./internal/ui/ -run 'DocPath|ShortcutClick|DocParent|NonWebURL' -v`. Expected: FAIL.
+- [x] **Step 3: Implement** per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/ui/ -run 'Link|Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS (the existing link tests stay green).
+- [x] **Step 5: Commit** `feat(ui): Open .md paths from the terminal with Cmd+click`
 
 ### Task 5: The doc row in the sidebar
 

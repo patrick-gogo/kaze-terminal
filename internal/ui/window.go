@@ -1291,7 +1291,11 @@ func (win *window) pointerView(gtx layout.Context, v termView, e pointer.Event, 
 			// Cmd+click (Ctrl+click on Windows) opens a link, even when the app has the mouse.
 			if u, ok := win.linkUnder(t, p, cw, ch); ok {
 				win.held, win.linkClick, win.toApp, win.gestureTab = e.Buttons, true, false, t
-				win.open(u)
+				if render.IsWebLink(u) {
+					win.open(u)
+				} else {
+					win.openDocRef(t, v.tag != win.termTag, u)
+				}
 				return
 			}
 		}
