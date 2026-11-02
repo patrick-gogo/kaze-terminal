@@ -223,6 +223,7 @@ func (win *window) deliver(q queued, now time.Time) {
 
 // selectTab is the one tab switch for a tab click and a toast's "Go ›".
 func (win *window) selectTab(id tabs.TabID) {
+	win.hideDoc()
 	win.dropSideEdit()
 	win.hideSettings()
 	win.closeBoard()

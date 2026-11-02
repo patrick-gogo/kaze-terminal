@@ -65,6 +65,7 @@ func agentsRunning(n int) string {
 }
 
 func (win *window) openBoard(tab tabs.TabID) {
+	win.hideDoc()
 	win.dropSideEdit()
 	win.hideSettings()
 	b := &win.board

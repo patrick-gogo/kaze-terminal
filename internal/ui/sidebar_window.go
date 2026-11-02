@@ -100,6 +100,7 @@ func (win *window) selectSession(id tabs.TabID) {
 // order (else the one before) is shown first, so closing never lands on a member
 // while a session is left; with none left, the first open member is shown.
 func (win *window) closeTab(id tabs.TabID) {
+	win.closeSessionDocs(id)
 	win.closeScratch(id)
 	if a := win.mgr.Active(); a != nil && a.ID == id {
 		if next := win.afterClose(id); next != 0 {

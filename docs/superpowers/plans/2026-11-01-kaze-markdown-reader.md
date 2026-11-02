@@ -241,7 +241,7 @@ A doc is shown the way the agents board is: the terminal is not drawn and gets n
   - `updateTitle`: `kaze · <name>` while a doc is shown.
   - `routeView`: after a `pointer.Event`, `if win.docs.shown != 0 { win.endGesture(); return }` (the click showed a doc; the rest of the frame's input is not the terminal's).
 
-- [ ] **Step 1: Write the failing tests** in `internal/ui/docs_test.go`:
+- [x] **Step 1: Write the failing tests** in `internal/ui/docs_test.go`:
 
 ```go
 // writeDoc writes body to dir/name and returns the path.
@@ -300,10 +300,10 @@ func TestTerminalGetsNoKeysWhileADocIsShown(t *testing.T) // copy TestTerminalGe
 
 For the crumb test give the doc's repo from `win.repoFn` when it is set (status.go already treats `repoFn` as a test hook for `gitinfo.Repo`); use `win.topFn` the same way for `gitinfo.Top`.
 
-- [ ] **Step 2: Run** `go test ./internal/ui/ -run 'Doc' -v`. Expected: FAIL (undefined `openDoc`, `win.docs`).
-- [ ] **Step 3: Implement** `internal/ui/docs.go` and the wiring above.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -v -run 'Doc|Settings|Board|Cycle|Close|Blink|Alert'` then `go test ./... && go vet ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(ui): Show a markdown doc in place of the terminal`
+- [x] **Step 2: Run** `go test ./internal/ui/ -run 'Doc' -v`. Expected: FAIL (undefined `openDoc`, `win.docs`).
+- [x] **Step 3: Implement** `internal/ui/docs.go` and the wiring above.
+- [x] **Step 4: Run** `go test ./internal/ui/ -v -run 'Doc|Settings|Board|Cycle|Close|Blink|Alert'` then `go test ./... && go vet ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(ui): Show a markdown doc in place of the terminal`
 
 ### Task 4: Cmd+click a path in the terminal opens it
 

@@ -53,7 +53,7 @@ func (win *window) startPrompt(prompt string, shift bool) {
 	if cur != nil {
 		a, m = win.agentOf(cur.ID), win.alerts.markOf(cur.ID)
 	}
-	if typeHere(cur, isSession, win.set.shown, a, m, shift) {
+	if typeHere(cur, isSession, win.set.shown || win.docs.shown != 0, a, m, shift) {
 		if !win.typeInto(cur, p+" ") {
 			return
 		}

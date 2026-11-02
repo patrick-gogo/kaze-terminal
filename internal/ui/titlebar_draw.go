@@ -18,6 +18,13 @@ import (
 // crumb is what the title bar says about the view in front (spec 5.1): the
 // shown session by the sidebar's naming rule, or the page that covers it.
 func (win *window) crumb() crumbParts {
+	if d := win.shownDoc(); d != nil {
+		repo := d.repo
+		if repo == d.name {
+			repo = ""
+		}
+		return crumbParts{Repo: repo, Title: d.name}
+	}
 	switch {
 	case win.set.shown:
 		return crumbParts{Title: "Settings"}
