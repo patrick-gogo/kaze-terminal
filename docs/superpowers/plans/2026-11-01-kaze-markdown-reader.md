@@ -392,7 +392,7 @@ func TestOpenNeverHandsANonWebURLToTheOS(t *testing.T)     // win.open of "file:
   - `sidePress`: before the subagent lines, a doc hit: middle click or its × → `closeDoc`; primary → `showDoc`. `sidePointer` hover sets `hoverDoc` and redraws only when it changes.
   - `"doc"` icon: `line(6,3, 14,3, 19,8, 19,21, 6,21, 6,3); line(14,3, 14,8, 19,8); line(9,13, 16,13); line(9,17, 16,17)`.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
 
 ```go
 func TestBuildSideNestsDocsUnderTheirSession(t *testing.T) // sideInput with Docs returning one sideDoc for tab 1 → that row's Docs has it, tab 2's has none, sessionOrder unchanged
@@ -404,10 +404,10 @@ func TestDocRowsLeaveSessionOrderAlone(t *testing.T)       // two docs under a: 
 func TestDocRowHoverRedrawsOnlyOnChange(t *testing.T)      // like TestHoverInvalidatesOnlyOnChange: two Moves over the same doc line → win.side.redraws grows by 1
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/ui/ -run 'Side|DocRow|Filter' -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -v -run 'Side|Doc|Hover|Filter'`, then `go test ./... && go vet ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(ui): Nest open docs under their session in the sidebar`
+- [x] **Step 2: Run** `go test ./internal/ui/ -run 'Side|DocRow|Filter' -v`. Expected: FAIL.
+- [x] **Step 3: Implement** per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/ui/ -v -run 'Side|Doc|Hover|Filter'`, then `go test ./... && go vet ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(ui): Nest open docs under their session in the sidebar`
 
 ### Task 6: Parse markdown into blocks and an outline
 

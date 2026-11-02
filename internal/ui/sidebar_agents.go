@@ -88,7 +88,7 @@ func (win *window) sideAgents(id tabs.TabID) ([]sideAgent, int, int) {
 
 // rowSpan is a row's height with its subagent lines.
 func rowSpan(gtx layout.Context, r sideRow) int {
-	h := gtx.Dp(sideRowH) + len(r.Agents)*gtx.Dp(sideAgentH)
+	h := gtx.Dp(sideRowH) + len(r.Docs)*gtx.Dp(sideDocH) + len(r.Agents)*gtx.Dp(sideAgentH)
 	if r.MoreAgents > 0 {
 		h += gtx.Dp(sideMoreH)
 	}

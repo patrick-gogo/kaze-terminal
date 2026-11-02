@@ -9,6 +9,7 @@ import (
 
 // sideRow is one session in the sidebar. Folder is already ~-shortened.
 type sideRow struct {
+	Docs                  []sideDoc
 	ID                    tabs.TabID
 	Title, Folder, Branch string
 	Agent                 string // agent name while a hook-driven session is active
@@ -57,6 +58,7 @@ type sideModel struct {
 }
 
 type sideInput struct {
+	Docs     func(tabs.TabID) []sideDoc
 	Tabs     []*tabs.Tab
 	Loc      func(*tabs.Tab) locEntry
 	Mark     func(tabs.TabID) mark
@@ -91,6 +93,11 @@ func (r sideRow) matches(lowerFilter string) bool {
 	}
 	for _, s := range []string{r.Title, r.Command, r.Folder, r.Branch, r.Agent} {
 		if strings.Contains(strings.ToLower(s), lowerFilter) {
+			return true
+		}
+	}
+	for _, d := range r.Docs {
+		if strings.Contains(strings.ToLower(d.Name), lowerFilter) {
 			return true
 		}
 	}
@@ -129,6 +136,9 @@ func buildSide(in sideInput) sideModel {
 			Running: a.running,
 			Claude:  a.claude,
 			Mark:    in.Mark(t.ID),
+		}
+		if in.Docs != nil {
+			row.Docs = in.Docs(t.ID)
 		}
 		if in.Lines != nil {
 			row.Add, row.Del = in.Lines(t.ID)
