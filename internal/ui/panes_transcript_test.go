@@ -75,3 +75,48 @@ func TestEmptyPaneReportSaysNoReport(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestPaneTranscriptReplacementDoesNotReuseOldLayout(t *testing.T) {
+	win, _, r, a, _, _, _ := paneWindow(t)
+	win.liveMgr.Store(win.mgr)
+	dir := t.TempDir()
+	main := filepath.Join(dir, "s.jsonl")
+	path := subagents.TranscriptPath(main, "x")
+	os.MkdirAll(filepath.Dir(path), 0755)
+	record := func(s string) []byte {
+		return []byte(`{"type":"assistant","message":{"content":[{"type":"text","text":"` + s + `"}]}}` + "\n")
+	}
+	os.WriteFile(path, record("old text"), 0644)
+	win.onNotify(notify.Msg{Tab: int(a.ID), Kind: notify.KindAgentStart, Session: "s", AgentID: "x", Transcript: main})
+	floatFrames(t, win, r)
+	k := subagents.Key{Session: "s", ID: "x"}
+	win.openAgentPane(a.ID, k)
+	floatFrames(t, win, r)
+	p := win.fl.set(a.ID).find(win.fl.agentID(k))
+	agent := win.subs.Get(k)
+	old := p.transcript
+	offset := old.Offset
+	b, _ := win.mgr.New()
+	win.selectTab(b.ID)
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	f.Write(record("while hidden"))
+	f.Close()
+	if _, ok := win.agentTranscriptTick(p, agent, time.Now()); ok || old.Offset != offset {
+		t.Fatal("hidden read or timer")
+	}
+	win.selectTab(a.ID)
+	newMain := filepath.Join(dir, "new.jsonl")
+	newPath := subagents.TranscriptPath(newMain, "x")
+	os.MkdirAll(filepath.Dir(newPath), 0755)
+	os.WriteFile(newPath, record("fresh text"), 0644)
+	agent.Transcript = newMain
+	win.agentTranscriptTick(p, agent, time.Now().Add(time.Second))
+	lines := win.agentWrapped(pageContext(1000, 600), p, agent, p.wrapKey.width)
+	var texts []string
+	for _, l := range lines {
+		texts = append(texts, l.text)
+	}
+	if !strings.Contains(strings.Join(texts, "|"), "fresh text") {
+		t.Fatal(texts)
+	}
+}

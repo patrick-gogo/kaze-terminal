@@ -250,6 +250,7 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 // only the one-line summary again (PR 79 review).
 func (win *window) agentWrapped(gtx layout.Context, p *pane, a *subagents.Agent, w int) []agentLine {
 	key := paneWrapKey{width: w, prompt: a.Prompt, report: a.Report, activity: a.Activity, state: a.State, metric: gtx.Metric, locale: gtx.Locale, shaper: win.ui.shaper}
+	key.stream = p.transcript
 	if p.transcript != nil {
 		key.streamVersion = p.transcript.Version
 		key.streamAvailable = p.transcript.Available

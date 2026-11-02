@@ -68,6 +68,7 @@ type pane struct {
 
 // wrapCache is one block of text wrapped to a width, kept until either changes.
 type paneWrapKey struct {
+	stream          *subagents.Transcript
 	streamVersion   uint64
 	streamAvailable bool
 	width           int
