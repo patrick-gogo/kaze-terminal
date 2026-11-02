@@ -575,7 +575,7 @@ func TestDocOtherLinksDoNothing(t *testing.T)        // mailto:, file:///x.md, m
   - `func (win *window) docTick(now time.Time) (time.Time, bool)`: false when no doc is shown; when `now >= checked+docPoll`, `refreshDoc(shown, now)` and `checked = now`; returns `checked+docPoll, true`. `frame` executes `op.InvalidateCmd{At: at}` when ok, before the drawing branch.
   - `showDoc` and `setFocused(true)` call `refreshDoc` on the shown doc and reset `checked`.
 
-- [ ] **Step 1: Write the failing tests** (temp files; set times with `os.Chtimes` so the tests never depend on file system time granularity):
+- [x] **Step 1: Write the failing tests** (temp files; set times with `os.Chtimes` so the tests never depend on file system time granularity):
 
 ```go
 func TestDocReloadsWhenTheFileChanges(t *testing.T)   // open, draw, docScrollTo(200); rewrite with a new heading, Chtimes +2s; docTick(now+1s) → Outline has the new heading, scroll still 200 (doc long enough), loadedAt updated
@@ -587,12 +587,12 @@ func TestDocTimerOnlyWhileShown(t *testing.T)         // doc open but terminal s
 func TestShowingAndFocusCheckTheFile(t *testing.T)    // change the file, selectTab, showDoc(d) → reloaded without a tick; change again, setFocused(false), setFocused(true) → reloaded
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/ui/ -run 'DocReload|Unchanged|Removed|ComesBack|DocTimer|FocusCheck' -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -run 'Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(ui): Reload a shown doc when its file changes`
+- [x] **Step 2: Run** `go test ./internal/ui/ -run 'DocReload|Unchanged|Removed|ComesBack|DocTimer|FocusCheck' -v`. Expected: FAIL.
+- [x] **Step 3: Implement** per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/ui/ -run 'Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(ui): Reload a shown doc when its file changes`
 
-### Task 11: Open paths from a subagent pane
+### Task 11: Open paths from a subagent pane (deferred to #85 by owner)
 
 **Files:**
 - Modify: `internal/render/links.go` (`LinksIn`), `internal/ui/panes_agent.go` (`agentPaneEvents`, factor the body inset of `drawAgentPane` into `agentInner`)

@@ -29,6 +29,7 @@ type docView struct {
 	anchor                        string
 }
 type docsState struct {
+	checked     time.Time
 	hits        docHits
 	adv         map[docAdvKey]fixed.Int26_6
 	shaper      *text.Shaper
@@ -94,6 +95,8 @@ func (win *window) showDoc(id docID) {
 	win.closeBoard()
 	win.mgr.SetActive(d.session)
 	win.docs.shown = id
+	win.docs.checked = time.Now()
+	win.refreshDoc(d, win.docs.checked)
 	win.endGesture()
 	win.wantFocus = true
 	win.side.reveal = true
