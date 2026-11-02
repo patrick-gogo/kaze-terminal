@@ -1,6 +1,6 @@
 # kaze handoff
 
-Last updated: 2026-11-02, after local implementation of resource usage (#92). Read this first when you pick up kaze on another machine.
+Last updated: 2026-11-02, after PR #93 merged and release 0.20 was prepared. Read this first when you pick up kaze on another machine.
 
 ## Where things stand
 
@@ -259,8 +259,10 @@ Measured (Windows, `docs/benchmarks/2026-10-28-milestone-1.md`):
 
 ## Next
 
-1. Verify the 0.19.1 update in an installed Mac copy, especially Ctrl+Tab and
-   Ctrl+Shift+Tab. Normal chrome layout is unchanged, so new screenshots are not needed.
+1. Verify the 0.20 update in an installed copy: the CPU/RAM status group, its
+   hover card, minimize/restore, and resumed agents after the update relaunch.
+   The status bar changed, so the lander screenshots need retaking
+   (`docs/site-assets/SCREENSHOTS.md`). On Windows, check the resource numbers.
 2. Verify installed-app update/relaunch and current window chrome, hooks and native
    folder pickers on Windows. A cross-build does not verify runtime behavior.
 3. Follow up the existing combining-mark/NFD and Option-as-Alt gaps separately.
