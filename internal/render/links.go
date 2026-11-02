@@ -274,3 +274,25 @@ func urlRune(r rune) bool {
 	}
 	return !strings.ContainsRune("\"<>`\\^{}|", r)
 }
+
+// LinkText uses byte offsets into the clicked text. LinksIn allocates only on
+// clicks; the terminal's frame scan continues to reuse its rune buffers.
+type LinkText struct {
+	Start, End int
+	Text       string
+}
+
+func LinksIn(s string) []LinkText {
+	rs := []rune(s)
+	positions := make([]int, 0, len(rs)+1)
+	for i := range s {
+		positions = append(positions, i)
+	}
+	positions = append(positions, len(s))
+	var out []LinkText
+	for _, sp := range findLinks(rs) {
+		start, end := positions[sp[0]], positions[sp[1]]
+		out = append(out, LinkText{start, end, s[start:end]})
+	}
+	return out
+}

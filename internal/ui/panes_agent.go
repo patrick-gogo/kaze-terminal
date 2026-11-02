@@ -194,8 +194,7 @@ func (win *window) drawAgentPane(gtx layout.Context, p *pane, a *subagents.Agent
 	ops, c, th := gtx.Ops, win.ui, win.ui.th
 	p.hits = c.layoutPane(gtx, p.hits.outer, win.agentLook(a, front))
 	body := p.hits.body
-	pad := gtx.Dp(10)
-	inner := image.Rect(body.Min.X+pad, body.Min.Y+gtx.Dp(6), body.Max.X-pad, body.Max.Y-gtx.Dp(6))
+	inner := agentInner(gtx, body)
 	if inner.Empty() {
 		return
 	}
@@ -369,13 +368,9 @@ func (win *window) agentPaneEvents(gtx layout.Context, p *pane) {
 		if !ok || win.bench.IgnoreInput() {
 			continue
 		}
-		switch e.Kind {
-		case pointer.Press:
-			if o := win.fl.owner(p.id); o != 0 {
-				win.fl.raise(o, p.id)
-			}
-		case pointer.Scroll:
-			p.agentScroll(int(e.Scroll.Y), max(len(p.wrapped)*gtx.Dp(18)-p.hits.body.Dy()+gtx.Dp(12), 0))
+		win.agentPanePointer(gtx, p, e)
+		if win.docs.shown != 0 {
+			return
 		}
 		win.w.Invalidate()
 	}
