@@ -103,20 +103,28 @@ func (win *window) runeAdv(gtx layout.Context, f font.Font, size unit.Sp, r rune
 	return w
 }
 func (win *window) fitDoc(d *mdoc.Doc) {
+	fit := func(s string) string {
+		parts := strings.Split(s, "\n")
+		for i := range parts {
+			parts[i] = win.ui.fit(parts[i])
+		}
+		return strings.Join(parts, "\n")
+	}
+
 	for bi := range d.Blocks {
 		b := &d.Blocks[bi]
 		for i := range b.Spans {
-			b.Spans[i].Text = win.ui.fit(b.Spans[i].Text)
+			b.Spans[i].Text = fit(b.Spans[i].Text)
 		}
 		if b.Code != "" {
-			b.Code = win.ui.fit(b.Code)
+			b.Code = fit(b.Code)
 		}
 		if b.Table != nil {
 			for r := range b.Table.Rows {
 				for c := range b.Table.Rows[r] {
 					for i := range b.Table.Rows[r][c] {
 						s := &b.Table.Rows[r][c][i]
-						s.Text = win.ui.fit(s.Text)
+						s.Text = fit(s.Text)
 					}
 				}
 			}
@@ -232,9 +240,6 @@ func (win *window) layoutDoc(gtx layout.Context, d *docView, width int) *docLayo
 		indent := min(dp(22)*b.Indent+dp(14)*b.Quote, max(0, width-dp(48)))
 		x0 := indent
 		start := y
-		if b.Quote > 0 {
-			l.boxes = append(l.boxes, docBox{image.Rect(max(0, x0-dp(12)), y, max(1, x0-dp(9)), y+dp(22)), boxQuote})
-		}
 		switch b.Kind {
 		case mdoc.HeadingBlock:
 			if y == 0 {
@@ -298,9 +303,9 @@ func (win *window) layoutDoc(gtx layout.Context, d *docView, width int) *docLayo
 				colW[i] = minW + remaining*(v-minW)/extra
 			}
 			if total <= available {
-				colW[n-1] += available - total
-				copy(colW, natural)
-				colW[n-1] += available - total
+				for i, v := range natural {
+					colW[i] = max(minW, available*v/max(1, total))
+				}
 			}
 			for ri, row := range b.Table.Rows {
 				top, bottom, x := y, y+dp(34), x0

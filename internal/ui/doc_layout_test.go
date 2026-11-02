@@ -83,3 +83,14 @@ func TestDrawDocInEveryTheme(t *testing.T) {
 		t.Fatal("theme relayout", d.layouts)
 	}
 }
+
+func TestDocKeepsCodeAndHardBreakLines(t *testing.T) {
+	win, d := layoutTestDoc(t, "```go\nfirst()\n    second()\n```\n\nfirst  \nsecond")
+	if d.doc.Blocks[0].Code != "first()\n    second()" {
+		t.Fatalf("code changed: %q", d.doc.Blocks[0].Code)
+	}
+	l := win.layoutDoc(pageContext(900, 600), d, 400)
+	if len(l.lines) < 4 {
+		t.Fatalf("newlines lost: %+v", l.lines)
+	}
+}

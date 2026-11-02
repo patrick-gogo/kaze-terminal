@@ -29,19 +29,23 @@ func (win *window) drawDoc(gtx layout.Context, d *docView, r image.Rectangle) {
 	width := max(1, min(r.Dx()-2*pad, gtx.Dp(720)))
 	x := r.Min.X + (r.Dx()-width)/2
 	y := r.Min.Y + gtx.Dp(24)
-	label := func(s string, size unit.Sp) {
-		call, sz := win.ui.faceText(gtx, s, size, font.Font{Typeface: chromeFace}, win.docColor(roleMuted))
+	label := func(s string, size unit.Sp, notice bool) {
+		col := win.docColor(roleMuted)
+		if notice {
+			col = win.ui.th.Needs
+		}
+		call, sz := win.ui.faceText(gtx, s, size, font.Font{Typeface: chromeFace}, col)
 		place(ops, call, image.Pt(x, y))
 		win.docs.texts = append(win.docs.texts, s)
 		y += sz.Y + gtx.Dp(8)
 	}
-	label(tildeHome(d.path, win.home), 11)
-	label("Loaded "+d.loadedAt.Format("3:04 PM"), 11)
+	label(tildeHome(d.path, win.home), 11, false)
+	label("Loaded "+d.loadedAt.Format("3:04 PM"), 11, false)
 	if d.file.Cut {
-		label(fmt.Sprintf("Showing the first 2 MB of %.1f MB.", float64(d.file.Total)/1e6), 11)
+		label(fmt.Sprintf("Showing the first 2 MB of %.1f MB.", float64(d.file.Total)/1e6), 11, true)
 	}
 	if d.removed {
-		label("File removed. Showing the last loaded version.", 11)
+		label("File removed. Showing the last loaded version.", 11, true)
 	}
 	y += gtx.Dp(8)
 	l := win.layoutDoc(gtx, d, width)
