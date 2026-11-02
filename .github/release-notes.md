@@ -1,9 +1,9 @@
-## What’s new in Kaze 0.19.1
+## What’s new in Kaze 0.20
 
-- **macOS session switching:** Ctrl+Tab and Ctrl+Shift+Tab now switch sessions again, including from a focused scratch pane. Custom bindings still work.
-- **Smoother subagent panes:** long prompts and reports wrap with much less work. Reopened helpers start a fresh turn, and panes show the newest report even when its length matches the previous report.
-- **Responsive sessions:** Git folder and branch discovery runs in the background. Input queues have a byte limit and show a notice when a busy terminal cannot accept more input.
-- **Windows path handling:** repository grouping recognizes short Windows path aliases and preserves folder casing.
+- **CPU and RAM in the status bar:** the status bar shows how much CPU and memory Kaze and the shells, agents and servers it runs are using. Hover it for a breakdown by session. It refreshes on activity, at most every 2 seconds, and pauses while Kaze is minimized.
+- **Fixed: resumed conversations:** after an update or a launch from Finder, restored tabs resume their Claude Code or Codex conversation again, including when the agent is installed as a shell alias.
+- **Fixed: update prompt:** the update confirmation text no longer overlaps the Cancel and Update now buttons.
+- **Fixed: workspace status:** a closed workspace tab shows as stopped and no longer counts as a running server. The count reads N/M UP.
 
 ## Download
 

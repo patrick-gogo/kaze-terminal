@@ -22,7 +22,20 @@
     <div class="section-intro"><a class="archive-back" href="index.html#changelog">Back to Kaze</a><h1 id="changelog-title">Changelog.</h1><p>Features, improvements and fixes, release by release. Kaze checks for updates in Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.19.1</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.20</span><span class="badge">Latest</span><time datetime="2026-11-02">Nov 2, 2026</time></div>
+        <div class="release-body">
+          <h3>Resource usage in the status bar</h3>
+          <ul>
+            <li><b>CPU and RAM in the status bar:</b> the status bar shows how much CPU and memory Kaze and the shells, agents and servers it runs are using. Hover it for a breakdown by session. It refreshes on activity, at most every 2 seconds, and pauses while Kaze is minimized.</li>
+            <li><b>Fixed: resumed conversations:</b> after an update or a launch from Finder, restored tabs resume their Claude Code or Codex conversation again, including when the agent is installed as a shell alias.</li>
+            <li><b>Fixed: update prompt:</b> the update confirmation text no longer overlaps the Cancel and Update now buttons.</li>
+            <li><b>Fixed: workspace status:</b> a closed workspace tab shows as stopped and no longer counts as a running server. The count reads N/M UP.</li>
+          </ul>
+        </div>
+      </li>
+
+      <li class="release">
+        <div class="release-meta"><span class="version">0.19.1</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Session shortcuts and smoother subagent panes</h3>
           <ul>

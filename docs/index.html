@@ -91,7 +91,7 @@
   </section>
 
   <section class="details wrap" aria-label="More features">
-    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18m-12 0v5m6-5v5"/></svg><h3>Context in the status bar.</h3><p>Your folder and branch with its line changes, your servers and subagents at a glance, and Claude usage as small meters. Hover the usage to see when each limit resets.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <svg class="inline-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 12 12 4M4 4h8v8"/></svg></a></article>
+    <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18m-12 0v5m6-5v5"/></svg><h3>Context in the status bar.</h3><p>Your folder and branch with its line changes, your servers and subagents at a glance, CPU and RAM for your sessions, and Claude usage as small meters. Hover them for details by session and when each limit resets.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-usage-in-the-status-bar">See the usage setup <svg class="inline-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 12 12 4M4 4h8v8"/></svg></a></article>
     <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m14 4 6 6M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15zM14 20h7"/></svg><h3>Make it feel like yours.</h3><p>Five themes. Live font, spacing and cursor controls. Your sessions reopen after a restart, with the same folders and agent conversations.</p><a href="https://github.com/patrick-gogo/kaze-terminal#settings">Explore Settings <svg class="inline-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 12 12 4M4 4h8v8"/></svg></a></article>
     <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 12 2 2 4-4"/><path d="M12 3 4 6v6c0 4 4 7 8 9 4-2 8-5 8-9V6z"/></svg><h3>Checks your Claude setup.</h3><p>Settings shows which Claude Code hooks are missing and adds them for you, after showing the change and backing up your file.</p><a href="https://github.com/patrick-gogo/kaze-terminal#claude-code-setup-check">See the setup check <svg class="inline-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 12 12 4M4 4h8v8"/></svg></a></article>
     <article><svg class="feature-symbol" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h0m4 0h0m4 0h0m4 0h0M6 13h0m4 0h0m4 0h0m4 0h0M8 16h8"/></svg><h3>Your keys, your way.</h3><p>Every shortcut can be changed in the config, and Settings lists the commands so far with their keys.</p><a href="https://github.com/patrick-gogo/kaze-terminal#shortcuts">See the shortcuts <svg class="inline-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 12 12 4M4 4h8v8"/></svg></a></article>
@@ -103,7 +103,20 @@
     <div class="section-intro"><h2 id="changelog-title">What’s new.<br><span>The latest releases.</span></h2><p>Kaze checks for new versions by itself and updates in place from Settings, Updates.</p></div>
     <ol class="releases">
       <li class="release">
-        <div class="release-meta"><span class="version">0.19.1</span><span class="badge">Latest</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
+        <div class="release-meta"><span class="version">0.20</span><span class="badge">Latest</span><time datetime="2026-11-02">Nov 2, 2026</time></div>
+        <div class="release-body">
+          <h3>Resource usage in the status bar</h3>
+          <ul>
+            <li><b>CPU and RAM in the status bar:</b> the status bar shows how much CPU and memory Kaze and the shells, agents and servers it runs are using. Hover it for a breakdown by session. It refreshes on activity, at most every 2 seconds, and pauses while Kaze is minimized.</li>
+            <li><b>Fixed: resumed conversations:</b> after an update or a launch from Finder, restored tabs resume their Claude Code or Codex conversation again, including when the agent is installed as a shell alias.</li>
+            <li><b>Fixed: update prompt:</b> the update confirmation text no longer overlaps the Cancel and Update now buttons.</li>
+            <li><b>Fixed: workspace status:</b> a closed workspace tab shows as stopped and no longer counts as a running server. The count reads N/M UP.</li>
+          </ul>
+        </div>
+      </li>
+
+      <li class="release">
+        <div class="release-meta"><span class="version">0.19.1</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
         <div class="release-body">
           <h3>Session shortcuts and smoother subagent panes</h3>
           <ul>
@@ -121,17 +134,6 @@
           <ul>
             <li><b>Subagents read like a conversation:</b> click a subagent to see the prompt it was given, one line on what it has done so far ("Searched for 13 patterns, ran 15 shell commands") and, when it finishes, its report. Individual tool calls are no longer listed. Works for Claude Code subagents and Codex helpers.</li>
             <li><b>Start folder:</b> choose where new tabs open in Settings, Workspaces, Startup (<b>Choose…</b> or <b>Use home</b>), or set <code>start_dir</code> in the config. Workspaces and restored sessions keep their own folders, and a folder that has gone missing falls back to home with a warning.</li>
-          </ul>
-        </div>
-      </li>
-      <li class="release">
-        <div class="release-meta"><span class="version">0.18</span><time datetime="2026-11-01">Nov 1, 2026</time></div>
-        <div class="release-body">
-          <h3>Your sessions come back</h3>
-          <ul>
-            <li><b>Automatic restoration:</b> reopen Kaze and your sessions return with their folders, names, order and selected session, including after an update.</li>
-            <li><b>Resume the same conversation:</b> configured Claude Code and Codex hooks identify each chat, so conversations in the same project stay separate. Resuming waits for shell readiness and never resubmits your prompt.</li>
-            <li><b>Your choice:</b> turn restoration off in Settings, Workspaces, Startup. Workspace recipes are not replayed; running commands and servers still stop when Kaze closes.</li>
           </ul>
         </div>
       </li>
