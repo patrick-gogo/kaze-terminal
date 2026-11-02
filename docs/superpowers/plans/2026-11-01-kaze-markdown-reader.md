@@ -623,9 +623,9 @@ func TestAgentPaneShortcutClickOpensADoc(t *testing.T) // paneWindow; KindAgentS
 **Files:**
 - Modify: `README.md` (`## Mouse`, a new `## Reading docs` section after `## Subagents`, `## Roadmap` "Done"), `docs/HANDOFF.md` (`## Where things stand`, `## Next`)
 
-- [ ] **Step 1: README.** In `## Mouse`, the Links bullet adds: `.md` paths are drawn the same way, and Cmd+click (Ctrl+click on Windows) opens one in kaze. New `## Reading docs` section, plain words, no em dashes: how to open, the outline, the row under the session, links inside a doc, that it reloads on change, the 2 MB cap, that rows are not restored, the close key (`close_tab`: Cmd+W / Ctrl+Shift+W). Roadmap "Done": `- Markdown reader: Cmd+click an .md path to read it in kaze, nested under its session.`
-- [ ] **Step 2: HANDOFF.** A short "Markdown reader" paragraph at the top of `## Where things stand` (branch `feat/markdown-reader`, what works, the decisions table's non-obvious calls: member-as-main nesting, Ctrl+Shift+W on Windows, no italic face, no palette entry), and under `## Next`: verify on Windows (Ctrl+click, backslash paths, drive letters) and the owner's manual check below.
-- [ ] **Step 3: Gates and builds.**
+- [x] **Step 1: README.** In `## Mouse`, the Links bullet adds: `.md` paths are drawn the same way, and Cmd+click (Ctrl+click on Windows) opens one in kaze. New `## Reading docs` section, plain words, no em dashes: how to open, the outline, the row under the session, links inside a doc, that it reloads on change, the 2 MB cap, that rows are not restored, the close key (`close_tab`: Cmd+W / Ctrl+Shift+W). Roadmap "Done": `- Markdown reader: Cmd+click an .md path to read it in kaze, nested under its session.`
+- [x] **Step 2: HANDOFF.** A short "Markdown reader" paragraph at the top of `## Where things stand` (branch `feat/markdown-reader`, what works, the decisions table's non-obvious calls: member-as-main nesting, Ctrl+Shift+W on Windows, no italic face, no palette entry), and under `## Next`: verify on Windows (Ctrl+click, backslash paths, drive letters) and the owner's manual check below.
+- [x] **Step 3: Gates and builds.**
 
 ```bash
 go test ./... && go vet ./...
@@ -635,8 +635,8 @@ go build -o kaze ./cmd/kaze
 
 Expected: tests and vet PASS; both builds succeed. (Delete the local `kaze` binary afterwards; never commit it.)
 
-- [ ] **Step 4: Manual check for the owner** (write this list into the PR description; do not drive the GUI with injected input): in a kaze tab run `printf 'see docs/superpowers/specs/2026-11-01-kaze-markdown-reader-design.md\n'` in the repo; the path is blue and underlined; Cmd+click opens it under that session; the outline highlights while scrolling; clicking the session row returns to the terminal; edit the file in another tab and watch it reload; Cmd+W closes the row; try all five themes.
-- [ ] **Step 5: Commit** `docs(reader): Describe the markdown reader`
-- [ ] **Step 6:** Push the branch (`git push -u origin feat/markdown-reader`) and open a PR to `main` only when the owner asks. No release PR, tag or version bump (release hold).
+- [x] **Step 4: Manual check for the owner** (write this list into the PR description; do not drive the GUI with injected input): in a kaze tab run `printf 'see docs/superpowers/specs/2026-11-01-kaze-markdown-reader-design.md\n'` in the repo; the path is blue and underlined; Cmd+click opens it under that session; the outline highlights while scrolling; clicking the session row returns to the terminal; edit the file in another tab and watch it reload; Cmd+W closes the row; try all five themes.
+- [x] **Step 5: Commit** `docs(reader): Describe the markdown reader`
+- [x] **Step 6:** Push the branch (`git push -u origin feat/markdown-reader`) and open a PR to `main` only when the owner asks. No release PR, tag or version bump (release hold).
 
 Implementation note: goldmark v1.8.7; block kind `HeadingBlock` avoids the Go name collision with outline type `Heading`. Task 11 is deferred to issue #85 by owner instruction.
