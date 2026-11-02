@@ -543,7 +543,7 @@ func TestDocViewTakesKeysInAFrame(t *testing.T)    // sideWindow + input.Router:
     - `TargetNone` → nothing.
   - `func (win *window) docAnchor(d *docView, slug string)`: sets `d.anchor = slug`; the next `drawDoc`, after layout, scrolls to the matching `Outline` entry's `headY` and clears it (an unknown slug is cleared without moving).
 
-- [ ] **Step 1: Write the failing tests** (two docs in one temp folder, `a.md` linking to the others; press at the centre of the drawn `docLinkHit` for the link under test):
+- [x] **Step 1: Write the failing tests** (two docs in one temp folder, `a.md` linking to the others; press at the centre of the drawn `docLinkHit` for the link under test):
 
 ```go
 func TestDocWebLinkOpensTheBrowser(t *testing.T)     // [site](https://example.com/x) → openLink got exactly "https://example.com/x"
@@ -555,10 +555,10 @@ func TestDocLinkMissingSaysSo(t *testing.T)          // [x](nope.md) → win.not
 func TestDocOtherLinksDoNothing(t *testing.T)        // mailto:, file:///x.md, main.go, javascript:x → openLink never called, docs unchanged, no notice
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/ui/ -run 'DocWebLink|DocLink|DocAnchor|DocOtherLinks' -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -run 'Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(ui): Follow links inside a doc`
+- [x] **Step 2: Run** `go test ./internal/ui/ -run 'DocWebLink|DocLink|DocAnchor|DocOtherLinks' -v`. Expected: FAIL.
+- [x] **Step 3: Implement** per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/ui/ -run 'Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(ui): Follow links inside a doc`
 
 ### Task 10: Keep the doc current
 

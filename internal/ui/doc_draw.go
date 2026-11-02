@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gioui.org/font"
 	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -19,6 +20,7 @@ func (win *window) drawDoc(gtx layout.Context, d *docView, r image.Rectangle) {
 	defer area.Pop()
 	event.Op(ops, &win.docs.tag)
 	win.docs.texts = win.docs.texts[:0]
+	win.docs.hits.links = win.docs.hits.links[:0]
 	original := r
 	if r.Dx() >= gtx.Dp(600) {
 		r.Min.X += min(gtx.Dp(220), r.Dx()/3)
@@ -47,6 +49,15 @@ func (win *window) drawDoc(gtx layout.Context, d *docView, r image.Rectangle) {
 	view := image.Rect(x, y, x+width, r.Max.Y)
 	win.docs.hits.view = view
 	win.docs.hits.scrollMax = max(0, l.height-view.Dy())
+	if d.anchor != "" {
+		for i, h := range d.doc.Outline {
+			if h.Slug == d.anchor {
+				d.scroll = min(l.headY[i], win.docs.hits.scrollMax)
+				break
+			}
+		}
+		d.anchor = ""
+	}
 	win.drawDocOutline(gtx, d, original)
 	cl := clip.Rect(view).Push(ops)
 	defer cl.Pop()
@@ -83,6 +94,15 @@ func (win *window) drawDoc(gtx layout.Context, d *docView, r image.Rectangle) {
 		}
 		for _, run := range line.runs {
 			at := offset.Add(image.Pt(run.x, line.y))
+			if run.link >= 0 {
+				hit := image.Rect(at.X, at.Y, at.X+run.w, at.Y+line.h).Intersect(view)
+				if !hit.Empty() {
+					win.docs.hits.links = append(win.docs.hits.links, docLinkHit{hit, run.link})
+					a := clip.Rect(hit).Push(ops)
+					pointer.CursorPointer.Add(ops)
+					a.Pop()
+				}
+			}
 			if run.code {
 				paint.FillShape(ops, mix(win.pal.BG, win.pal.FG, .07), clip.Rect(image.Rect(at.X, at.Y, at.X+run.w, at.Y+line.h)).Op())
 			}

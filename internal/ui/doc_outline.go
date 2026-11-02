@@ -95,6 +95,12 @@ func (win *window) docPointer(gtx layout.Context, e pointer.Event) {
 		if !e.Buttons.Contain(pointer.ButtonPrimary) {
 			return
 		}
+		for _, lh := range h.links {
+			if p.In(lh.rect) && lh.link >= 0 && lh.link < len(d.lay.links) {
+				win.followDocLink(d, d.lay.links[lh.link])
+				return
+			}
+		}
 		for _, hh := range h.heads {
 			if p.In(hh.rect) {
 				win.docScrollTo(d, d.lay.headY[hh.i]-gtx.Dp(12))
