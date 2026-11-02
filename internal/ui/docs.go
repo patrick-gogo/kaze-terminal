@@ -1,17 +1,15 @@
 package ui
 
 import (
-	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
+	"gioui.org/text"
 	"github.com/patrick-gogo/kaze-terminal/internal/gitinfo"
 	"github.com/patrick-gogo/kaze-terminal/internal/input"
 	"github.com/patrick-gogo/kaze-terminal/internal/mdoc"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
-	"image"
+	"golang.org/x/image/math/fixed"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -19,6 +17,9 @@ import (
 
 type docID uint64
 type docView struct {
+	doc                           *mdoc.Doc
+	lay                           docLayout
+	layouts                       int
 	id                            docID
 	session                       tabs.TabID
 	path, key, name, folder, repo string
@@ -29,6 +30,9 @@ type docView struct {
 	anchor                        string
 }
 type docsState struct {
+	adv         map[docAdvKey]fixed.Int26_6
+	shaper      *text.Shaper
+	texts       []string
 	list        []*docView
 	shown, last docID
 	tag         int
@@ -74,6 +78,8 @@ func (win *window) openDoc(session tabs.TabID, path string) *docView {
 	}
 	win.docs.last++
 	d := &docView{id: win.docs.last, session: session, path: path, key: k, name: filepath.Base(path), folder: folder, repo: repo, file: f, loadedAt: time.Now()}
+	d.doc = mdoc.Parse(f.Data)
+	win.fitDoc(d.doc)
 	win.docs.list = append(win.docs.list, d)
 	win.showDoc(d.id)
 	return d
@@ -154,12 +160,6 @@ func (win *window) sessionDocs(id tabs.TabID) []*docView {
 		}
 	}
 	return out
-}
-func (win *window) drawDoc(gtx layout.Context, d *docView, r image.Rectangle) {
-	paint.FillShape(gtx.Ops, win.pal.BG, clip.Rect(r).Op())
-	a := clip.Rect(r).Push(gtx.Ops)
-	event.Op(gtx.Ops, &win.docs.tag)
-	a.Pop()
 }
 func (win *window) docEvents(gtx layout.Context) {
 	tag := &win.docs.tag

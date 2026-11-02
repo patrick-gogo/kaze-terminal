@@ -470,7 +470,7 @@ func TestClassifyTargets(t *testing.T)          // "https://a.io"→Web; "HTTP:/
   - Sizes (sp) and spacing (dp): body 14 with 22 line height; H1 24, H2 20, H3 17, H4 15, H5 14, H6 13, all SemiBold, 20 above (12 for H1 at the top), 8 below, H1 and H2 with a 1 px `th.Border` rule under; code 12.5 mono with 19 line height, 12 padding, box fill `mix(win.pal.BG, win.pal.FG, 0.07)` with 6 radius; inline code in mono on the same fill; paragraph gap 10; list indent 22 per level, marker right-aligned in that indent; quote bar 3 wide in `th.Border`, 14 indent per level, text `roleMuted`; rule 1 px `th.Border` with 12 above and below; table 13 with 8 cell padding, header SemiBold on `tint(th.Accent, 0x14)`, grid lines `th.Border`; task box 12 square, stroked `th.Muted`, filled `th.Accent` with a check when done. Bold = SemiBold, italic = `font.Italic` at Medium, link underlined.
   - `drawDoc(gtx, d, r)`: fill `r` with `win.pal.BG`; the content column is `min(r.Dx()-2*36dp, 720dp)` wide, centred (Task 8 takes the outline's width off `r` first); above the content, the path (`tildeHome`) in 11 sp mono `roleMuted` and `Loaded 3:04 PM` (`d.loadedAt.Format("3:04 PM")`); under them, when set, `Showing the first 2 MB of <Total in MB, one decimal> MB.` (cut) and `File removed. Showing the last loaded version.` (removed), in `th.Needs`. Draw only the lines and boxes that overlap the view (binary search by `y`), offset by `-d.scroll`. Record every drawn string in `win.docs.texts` (reset each frame) for tests, as Settings does with `s.texts`.
 
-- [ ] **Step 1: Write the failing tests** (use `newChrome()`, `pageContext(w, h)`, a window from `testWindow` with `win.ui = newChrome()` and `win.applyTheme(theme.Default())`; build docs with `mdoc.Parse`):
+- [x] **Step 1: Write the failing tests** (use `newChrome()`, `pageContext(w, h)`, a window from `testWindow` with `win.ui = newChrome()` and `win.applyTheme(theme.Default())`; build docs with `mdoc.Parse`):
 
 ```go
 func TestDocLayoutWrapsWithinTheColumn(t *testing.T)     // a 200-word paragraph at width 400 → more than 3 lines; every run x+w <= 400
@@ -486,10 +486,10 @@ func TestDrawDocShowsPathAndNotices(t *testing.T)        // d.file.Cut = true, T
 func TestDrawDocInEveryTheme(t *testing.T)               // for each theme.All(): applyTheme, drawDoc at 900x600 → no panic, texts non-empty
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/ui/ -run 'DocLayout|DrawDoc|DocColors' -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -run 'Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(ui): Render markdown docs in a reading column`
+- [x] **Step 2: Run** `go test ./internal/ui/ -run 'DocLayout|DrawDoc|DocColors' -v`. Expected: FAIL.
+- [x] **Step 3: Implement** per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/ui/ -run 'Doc' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(ui): Render markdown docs in a reading column`
 
 ### Task 8: The outline and scrolling
 

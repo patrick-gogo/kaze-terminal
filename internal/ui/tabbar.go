@@ -271,3 +271,15 @@ func (c *chrome) textWidth(gtx layout.Context, s string, size unit.Sp, face font
 	}
 	return hi - lo
 }
+
+// faceText draws pre-fitted document text using its cached face.
+func (c *chrome) faceText(gtx layout.Context, s string, size unit.Sp, f font.Font, col color.NRGBA) (op.CallOp, image.Point) {
+	m := op.Record(gtx.Ops)
+	mat := op.Record(gtx.Ops)
+	paint.ColorOp{Color: col}.Add(gtx.Ops)
+	mc := mat.Stop()
+	lg := gtx
+	lg.Constraints = layout.Constraints{Max: image.Pt(1<<20, 1<<20)}
+	d := widget.Label{MaxLines: 1}.Layout(lg, c.shaper, f, size, s, mc)
+	return m.Stop(), d.Size
+}
