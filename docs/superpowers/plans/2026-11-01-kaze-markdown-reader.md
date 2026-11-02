@@ -183,7 +183,7 @@ Update the doc comments: `LinkSpan` and `Links` describe "web links and .md path
   - `func Load(path string) (File, error)`: opens, refuses anything not a regular file (checked on the open handle), reads at most `MaxBytes+1` bytes through `io.LimitReader`; when more than `MaxBytes`, `Cut` is true and `Data` ends at the last `\n` within the first `MaxBytes` (or at `MaxBytes` when there is none). `Total` is the file size.
   - `func StatFile(path string) (Stamp, error)`
 
-- [ ] **Step 1: Write the failing tests** (every file under `t.TempDir()`):
+- [x] **Step 1: Write the failing tests** (every file under `t.TempDir()`):
 
 ```go
 func TestResolveRelativeDotAndTilde(t *testing.T)   // dir/docs/a.md exists: "docs/a.md", "./docs/a.md", `docs\a.md` on Windows only; Home=dir: "~/docs/a.md" → the same absolute path
@@ -198,10 +198,10 @@ func TestLoadRefusesAFolder(t *testing.T)          // Load(dir) returns an error
 func TestStatFileSeesAChange(t *testing.T)         // write, StatFile, rewrite with a different size and os.Chtimes +2s → Stamp differs
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/mdoc/ -v`. Expected: FAIL (package has no Go files / undefined).
-- [ ] **Step 3: Implement** `resolve.go` and `load.go` per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/mdoc/ -v && go vet ./internal/mdoc/`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(mdoc): Resolve and load markdown files`
+- [x] **Step 2: Run** `go test ./internal/mdoc/ -v`. Expected: FAIL (package has no Go files / undefined).
+- [x] **Step 3: Implement** `resolve.go` and `load.go` per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/mdoc/ -v && go vet ./internal/mdoc/`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(mdoc): Resolve and load markdown files`
 
 ### Task 3: Open docs as a shown view (model and routing)
 
