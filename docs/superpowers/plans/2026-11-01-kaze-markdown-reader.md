@@ -606,17 +606,17 @@ func TestShowingAndFocusCheckTheFile(t *testing.T)    // change the file, select
   - `func (win *window) agentPaneLink(gtx layout.Context, p *pane, at image.Point) (string, bool)`: line index `(at.Y - inner.Min.Y + p.scroll) / gtx.Dp(18)` into `p.wrapped`; the line's x start and font as `drawAgentPane` draws it (prompt +10 dp at 12 sp, waiting strip +8 dp at 11 sp Medium, report 12 sp, others 11 sp); for each `LinksIn(line)` entry, `[x+textWidth(prefix), x+textWidth(prefix+text))` contains `at.X`.
   - `agentPaneEvents`: a primary press with `key.ModShortcut` that hits a link opens it (`render.IsWebLink` → `win.open`, else `win.openDocRef(owner, true, ref)` where `owner` is `win.mgr.Lookup(win.fl.owner(p.id))`); otherwise the pane is raised as before.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
 
 ```go
 func TestLinksInGivesByteOffsets(t *testing.T) // "見て docs/a.md と https://a.io" → two entries; s[Start:End] == Text for each
 func TestAgentPaneShortcutClickOpensADoc(t *testing.T) // paneWindow; KindAgentStop with Report "Wrote docs/plan.md for review"; temp file under the session's folder (report OSC 7 for a to a temp dir); floatFrames; openAgentPane; floatFrames; press with ModShortcut at the measured x of "docs/plan.md" on its line → shownDoc under a; plain press → only raises
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/render/ ./internal/ui/ -run 'LinksIn|AgentPaneShortcut' -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -run 'Agent' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(ui): Open doc paths from a subagent pane`
+- [x] **Step 2: Run** `go test ./internal/render/ ./internal/ui/ -run 'LinksIn|AgentPaneShortcut' -v`. Expected: FAIL.
+- [x] **Step 3: Implement** per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/ui/ -run 'Agent' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(ui): Open doc paths from a subagent pane`
 
 ### Task 12: Docs, both platforms, and the hand-over
 
@@ -640,3 +640,5 @@ Expected: tests and vet PASS; both builds succeed. (Delete the local `kaze` bina
 - [x] **Step 6:** Push the branch (`git push -u origin feat/markdown-reader`) and open a PR to `main` only when the owner asks. No release PR, tag or version bump (release hold).
 
 Implementation note: goldmark v1.8.7; block kind `HeadingBlock` avoids the Go name collision with outline type `Heading`. Task 11 is deferred to issue #85 by owner instruction.
+
+Task 11 completed on `feat/subagent-live-messages` with #85, outside the reader PR.

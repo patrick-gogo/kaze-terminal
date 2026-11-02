@@ -120,3 +120,44 @@ func TestPaneTranscriptReplacementDoesNotReuseOldLayout(t *testing.T) {
 		t.Fatal(texts)
 	}
 }
+
+func TestPaneTranscriptMissingFallbackAndScroll(t *testing.T) {
+	win, _, r, a, _, _, _ := paneWindow(t)
+	win.liveMgr.Store(win.mgr)
+	main := filepath.Join(t.TempDir(), "s.jsonl")
+	win.onNotify(notify.Msg{Tab: int(a.ID), Kind: notify.KindAgentStart, Session: "s", AgentID: "x", Transcript: main, TaskPrompt: "Read the code"})
+	floatFrames(t, win, r)
+	k := subagents.Key{Session: "s", ID: "x"}
+	win.openAgentPane(a.ID, k)
+	floatFrames(t, win, r)
+	p := win.fl.set(a.ID).find(win.fl.agentID(k))
+	if p.transcript == nil || p.transcript.Available {
+		t.Fatal("missing transcript read")
+	}
+	lines := paneConversation(p, win.subs.Get(k))
+	if len(lines) < 2 || lines[0].text != "Prompt" || lines[1].text != "Read the code" {
+		t.Fatal(lines)
+	}
+	path := subagents.TranscriptPath(main, "x")
+	os.MkdirAll(filepath.Dir(path), 0755)
+	var content strings.Builder
+	for range 50 {
+		content.WriteString(`{"type":"assistant","message":{"content":[{"type":"text","text":"More text."}]}}` + "\n")
+	}
+	os.WriteFile(path, []byte(content.String()), 0644)
+	win.agentTranscriptTick(p, win.subs.Get(k), time.Now())
+	floatFrames(t, win, r)
+	if !p.follow || p.scroll == 0 {
+		t.Fatal("not following bottom")
+	}
+	p.agentScroll(-60, max(len(p.wrapped)*18-agentInner(pageContext(1000, 600), p.hits.body).Dy(), 0))
+	before := p.scroll
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	f.WriteString(`{"type":"assistant","message":{"content":[{"type":"text","text":"Newest."}]}}` + "\n")
+	f.Close()
+	win.agentTranscriptTick(p, win.subs.Get(k), time.Now().Add(2*time.Second))
+	floatFrames(t, win, r)
+	if p.follow || p.scroll != before {
+		t.Fatal("scroll jumped", before, p.scroll)
+	}
+}

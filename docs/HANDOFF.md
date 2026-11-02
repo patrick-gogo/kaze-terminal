@@ -4,6 +4,19 @@ Last updated: 2026-11-02, after PR #93 merged and release 0.20 was prepared. Rea
 
 ## Where things stand
 
+**Issue #85 is implemented on `feat/subagent-live-messages`, stacked on the reader.**
+Visible Claude subagent panes read their JSONL incrementally, show assistant text
+and folded tool runs, omit thinking/tool output, follow the bottom and preserve a
+scrolled-up position. Report and Copy report share hook, SubagentHandback, last-text,
+then "No report" fallback. Missing/unreadable files and Codex helpers use the hook
+view. Each pane keeps at most 128 entries / 128 KiB of message text; records and each
+poll are capped at 256 KiB. Polls occur once a second only while the pane is visible;
+closing or hiding it stops transcript reads and polling. Temporary partial records
+are bounded too. Reader Task 11 is included here: modifier-click pane links, without
+blue styling or wrapped-line joins. Full tests, vet, focused races and macOS/Windows
+builds pass; actual headless Midnight/Washi renders were inspected. Real CLI sessions
+and native Windows interactions still need owner checks. No release work.
+
 **Markdown reader is implemented on `feat/markdown-reader`.** Cmd+click (Ctrl+click
 on Windows) an `.md` path to open a read-only document nested under its session.
 Includes GFM rendering, outline, keyboard/wheel scrolling, document and heading
