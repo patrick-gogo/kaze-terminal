@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/gitinfo"
+	"github.com/patrick-gogo/kaze-terminal/internal/resources"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
@@ -183,17 +184,20 @@ type statusModel struct {
 	Agents, Waiting int    // running and waiting subagents; waiting includes session waits
 	Servers         []serverDot
 	Usage           []usage.Detail
-	MemMB, Tabs     int
+	Tabs            int
+	Resources       resources.Snapshot
 	Notice          string
 }
 
 func (win *window) statusModel(now time.Time) statusModel {
 	m := statusModel{Tabs: len(win.mgr.Tabs()), Agents: win.subs.Active(0)}
-	if now.Sub(win.memRead) > memEvery {
-		win.memMB = privateMB()
-		win.memRead = now
+	if win.resources != nil {
+		if win.resources.needRoots(now) {
+			win.resources.tick(now, win.resourceRoots())
+		}
+		m.Resources = win.resources.snapshot
 	}
-	m.MemMB = int(win.memMB + 0.5)
+
 	if _, ok := win.noticeWake(now); ok {
 		m.Notice = win.notice
 	}

@@ -2,24 +2,49 @@ package ui
 
 import (
 	"errors"
-	"github.com/patrick-gogo/kaze-terminal/internal/config"
-	"github.com/patrick-gogo/kaze-terminal/internal/notify"
-	"github.com/patrick-gogo/kaze-terminal/internal/sessionstate"
-	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
-	"github.com/patrick-gogo/kaze-terminal/internal/update"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/patrick-gogo/kaze-terminal/internal/config"
+	"github.com/patrick-gogo/kaze-terminal/internal/notify"
+	"github.com/patrick-gogo/kaze-terminal/internal/sessionstate"
+	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
+	"github.com/patrick-gogo/kaze-terminal/internal/update"
 )
 
 func restoreFixture(t *testing.T) (*runFixture, string) {
 	f := newRunFixture(t)
 	f.win.opt.Config = config.Default()
 	f.win.restorePath = filepath.Join(t.TempDir(), "sessions.json")
-	f.win.resumeLookPath = func(s string) (string, error) { return s, nil }
 	return f, f.win.restorePath
+}
+
+func TestResumeUsesShellPathWithMinimalAppPath(t *testing.T) {
+	t.Setenv("PATH", t.TempDir()) // neither agent exists in the GUI app's PATH
+	id := "01234567-89ab-cdef-0123-456789abcdef"
+	for _, shell := range []string{"/bin/zsh", "pwsh.exe"} {
+		for _, agent := range []string{"claude", "codex"} {
+			win := &window{}
+			win.opt.Shell = []string{shell}
+			line, err := win.resumeLine(sessionstate.Entry{Agent: agent, Session: id})
+			if err != nil {
+				t.Fatalf("%s via %s: %v", agent, shell, err)
+			}
+			want := agent + " "
+			if agent == "claude" {
+				want += "--resume "
+			} else {
+				want += "resume "
+			}
+			want += "'" + id + "'"
+			if line != want {
+				t.Fatalf("got %q, want %q", line, want)
+			}
+		}
+	}
 }
 func TestRestoreExactSessionsAndNoRecipeReplay(t *testing.T) {
 	f, p := restoreFixture(t)

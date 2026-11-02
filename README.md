@@ -234,10 +234,38 @@ Sessions are listed down the left side, in place of a tab strip.
 
 Along the bottom, left to right: the folder and branch of the session in front (with its lines
 added and removed), then an **Update** pill when a newer kaze is out, the running subagents
-(amber when one waits on you), the workspace servers as dots with how many are up, Claude usage as
-small meters, and kaze's own memory and tab count. Clicking the update, agents, servers or usage
+(amber when one waits on you), workspace dots with how many members are up, CPU and memory
+for Kaze and its sessions, Claude usage as small meters, and the tab count.
+Clicking the update, agents, workspace dots or Claude usage
 opens what they point at. In a narrow window the least important parts give way first: the tab
-count, then memory, then labels, so nothing overlaps.
+count, then the resource label and meter, then other labels, so nothing overlaps.
+
+Hover **CPU · memory** for **Kaze resource usage**: Kaze itself first, followed by
+session totals for its observable child processes, including shells, agents and
+local servers. Scratch shells count under their parent session. Workspace members
+have their own stable rows, labeled by workspace and member; moving a floating
+pane does not change ownership. Observed processes still alive after a tab closes
+keep a row marked closed. Unassigned Kaze children appear separately. External
+shared services and remote processes are excluded; processes that detach before
+Kaze first observes them may be missed.
+
+CPU is a share of the whole machine, with 100% meaning all logical cores are busy.
+The card names the core count. Amber starts at 50%, red at 80%, based on the last
+three intervals. RAM has no meter or warning threshold. It is summed physical
+footprint on macOS, including compressed memory; on Windows it is private
+committed bytes, which can include paged-out memory. MB means 1,048,576 bytes and
+GB means 1,024 MB. GPU is not measured. Unknown readings show **n/a**, and partial
+totals have an asterisk with unavailable counts in the card. New processes warm
+up for one CPU reading without making healthy totals partial.
+
+Collection runs in the background on existing window activity, at most every two
+seconds. There is no new polling timer. The card shows sample age; a completely
+idle window does not wake just to refresh resources. CPU averages the time since
+the preceding native counter read, even across idle gaps; the card shows that
+interval. Title changes and other tabs opening or closing keep unaffected
+process baselines. Sampling pauses while
+minimized and resets CPU baselines on return. The card scrolls for many sessions;
+in very short windows its whole content scrolls so the details remain reachable.
 
 ## Floating panes
 
@@ -475,8 +503,9 @@ reading "all up" or "N down". Click the header to fold it.
   the shell came back to its prompt (it needs the snippet from "Folder and branch in the status
   bar"); kaze can't tell whether the commands worked.
 - Running a workspace keeps your current session in front.
-- The status bar shows one dot per running member (green running, red down, muted otherwise)
-  and the word "servers". Click the dots to float the member that is down, or the first member
+- The status bar shows one dot per workspace member (green running, red down, muted otherwise)
+  and a count such as "1/2 up". A closed member shows stopped and counts as down while the
+  workspace still has an open tab. Click the dots to float the open member that is down, or the first open member
   if none is.
 - Ctrl+Tab and Ctrl+Shift+Tab step through sessions in sidebar order and skip workspace members.
 - Close a member with your close-session shortcut (Ctrl+Shift+W, Cmd+W on macOS), the × that
@@ -551,6 +580,10 @@ report described above. If no marker arrives within three seconds, the session o
 **Run commands** or **Use shell**; typing first cancels automatic resumption. Kaze never
 resubmits the previous prompt or replays commands. Missing folders, tools or conversation
 files leave a shell and an explanation. A failed resume does not select a different chat.
+The ready shell finds Claude or Codex using its own PATH, including paths set in shell startup
+files when Kaze opens from Finder or restarts after an update. Missing commands and resume
+errors appear in that tab as shell or agent output. The allowlisted agent command
+is unquoted so shell aliases, functions and PATH installs all resolve normally.
 
 Running commands, servers, shell variables, scrollback, scratch shells, floating layout and
 live helpers do not survive exit. Workspace members reopen without replaying their recipe

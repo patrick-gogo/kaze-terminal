@@ -60,7 +60,7 @@ const (
 	allMods = key.ModCtrl | key.ModShift | key.ModAlt | key.ModSuper | key.ModCommand
 	// maxPaste bounds a clipboard read so a giant clipboard can't exhaust memory.
 	maxPaste = 64 << 20
-	// memEvery limits how often the status bar reads memory stats (ReadMemStats stops the world).
+	// memEvery limits resource scans requested by existing frames; it is not a timer.
 	memEvery = 2 * time.Second
 	// noticeFor is how long an error stays in the status bar.
 	noticeFor = 15 * time.Second
@@ -107,6 +107,8 @@ type window struct {
 	repoFn    func(dir string) (key, name string) // gitinfo.Repo unless a test replaces it
 	locs      map[tabs.TabID]locEntry
 	locations locationWork
+
+	resources *resourceWork
 
 	memMB   float64
 	memRead time.Time
@@ -183,7 +185,6 @@ type window struct {
 	restoreCaptureMu   sync.Mutex
 	restoreFatal       error
 	restoreLastWarning string
-	resumeLookPath     func(string) (string, error)
 	set                settingsState // the Settings page; UI goroutine only
 	cfgPath            string        // where the page saves; "" applies changes without saving
 
@@ -251,6 +252,7 @@ func Run(w *app.Window, opt Options) error {
 		return win.restoreFatal
 	}
 	win.initUpdates()
+	win.initResources()
 	if !win.custom {
 		win.lights = newMacBridge(win.nativeRunner(), win.w.Invalidate, 42, 14) // nil off macOS
 	}
@@ -378,6 +380,7 @@ func (win *window) frameOrShutdown(gtx layout.Context) error {
 
 // shutdown closes the alert listener and every shell, together within shutdownWait.
 func (win *window) shutdown() {
+	win.resources.close()
 	start := time.Now()
 	if win.restore != nil {
 		win.freezeRestore()
@@ -403,6 +406,7 @@ func (win *window) shutdown() {
 }
 
 func (win *window) onConfig(e app.ConfigEvent) {
+	win.resources.pause(e.Config.Mode == app.Minimized)
 	win.setFocused(e.Config.Focused)
 	if m := e.Config.Mode == app.Maximized; m != win.maximized {
 		win.maximized = m
@@ -751,7 +755,8 @@ func (win *window) frame(gtx layout.Context) error {
 		event.Op(ops, win.toastTag)
 		area.Pop()
 	}
-	win.drawUsageCard(gtx)         // over the terminal and toasts; takes no input
+	win.drawUsageCard(gtx) // over the terminal and toasts; takes no input
+	win.drawResourceCard(gtx)
 	win.drawPalette(gtx, termRect) // last: it sits over everything, toasts included
 
 	if win.wantFocus {

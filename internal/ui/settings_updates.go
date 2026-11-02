@@ -181,23 +181,7 @@ func drawUpdates(p *page, r image.Rectangle, win *window) int {
 		y += gtx.Dp(8)
 	}
 	if h.confirm != "" {
-		strip := image.Rect(r.Min.X+pad, y-gtx.Dp(4), r.Max.X-pad, y-gtx.Dp(4)+gtx.Dp(56))
-		paint.FillShape(ops, tint(col.needs, 0x14), clip.UniformRRect(strip, gtx.Dp(10)).Op(ops))
-		stroke(ops, strip, gtx.Dp(10), tint(col.needs, 0x50))
-		qc, qs := p.text(h.confirm, 13, col.title)
-		place(ops, qc, image.Pt(strip.Min.X+gtx.Dp(16), strip.Min.Y+(strip.Dy()-qs.Y)/2))
-		x := strip.Max.X - gtx.Dp(12)
-		for _, b := range []ctrl{
-			{kind: ctlButton, id: "upd_confirm", text: "Update now", strong: true},
-			{kind: ctlButton, id: "upd_cancel", text: "Cancel", ghost: true},
-		} {
-			call, sz, from := p.ctrl(b, 0)
-			x -= sz.X
-			at := image.Pt(x, strip.Min.Y+(strip.Dy()-sz.Y)/2)
-			p.st.shift(from, len(p.st.controls), at)
-			place(ops, call, at)
-			x -= gtx.Dp(8)
-		}
+		strip := p.updateConfirm(image.Rect(r.Min.X+pad, y-gtx.Dp(4), r.Max.X-pad, y-gtx.Dp(4)), h.confirm)
 		y = strip.Max.Y + gtx.Dp(20)
 	}
 	call := rec.Stop()
@@ -226,4 +210,66 @@ func drawUpdates(p *page, r image.Rectangle, win *window) int {
 			ctrls: []ctrl{{kind: ctlButton, id: "upd_releases", text: "Open releases", ghost: true}}},
 	}
 	return p.rows(r, y, rows)
+}
+
+// updConfirmLayout keeps the text and actions in separate areas of the strip.
+type updConfirmLayout struct {
+	strip, text, buttons image.Rectangle
+	lines                []string
+	lineH                int
+}
+
+func (p *page) layoutUpdateConfirm(r image.Rectangle, question string, buttons image.Point) updConfirmLayout {
+	pad, gap := p.gtx.Dp(16), p.gtx.Dp(12)
+	innerW := max(1, r.Dx()-2*pad)
+	textW := innerW - buttons.X - gap
+	stacked := textW < p.gtx.Dp(200)
+	if stacked {
+		textW = innerW
+	}
+	l := updConfirmLayout{lines: p.wrap(question, 13, textW)}
+	// Use each line's real font metrics, including fallback glyphs.
+	textWidth := 0
+	for _, line := range l.lines {
+		_, size := p.c.sans(p.gtx, line, 13, p.col.title, font.Normal)
+		l.lineH = max(l.lineH, size.Y)
+		textWidth = max(textWidth, size.X)
+	}
+	textH := l.lineH * len(l.lines)
+	h := max(p.gtx.Dp(56), 2*pad+max(textH, buttons.Y))
+	if stacked {
+		h = max(p.gtx.Dp(56), 2*pad+textH+gap+buttons.Y)
+	}
+	l.strip = image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+h)
+	textAt := image.Pt(r.Min.X+pad, r.Min.Y+(h-textH)/2)
+	buttonAt := image.Pt(r.Max.X-pad-buttons.X, r.Min.Y+(h-buttons.Y)/2)
+	if stacked {
+		textAt.Y = r.Min.Y + pad
+		buttonAt.Y = textAt.Y + textH + gap
+	}
+	l.text = image.Rectangle{Min: textAt, Max: textAt.Add(image.Pt(textWidth, textH))}
+	l.buttons = image.Rectangle{Min: buttonAt, Max: buttonAt.Add(buttons)}
+	return l
+}
+
+func (p *page) updateConfirm(r image.Rectangle, question string) image.Rectangle {
+	ops, gtx := p.gtx.Ops, p.gtx
+	cancel, cs, cf := p.ctrl(ctrl{kind: ctlButton, id: "upd_cancel", text: "Cancel", ghost: true}, 0)
+	cancelEnd := len(p.st.controls)
+	confirm, us, uf := p.ctrl(ctrl{kind: ctlButton, id: "upd_confirm", text: "Update now", strong: true}, 0)
+	gap := gtx.Dp(8)
+	l := p.layoutUpdateConfirm(r, question, image.Pt(cs.X+gap+us.X, max(cs.Y, us.Y)))
+	paint.FillShape(ops, tint(p.col.needs, 0x14), clip.UniformRRect(l.strip, gtx.Dp(10)).Op(ops))
+	stroke(ops, l.strip, gtx.Dp(10), tint(p.col.needs, 0x50))
+	for i, line := range l.lines {
+		call, _ := p.text(line, 13, p.col.title)
+		place(ops, call, l.text.Min.Add(image.Pt(0, i*l.lineH)))
+	}
+	at := l.buttons.Min.Add(image.Pt(0, (l.buttons.Dy()-cs.Y)/2))
+	p.st.shift(cf, cancelEnd, at)
+	place(ops, cancel, at)
+	at = l.buttons.Min.Add(image.Pt(cs.X+gap, (l.buttons.Dy()-us.Y)/2))
+	p.st.shift(uf, len(p.st.controls), at)
+	place(ops, confirm, at)
+	return l.strip
 }

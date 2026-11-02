@@ -31,7 +31,13 @@ jobs:
         run: sh tools/test-session-keys.sh
       - name: Race checks
         if: runner.os == 'macOS'
-        run: go test -race -timeout=5m ./internal/sessionstate ./internal/tabs ./internal/term ./internal/subagents ./internal/screen ./internal/render ./internal/gitinfo ./internal/ui
+        run: go test -race -timeout=5m ./internal/sessionstate ./internal/tabs ./internal/term ./internal/subagents ./internal/screen ./internal/render ./internal/gitinfo ./internal/resources ./internal/ui
+      - name: Native Windows resource sampling cost
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:KAZE_RESOURCE_BENCH = '1'
+          go test -timeout=2m -run '^TestWindowsSamplingOverhead$' -count=1 -v ./internal/resources
       - name: Cross-build Windows ARM64
         if: runner.os == 'Windows'
         shell: pwsh

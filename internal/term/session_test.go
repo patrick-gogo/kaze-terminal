@@ -358,3 +358,29 @@ func TestNewSessionSizesThePTY(t *testing.T) {
 		t.Fatalf("PTY sizes = %v (%d calls), want one call with 4096x1", last, n)
 	}
 }
+
+type rootedPTY struct{ *fakePTY }
+
+func (*rootedPTY) RootPID() int { return 123 }
+func TestSessionRootPIDOptionalAndClosed(t *testing.T) {
+	for _, rooted := range []bool{false, true} {
+		f := newFake()
+		var s *term.Session
+		if rooted {
+			s = term.NewSession(&rootedPTY{f}, 10, 2, nil)
+		} else {
+			s = term.NewSession(f, 10, 2, nil)
+		}
+		want := 0
+		if rooted {
+			want = 123
+		}
+		if s.RootPID() != want {
+			t.Fatal("optional root interface")
+		}
+		s.Close()
+		if s.RootPID() != 0 {
+			t.Fatal("closed session root")
+		}
+	}
+}

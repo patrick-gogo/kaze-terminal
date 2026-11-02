@@ -22,7 +22,8 @@ type statusLayoutCache struct {
 
 func sameStatus(a, b statusModel) bool {
 	return a.Folder == b.Folder && a.Branch == b.Branch && a.Add == b.Add && a.Del == b.Del &&
-		a.Update == b.Update && a.Agents == b.Agents && a.Waiting == b.Waiting && a.MemMB == b.MemMB &&
+		a.Update == b.Update && a.Agents == b.Agents && a.Waiting == b.Waiting &&
+		a.Resources.Total == b.Resources.Total && a.Resources.Partial == b.Resources.Partial &&
 		a.Tabs == b.Tabs && a.Notice == b.Notice && slices.Equal(a.Servers, b.Servers) && slices.Equal(a.Usage, b.Usage)
 }
 

@@ -383,3 +383,14 @@ func (s *Session) Foreground() int {
 
 // OutputSeq counts the reads of program output; it moves whenever the tab printed.
 func (s *Session) OutputSeq() uint64 { return s.outSeq.Load() }
+
+// RootPID is the shell process that owns this terminal, or zero if unavailable.
+func (s *Session) RootPID() int {
+	if s.closed.Load() {
+		return 0
+	}
+	if r, ok := s.pty.(ptyx.Rooter); ok {
+		return r.RootPID()
+	}
+	return 0
+}

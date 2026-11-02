@@ -9,6 +9,38 @@ import (
 	"github.com/patrick-gogo/kaze-terminal/internal/workspaces"
 )
 
+func TestClosedWorkspaceMemberIsStoppedAndCountsDown(t *testing.T) {
+	for _, state := range []workspaces.TabState{workspaces.Launched, workspaces.Waiting, workspaces.NeedsConfirmation, workspaces.Cancelled, workspaces.Failed} {
+		win, _ := sideWindow(t, true)
+		openMember(t, win, "WEB + API")
+		closed := openMember(t, win, "claude")
+		for _, m := range win.runs[1].members {
+			m.run = workspaces.TabRun{Line: "command", State: workspaces.Launched}
+		}
+		win.runs[1].members[1].run.State = state
+		win.mgr.Close(closed.ID)
+		runs := win.sideRuns()
+		if len(runs) != 1 || runs[0].Down != 1 {
+			t.Fatalf("closed member must count down: %+v", runs)
+		}
+		mem := runs[0].Members[1]
+		want := "stopped"
+		if state == workspaces.Failed {
+			want = "Failed"
+		}
+		if mem.Status != want || !mem.Down {
+			t.Fatalf("closed member: %+v, want %s and down", mem, want)
+		}
+		if got := serversCount(win.statusModel(time.Now()).Servers); got != "1/2" {
+			t.Fatalf("workspace count %q, want 1/2", got)
+		}
+		win.mgr.Close(win.runs[1].members[0].tab)
+		if len(win.sideRuns()) != 0 {
+			t.Fatal("fully closed run remains visible")
+		}
+	}
+}
+
 func sideTab(id tabs.TabID, title string) *tabs.Tab { return &tabs.Tab{ID: id, Title: title} }
 
 // sideIn builds an input where locs maps a tab id to its location.

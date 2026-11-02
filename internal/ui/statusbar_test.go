@@ -14,6 +14,7 @@ import (
 	"gioui.org/io/pointer"
 
 	"github.com/patrick-gogo/kaze-terminal/internal/notify"
+	"github.com/patrick-gogo/kaze-terminal/internal/resources"
 	"github.com/patrick-gogo/kaze-terminal/internal/theme"
 	"github.com/patrick-gogo/kaze-terminal/internal/usage"
 )
@@ -27,8 +28,8 @@ func busyModel() statusModel {
 	return statusModel{
 		Folder: "~/projects/todo-api", Branch: "feature/auth", Add: 12, Del: 3, Update: "0.15",
 		Agents: 4, Waiting: 1, Servers: []serverDot{{Up: true}, {Up: true}, {Down: true}},
-		Usage: []usage.Detail{{Key: "5h", Pct: 84, Level: usage.Warn}, {Key: "wk", Pct: 93, Level: usage.Warn}, {Key: "ctx", Pct: 71}},
-		MemMB: 152, Tabs: 7,
+		Usage:     []usage.Detail{{Key: "5h", Pct: 84, Level: usage.Warn}, {Key: "wk", Pct: 93, Level: usage.Warn}, {Key: "ctx", Pct: 71}},
+		Resources: resources.Snapshot{Cores: 8, Total: resources.Value{CPU: 4, CPUValid: true, Bytes: 152 << 20, RAMValid: true}}, Tabs: 7,
 	}
 }
 
@@ -38,7 +39,7 @@ func shown(l statusLayout, g statusGroup) bool { _, ok := l.Groups[g]; return ok
 
 func TestStatusOrderAndSeparators(t *testing.T) {
 	l := statusAt(busyModel(), 1600)
-	order := []statusGroup{grpFolder, grpBranch, grpUpdate, grpAgents, grpServers, grpUsage, grpMem, grpTabs}
+	order := []statusGroup{grpFolder, grpBranch, grpUpdate, grpAgents, grpServers, grpMem, grpUsage, grpTabs}
 	prev := -1
 	for _, g := range order {
 		r, ok := l.Groups[g]
@@ -57,7 +58,7 @@ func TestStatusOrderAndSeparators(t *testing.T) {
 			}
 		}
 	}
-	if len(l.Seps) != 4 { // update, agents, servers, usage, then memory and tabs together
+	if len(l.Seps) != 5 { // update, agents, workspace, resources, usage, and tabs
 		t.Fatalf("%d separators", len(l.Seps))
 	}
 }
@@ -73,19 +74,21 @@ func TestStatusDropOrder(t *testing.T) {
 	for w := 1400; w >= 600; w -= 5 {
 		l := statusAt(m, w)
 		switch {
-		case !l.Compact.UsageLabels && shown(l, grpMem) && shown(l, grpTabs):
+		case shown(l, grpTabs):
 			note("full")
-		case !shown(l, grpTabs) && shown(l, grpMem):
+		case !l.Compact.ResourcesLabel:
 			note("no tabs")
-		case !shown(l, grpMem) && !l.Compact.ServersLabel:
-			note("no mem")
-		case l.Compact.ServersLabel && !l.Compact.UsageLabels:
+		case !l.Compact.ResourcesMeter:
+			note("no resource label")
+		case !l.Compact.ServersLabel:
+			note("no resource meter")
+		case !l.Compact.UsageLabels:
 			note("no servers label")
-		case l.Compact.UsageLabels:
+		default:
 			note("no usage labels")
 		}
 	}
-	want := []string{"full", "no tabs", "no mem", "no servers label", "no usage labels"}
+	want := []string{"full", "no tabs", "no resource label", "no resource meter", "no servers label", "no usage labels"}
 	for i, s := range want {
 		if i >= len(stages) || stages[i] != s {
 			t.Fatalf("stages %v, want them to start %v", stages, want)
@@ -124,8 +127,8 @@ func TestStatusNoticeSurvivesCompaction(t *testing.T) {
 	m := busyModel()
 	m.Notice = "new tab failed: " + strings.Repeat("x", 80)
 	l := statusAt(m, 700)
-	if !shown(l, grpNotice) || shown(l, grpMem) {
-		t.Fatalf("notice kept, memory dropped: %+v", l)
+	if !shown(l, grpNotice) {
+		t.Fatalf("notice must survive compaction: %+v", l)
 	}
 	if l.NoticeText == "" || utf8.RuneCountInString(l.NoticeText) >= utf8.RuneCountInString(m.Notice) {
 		t.Fatalf("notice not shortened: %q", l.NoticeText)
@@ -145,7 +148,7 @@ func TestStatusHiddenGroupsHaveNoHits(t *testing.T) {
 }
 
 func TestStatusHidesEmptyGroups(t *testing.T) {
-	m := statusModel{Folder: "~/x", Branch: "main", MemMB: 10, Tabs: 1}
+	m := statusModel{Folder: "~/x", Branch: "main", Tabs: 1}
 	l := statusAt(m, 1200)
 	var got []statusGroup
 	for g := range l.Groups {
@@ -277,5 +280,19 @@ func TestStatusTextReadableInEveryTheme(t *testing.T) {
 		if r := contrast(c.statusValueColor(), th.UI.Chrome); r < 4.5 {
 			t.Errorf("%s: values %.2f:1 on the bar", th.Key, r)
 		}
+	}
+}
+
+func TestReviewUsageAndTabsHaveSeparator(t *testing.T) {
+	l := statusAt(busyModel(), 1800)
+	a, b := l.Groups[grpUsage], l.Groups[grpTabs]
+	found := false
+	for _, x := range l.Seps {
+		if x >= a.Max.X && x <= b.Min.X {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no separator between usage %v and tabs %v: %+v", a, b, l.Seps)
 	}
 }

@@ -13,3 +13,18 @@ func (s *session) Foreground() int {
 	}
 	return foreground(s.p.Fd())
 }
+
+// Rooter reports the stable shell process, independent of foreground jobs.
+type Rooter interface{ RootPID() int }
+
+func (s *session) RootPID() int {
+	if s.closed.Load() || s.cmd == nil || s.cmd.Process == nil {
+		return 0
+	}
+	select {
+	case <-s.exited:
+		return 0
+	default:
+	}
+	return s.cmd.Process.Pid
+}
