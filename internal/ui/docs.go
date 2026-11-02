@@ -6,7 +6,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/text"
 	"github.com/patrick-gogo/kaze-terminal/internal/gitinfo"
-	"github.com/patrick-gogo/kaze-terminal/internal/input"
 	"github.com/patrick-gogo/kaze-terminal/internal/mdoc"
 	"github.com/patrick-gogo/kaze-terminal/internal/tabs"
 	"golang.org/x/image/math/fixed"
@@ -30,6 +29,7 @@ type docView struct {
 	anchor                        string
 }
 type docsState struct {
+	hits        docHits
 	adv         map[docAdvKey]fixed.Int26_6
 	shaper      *text.Shaper
 	texts       []string
@@ -173,11 +173,9 @@ func (win *window) docEvents(gtx layout.Context) {
 		}
 		switch e := ev.(type) {
 		case key.Event:
-			if e.State == key.Press {
-				if a, ok := win.km[input.Shortcut{Name: e.Name, Mods: e.Modifiers}]; ok {
-					win.runShortcut(gtx, a)
-				}
-			}
+			win.docKey(gtx, e)
+		case pointer.Event:
+			win.docPointer(gtx, e)
 		case key.EditEvent:
 			gtx.Execute(key.SnippetCmd{Tag: tag})
 			gtx.Execute(key.SelectionCmd{Tag: tag})

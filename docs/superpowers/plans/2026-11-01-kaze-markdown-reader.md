@@ -510,7 +510,7 @@ func TestDrawDocInEveryTheme(t *testing.T)               // for each theme.All()
   - `docEvents` keeps its pointer filter at `Press|Scroll` only (never `Move`, `Enter` or `Leave`), so hovering the doc never wakes the window.
   - Hand cursors: `pointer.CursorPointer` areas over the heading entries, inside the page's input area (like `linkCursors`); cursor areas need no frames.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
 
 ```go
 func TestDocKeysScroll(t *testing.T)               // long doc drawn at 900x600; Down → scroll 40; PageDown → +view-40; End → scrollMax; Home → 0
@@ -522,10 +522,10 @@ func TestDocShortcutsStillRun(t *testing.T)        // docKey with the new_tab sh
 func TestDocViewTakesKeysInAFrame(t *testing.T)    // sideWindow + input.Router: openDoc, sizedFrame (focus moves), queue key.Event{Name: key.NameDownArrow, State: key.Press}, sizedFrame → d.scroll == 40 and the session's PTY got nothing
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/ui/ -run 'DocKeys|DocWheel|Outline|DocShortcuts|DocViewTakes' -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** per the Interfaces.
-- [ ] **Step 4: Run** `go test ./internal/ui/ -run 'Doc|Outline' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(ui): Add the doc outline and keyboard scrolling`
+- [x] **Step 2: Run** `go test ./internal/ui/ -run 'DocKeys|DocWheel|Outline|DocShortcuts|DocViewTakes' -v`. Expected: FAIL.
+- [x] **Step 3: Implement** per the Interfaces.
+- [x] **Step 4: Run** `go test ./internal/ui/ -run 'Doc|Outline' -v`, then `go test ./... && go vet ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(ui): Add the doc outline and keyboard scrolling`
 
 ### Task 9: Links inside a doc
 

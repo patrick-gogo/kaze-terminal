@@ -19,6 +19,10 @@ func (win *window) drawDoc(gtx layout.Context, d *docView, r image.Rectangle) {
 	defer area.Pop()
 	event.Op(ops, &win.docs.tag)
 	win.docs.texts = win.docs.texts[:0]
+	original := r
+	if r.Dx() >= gtx.Dp(600) {
+		r.Min.X += min(gtx.Dp(220), r.Dx()/3)
+	}
 	pad := min(gtx.Dp(36), max(0, (r.Dx()-1)/4))
 	width := max(1, min(r.Dx()-2*pad, gtx.Dp(720)))
 	x := r.Min.X + (r.Dx()-width)/2
@@ -41,6 +45,9 @@ func (win *window) drawDoc(gtx layout.Context, d *docView, r image.Rectangle) {
 	l := win.layoutDoc(gtx, d, width)
 	d.scroll = min(max(d.scroll, 0), max(0, l.height-(r.Max.Y-y)))
 	view := image.Rect(x, y, x+width, r.Max.Y)
+	win.docs.hits.view = view
+	win.docs.hits.scrollMax = max(0, l.height-view.Dy())
+	win.drawDocOutline(gtx, d, original)
 	cl := clip.Rect(view).Push(ops)
 	defer cl.Pop()
 	offset := image.Pt(x, y-d.scroll)
