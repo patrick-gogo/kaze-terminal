@@ -420,7 +420,7 @@ func TestDocRowHoverRedrawsOnlyOnChange(t *testing.T)      // like TestHoverInva
 - Produces (package `mdoc`):
   - `type Style uint8` with `Bold, Italic, Code, Strike Style = 1 << iota` (bits).
   - `type Span struct { Text string; Style Style; Link string }` (`Link` is the destination as written, `""` for none; a hard line break is a `"\n"` span; a soft break is a space).
-  - `type Kind uint8` with `Heading Kind = iota + 1, Para, CodeBlock, Item, TableBlock, Rule`.
+  - `type Kind uint8` with `HeadingBlock Kind = iota + 1, Para, CodeBlock, Item, TableBlock, Rule`.
   - `type Block struct { Kind Kind; Level, Indent, Quote int; Marker string; Task int8; Spans []Span; Code string; Table *Table; Slug string }`. `Level` 1..6 for headings. `Indent` is list depth (0 at the top). `Quote` is block-quote depth. `Indent` and `Quote` are capped at `MaxDepth = 8`. An `Item` is a list item's first paragraph with `Marker` (`"•"` or `"<n>."`, numbering from the list's start) and `Task` (0 none, 1 open, 2 done, marker then `""`); its later paragraphs and nested code are `Para`/`CodeBlock` blocks at the same `Indent`. `Code` has no trailing newline.
   - `type Align uint8` with `AlignNone, AlignLeft, AlignCenter, AlignRight`; `type Table struct { Align []Align; Rows [][][]Span }` (`Rows[0]` is the header).
   - `type Heading struct { Level int; Text, Slug string; Block int }`; `type Doc struct { Blocks []Block; Outline []Heading }`.
@@ -428,13 +428,13 @@ func TestDocRowHoverRedrawsOnlyOnChange(t *testing.T)      // like TestHoverInva
   - `func Slug(text string) string`: GitHub style: lowercase, keep letters, digits, `-`, `_`; spaces become `-`; everything else dropped. `Parse` dedupes like GitHub: `intro`, `intro-1`, `intro-2`.
   - `type TargetKind uint8` with `TargetNone, TargetWeb, TargetDoc, TargetAnchor`; `type Target struct { Kind TargetKind; URL, Path, Anchor string }`; `func Classify(dest string) Target`: `http`/`https` (any case) → Web; `#x` → Anchor `x`; no scheme (or a one-letter scheme followed by `\` or `/`, a drive) with a path part (before `#`, `url.PathUnescape`d) where `IsMarkdown` → Doc with `Path` and `Anchor`; everything else (`mailto:`, `file:`, `javascript:`, `x.go`) → None.
 
-- [ ] **Step 1: Write the failing tests** (table style; compare with `reflect.DeepEqual` or field checks):
+- [x] **Step 1: Write the failing tests** (table style; compare with `reflect.DeepEqual` or field checks):
 
 ```go
 func TestParseHeadingsAndOutline(t *testing.T)  // "# A\n## B\n### B\n" → 3 Heading blocks Level 1,2,3; Outline slugs "a","b","b-1", Block indexes 0,1,2
 func TestParseInlineStyles(t *testing.T)        // "a **b** *c* `d` ~~e~~ [f](x.md) <https://g.io>" → spans with Bold, Italic, Code, Strike, Link "x.md", Link "https://g.io"
 func TestParseNestedListsAndNumbering(t *testing.T) // "3. one\n4. two\n   - deep\n" → Items Marker "3.","4.", "•" with Indent 0,0,1
-func TestParseTaskList(t *testing.T)            // "- [ ] a\n- [x] b\n" → Task 1 and 2, Marker ""
+func TestParseTaskList(t *testing.T)            // "- [x] a\n- [x] b\n" → Task 1 and 2, Marker ""
 func TestParseBlockquote(t *testing.T)          // "> a\n>> b\n" → Para Quote 1, Para Quote 2
 func TestParseCodeBlocks(t *testing.T)          // fenced "```go\nx := 1\n```" and 4-space indented → CodeBlock with Code "x := 1"
 func TestParseTable(t *testing.T)               // "| a | b |\n|:--|--:|\n| 1 | 2 |" → Table Align [Left, Right], 2 rows, cell spans "a","b","1","2"
@@ -444,10 +444,10 @@ func TestSlugGitHubStyle(t *testing.T)          // "Hello, World!" → "hello-wo
 func TestClassifyTargets(t *testing.T)          // "https://a.io"→Web; "HTTP://A.IO"→Web; "#intro"→Anchor; "../x.md"→Doc; "other.md#plan-1"→Doc+Anchor; "my%20doc.md"→Doc "my doc.md"; `C:\a\b.md`→Doc; "mailto:a@b.c","file:///x.md","javascript:x","main.go",""→None
 ```
 
-- [ ] **Step 2: Run** `go test ./internal/mdoc/ -v`. Expected: FAIL (undefined `Parse`, `Slug`, `Classify`).
-- [ ] **Step 3: Add goldmark and implement.** `go get github.com/yuin/goldmark@latest && go mod tidy`. Track list depth and quote depth on a stack while walking; append blocks on `entering` for leaf blocks and collect inline spans with the current style bits.
-- [ ] **Step 4: Run** `go test ./internal/mdoc/ -v && go vet ./... && go build ./...`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(mdoc): Parse markdown with goldmark into blocks and an outline`
+- [x] **Step 2: Run** `go test ./internal/mdoc/ -v`. Expected: FAIL (undefined `Parse`, `Slug`, `Classify`).
+- [x] **Step 3: Add goldmark and implement.** `go get github.com/yuin/goldmark@latest && go mod tidy`. Track list depth and quote depth on a stack while walking; append blocks on `entering` for leaf blocks and collect inline spans with the current style bits.
+- [x] **Step 4: Run** `go test ./internal/mdoc/ -v && go vet ./... && go build ./...`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(mdoc): Parse markdown with goldmark into blocks and an outline`
 
 ### Task 7: Lay out and draw the document column
 
@@ -638,3 +638,5 @@ Expected: tests and vet PASS; both builds succeed. (Delete the local `kaze` bina
 - [ ] **Step 4: Manual check for the owner** (write this list into the PR description; do not drive the GUI with injected input): in a kaze tab run `printf 'see docs/superpowers/specs/2026-11-01-kaze-markdown-reader-design.md\n'` in the repo; the path is blue and underlined; Cmd+click opens it under that session; the outline highlights while scrolling; clicking the session row returns to the terminal; edit the file in another tab and watch it reload; Cmd+W closes the row; try all five themes.
 - [ ] **Step 5: Commit** `docs(reader): Describe the markdown reader`
 - [ ] **Step 6:** Push the branch (`git push -u origin feat/markdown-reader`) and open a PR to `main` only when the owner asks. No release PR, tag or version bump (release hold).
+
+Implementation note: goldmark v1.8.7; block kind `HeadingBlock` avoids the Go name collision with outline type `Heading`. Task 11 is deferred to issue #85 by owner instruction.
