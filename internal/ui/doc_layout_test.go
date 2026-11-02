@@ -94,3 +94,10 @@ func TestDocKeepsCodeAndHardBreakLines(t *testing.T) {
 		t.Fatalf("newlines lost: %+v", l.lines)
 	}
 }
+
+func TestDocCodeTabIndentation(t *testing.T) {
+	_, d := layoutTestDoc(t, "```go\nfirst()\n\tsecond()\n```")
+	if d.doc.Blocks[0].Code != "first()\n    second()" {
+		t.Fatalf("code indent changed: %q", d.doc.Blocks[0].Code)
+	}
+}

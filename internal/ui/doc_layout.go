@@ -117,7 +117,7 @@ func (win *window) fitDoc(d *mdoc.Doc) {
 			b.Spans[i].Text = fit(b.Spans[i].Text)
 		}
 		if b.Code != "" {
-			b.Code = fit(b.Code)
+			b.Code = fit(strings.ReplaceAll(b.Code, "	", "    "))
 		}
 		if b.Table != nil {
 			for r := range b.Table.Rows {
