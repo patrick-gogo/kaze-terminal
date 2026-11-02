@@ -85,4 +85,3 @@ func (n nativeProvider) Read(p Process) (Reading, error) {
 	}
 	return Reading{At: at, CPU: time.Duration(nanos), Bytes: uint64(r.ri_phys_footprint), CPUValid: n.denom != 0, RAMValid: true}, nil
 }
-func MemoryMeaning() string { return "RAM: physical footprint, including compressed memory." }

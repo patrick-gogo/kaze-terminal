@@ -12,4 +12,3 @@ func (nativeProvider) List() ([]Process, bool, error) {
 	return nil, false, errors.New("resource measurement unavailable on this platform")
 }
 func (nativeProvider) Read(Process) (Reading, error) { return Reading{}, errors.New("unavailable") }
-func MemoryMeaning() string                          { return "Process RAM measurement unavailable on this platform." }

@@ -91,4 +91,3 @@ func (nativeProvider) Read(p Process) (Reading, error) {
 	}
 	return r, nil
 }
-func MemoryMeaning() string { return "RAM: private committed bytes; may include paged-out memory." }
